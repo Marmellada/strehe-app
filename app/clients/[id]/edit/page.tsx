@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
-import ClientLocationFields from "../../ClientLocationFields";
-import ClientTypeFields from "../../ClientTypeFields";
+
 
 async function updateClient(id: string, formData: FormData) {
   "use server";
@@ -113,24 +112,60 @@ export default async function EditClientPage({
         style={{ display: "grid", gap: 12, maxWidth: 740 }}
       >
         <div className="grid-2">
-          <ClientTypeFields
-            defaultClientType={client.client_type}
-            defaultFullName={client.full_name || ""}
-            defaultCompanyName={client.company_name || ""}
-            defaultContactPerson={client.contact_person || ""}
-          />
+          <label className="field">
+            Client Type
+            <select
+              name="client_type"
+              className="input"
+              defaultValue={client.client_type}
+              required
+            >
+              <option value="individual">Individual</option>
+              <option value="business">Business</option>
+            </select>
+          </label>
+
+          <label className="field">
+            Status
+            <select
+              name="status"
+              className="input"
+              defaultValue={client.status}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
         </div>
 
         <label className="field">
-          Status
-          <select
-            name="status"
+          Full Name
+          <input
+            name="full_name"
             className="input"
-            defaultValue={client.status}
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+            defaultValue={client.full_name || ""}
+            placeholder="For individuals"
+          />
+        </label>
+
+        <label className="field">
+          Company Name
+          <input
+            name="company_name"
+            className="input"
+            defaultValue={client.company_name || ""}
+            placeholder="For businesses"
+          />
+        </label>
+
+        <label className="field">
+          Contact Person
+          <input
+            name="contact_person"
+            className="input"
+            defaultValue={client.contact_person || ""}
+            placeholder="For businesses"
+          />
         </label>
 
         <div className="grid-2">
