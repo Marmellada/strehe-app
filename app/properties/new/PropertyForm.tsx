@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AddressFields from "../components/AddressFields";
 
 type Municipality = {
@@ -36,6 +37,11 @@ export default function PropertyForm({
   createProperty,
 }: PropertyFormProps) {
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState("");
+  const searchParams = useSearchParams();
+
+  const preselectedOwnerId = useMemo(() => {
+    return searchParams.get("owner_client_id") || "";
+  }, [searchParams]);
 
   return (
     <form action={createProperty} className="space-y-6">
@@ -69,11 +75,12 @@ export default function PropertyForm({
           name="owner_client_id"
           className="input"
           required
-          defaultValue=""
+          defaultValue={preselectedOwnerId}
         >
           <option value="" disabled>
             Select owner
           </option>
+
           {clients.map((client) => {
             const label = client.company_name || client.full_name || client.id;
 

@@ -45,7 +45,7 @@ async function createProperty(formData: FormData) {
     address_line_2: address_line_2 || null,
     country: country || "Kosovo",
     property_type: property_type || null,
-    status: status || null,
+    status: status || "active",
   });
 
   if (error) {
@@ -55,12 +55,32 @@ async function createProperty(formData: FormData) {
   redirect("/properties");
 }
 
+type ClientOption = {
+  id: string;
+  full_name: string | null;
+  company_name: string | null;
+  client_type?: string | null;
+  status?: string | null;
+};
+
+type Municipality = {
+  id: string;
+  name: string;
+};
+
+type LocationOption = {
+  id: string;
+  name: string;
+  type: "neighborhood" | "village" | "other";
+  municipality_id: string;
+};
+
 export default async function NewPropertyPage() {
-  const [{ data: clients, error: clientsError }, { data: municipalities, error: municipalitiesError }, { data: locations, error: locationsError }] =
+  const [clientsResult, municipalitiesResult, locationsResult] =
     await Promise.all([
       supabase
         .from("clients")
-        .select("id, full_name, company_name")
+        .select("id, full_name, company_name, client_type, status")
         .order("created_at", { ascending: false }),
       supabase
         .from("municipalities")
@@ -72,35 +92,155 @@ export default async function NewPropertyPage() {
         .order("name", { ascending: true }),
     ]);
 
-  const loadError = clientsError || municipalitiesError || locationsError;
+  const loadError =
+    clientsResult.error || municipalitiesResult.error || locationsResult.error;
+
+  const clients = (clientsResult.data || []) as ClientOption[];
+  const municipalities = (municipalitiesResult.data || []) as Municipality[];
+  const locations = (locationsResult.data || []) as LocationOption[];
+
+  const activeClients = clients.filter((client) => client.status !== "inactive");
+  const inactiveClients = clients.filter((client) => client.status === "inactive");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+    <main style={{ display: "grid", gap: 20 }}>
+      <section
+        className="row"
+        style={{ justifyContent: "space-between", alignItems: "center" }}
+      >
         <div>
-          <h1 className="page-title">New Property</h1>
-          <p className="page-subtitle">Create a new property record.</p>
+          <h1 style={{ margin: 0, fontSize: 28 }}>New Property</h1>
+          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
+            Create a property and assign it to a client owner
+          </p>
         </div>
 
         <Link href="/properties" className="btn btn-ghost">
-          Back
+          Back to Properties
         </Link>
-      </div>
+      </section>
 
-      <div className="card">
-        {loadError ? (
-          <p className="text-red-600">
-            Failed to load form data: {loadError.message}
-          </p>
-        ) : (
-          <PropertyForm
-            clients={clients || []}
-            municipalities={municipalities || []}
-            locations={locations || []}
-            createProperty={createProperty}
-          />
-        )}
-      </div>
-    </div>
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.2fr 0.8fr",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        <div className="card">
+          {loadError ? (
+            <p style={{ color: "crimson", margin: 0 }}>
+              Failed to load form data: {loadError.message}
+            </p>
+          ) : (
+            <PropertyForm
+              clients={activeClients}
+              municipalities={municipalities}
+              locations={locations}
+              createProperty={createProperty}
+            />
+          )}
+        </div>
+
+        <div className="card" style={{ display: "grid", gap: 16 }}>
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Creation Tips</h3>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  1. Select the owner first
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  Every property should be connected to a client so ownership is
+                  clear from the start.
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  2. Choose the correct municipality and location
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  The selected location must belong to the chosen municipality.
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  3. Keep the title easy to recognize
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  Example: “Apartment in Prishtina Center” or “House in Peja”.
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  4. Use Active as the default status
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  You can change the status later if the property becomes vacant
+                  or inactive.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Client Summary</h3>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Available Clients</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {activeClients.length}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Inactive Clients</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {inactiveClients.length}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Municipalities</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {municipalities.length}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Locations</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {locations.length}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Quick Actions</h3>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <Link href="/clients/new" className="btn btn-ghost">
+                + Add New Client First
+              </Link>
+
+              <Link href="/clients" className="btn btn-ghost">
+                View Clients
+              </Link>
+
+              <Link href="/properties" className="btn btn-ghost">
+                Back to Property List
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

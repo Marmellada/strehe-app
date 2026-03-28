@@ -48,7 +48,7 @@ async function updateProperty(formData: FormData) {
       address_line_2: address_line_2 || null,
       country: country || "Kosovo",
       property_type: property_type || null,
-      status: status || null,
+      status: status || "active",
     })
     .eq("id", id);
 
@@ -59,6 +59,40 @@ async function updateProperty(formData: FormData) {
   redirect(`/properties/${id}`);
 }
 
+type PropertyRecord = {
+  id: string;
+  property_code: string | null;
+  title: string | null;
+  owner_client_id: string | null;
+  municipality_id: string | null;
+  location_id: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  country: string | null;
+  property_type: string | null;
+  status: string | null;
+};
+
+type ClientOption = {
+  id: string;
+  full_name: string | null;
+  company_name: string | null;
+  client_type?: string | null;
+  status?: string | null;
+};
+
+type Municipality = {
+  id: string;
+  name: string;
+};
+
+type LocationOption = {
+  id: string;
+  name: string;
+  type: "neighborhood" | "village" | "other";
+  municipality_id: string;
+};
+
 export default async function EditPropertyPage({
   params,
 }: {
@@ -66,79 +100,202 @@ export default async function EditPropertyPage({
 }) {
   const { id } = await params;
 
-  const [
-    { data: property, error: propertyError },
-    { data: clients, error: clientsError },
-    { data: municipalities, error: municipalitiesError },
-    { data: locations, error: locationsError },
-  ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(`
-        id,
-        property_code,
-        title,
-        owner_client_id,
-        municipality_id,
-        location_id,
-        address_line_1,
-        address_line_2,
-        country,
-        property_type,
-        status
-      `)
-      .eq("id", id)
-      .single(),
-    supabase
-      .from("clients")
-      .select("id, full_name, company_name")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("municipalities")
-      .select("id, name")
-      .order("name", { ascending: true }),
-    supabase
-      .from("locations")
-      .select("id, name, type, municipality_id")
-      .order("name", { ascending: true }),
-  ]);
+  const [propertyResult, clientsResult, municipalitiesResult, locationsResult] =
+    await Promise.all([
+      supabase
+        .from("properties")
+        .select(
+          `
+          id,
+          property_code,
+          title,
+          owner_client_id,
+          municipality_id,
+          location_id,
+          address_line_1,
+          address_line_2,
+          country,
+          property_type,
+          status
+        `
+        )
+        .eq("id", id)
+        .single(),
+      supabase
+        .from("clients")
+        .select("id, full_name, company_name, client_type, status")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("municipalities")
+        .select("id, name")
+        .order("name", { ascending: true }),
+      supabase
+        .from("locations")
+        .select("id, name, type, municipality_id")
+        .order("name", { ascending: true }),
+    ]);
 
-  if (propertyError || !property) {
+  if (propertyResult.error || !propertyResult.data) {
     return notFound();
   }
 
-  const loadError = clientsError || municipalitiesError || locationsError;
+  const loadError =
+    clientsResult.error || municipalitiesResult.error || locationsResult.error;
+
+  const property = propertyResult.data as PropertyRecord;
+  const clients = (clientsResult.data || []) as ClientOption[];
+  const municipalities = (municipalitiesResult.data || []) as Municipality[];
+  const locations = (locationsResult.data || []) as LocationOption[];
+
+  const activeClients = clients.filter((client) => client.status !== "inactive");
+  const inactiveClients = clients.filter((client) => client.status === "inactive");
+
+  const currentOwner =
+    activeClients.find((client) => client.id === property.owner_client_id) ||
+    inactiveClients.find((client) => client.id === property.owner_client_id);
+
+  const currentOwnerName =
+    currentOwner?.company_name ||
+    currentOwner?.full_name ||
+    "No owner assigned";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+    <main style={{ display: "grid", gap: 20 }}>
+      <section
+        className="row"
+        style={{ justifyContent: "space-between", alignItems: "center" }}
+      >
         <div>
-          <h1 className="page-title">Edit Property</h1>
-          <p className="page-subtitle">
-            Update property details for {property.property_code || property.id}
+          <h1 style={{ margin: 0, fontSize: 28 }}>Edit Property</h1>
+          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
+            Update property details for{" "}
+            {property.property_code || property.title || property.id}
           </p>
         </div>
 
         <Link href={`/properties/${property.id}`} className="btn btn-ghost">
-          Back
+          Back to Property
         </Link>
-      </div>
+      </section>
 
-      <div className="card">
-        {loadError ? (
-          <p className="text-red-600">
-            Failed to load form data: {loadError.message}
-          </p>
-        ) : (
-          <PropertyEditForm
-            property={property}
-            clients={clients || []}
-            municipalities={municipalities || []}
-            locations={locations || []}
-            updateProperty={updateProperty}
-          />
-        )}
-      </div>
-    </div>
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.2fr 0.8fr",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        <div className="card">
+          {loadError ? (
+            <p style={{ color: "crimson", margin: 0 }}>
+              Failed to load form data: {loadError.message}
+            </p>
+          ) : (
+            <PropertyEditForm
+              property={property}
+              clients={activeClients}
+              municipalities={municipalities}
+              locations={locations}
+              updateProperty={updateProperty}
+            />
+          )}
+        </div>
+
+        <div className="card" style={{ display: "grid", gap: 16 }}>
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Current Summary</h3>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Property Code</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {property.property_code || "-"}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Title</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {property.title || "-"}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Current Owner</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {currentOwnerName}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Status</div>
+                <div style={{ marginTop: 4, fontWeight: 600 }}>
+                  {property.status || "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Editing Tips</h3>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  1. Change owner carefully
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  Reassigning the owner changes the relationship shown on both
+                  the property and client pages.
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  2. Keep municipality and location aligned
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  The location must belong to the selected municipality.
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  3. Update status when needed
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.75 }}>
+                  Use Active, Vacant, or Inactive to reflect the current state
+                  of the property.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Quick Actions</h3>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <Link href={`/properties/${property.id}`} className="btn btn-primary">
+                View Property
+              </Link>
+
+              {property.owner_client_id ? (
+                <Link
+                  href={`/clients/${property.owner_client_id}`}
+                  className="btn btn-ghost"
+                >
+                  View Current Owner
+                </Link>
+              ) : null}
+
+              <Link href="/properties" className="btn btn-ghost">
+                Back to Property List
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

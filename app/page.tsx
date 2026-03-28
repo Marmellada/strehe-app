@@ -1,304 +1,256 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "-";
-
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (l: string) => l.toUpperCase());
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatPrice(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return "-";
-
-  const num = typeof value === "number" ? value : Number(value);
-
-  if (Number.isNaN(num)) return "-";
-
-  return `€${num.toFixed(2)}`;
-}
-
 export default async function DashboardPage() {
-  const today = new Date().toISOString().slice(0, 10);
-
   const [
-    { count: openTasksCount },
-    { count: overdueTasksCount },
-    { count: activeSubscriptionsCount },
-    { count: activePackagesCount },
-    { data: revenueData },
-    { data: recentTasks },
-    { data: recentSubscriptions },
+    totalClientsResult,
+    activeClientsResult,
+    totalPropertiesResult,
+    activePropertiesResult,
+    vacantPropertiesResult,
+    recentClientsResult,
+    recentPropertiesResult,
   ] = await Promise.all([
+    supabase.from("clients").select("*", { count: "exact", head: true }),
     supabase
-      .from("tasks")
-      .select("*", { count: "exact", head: true })
-      .in("status", ["open", "in_progress"]),
-
-    supabase
-      .from("tasks")
-      .select("*", { count: "exact", head: true })
-      .in("status", ["open", "in_progress"])
-      .lt("due_date", today),
-
-    supabase
-      .from("subscriptions")
+      .from("clients")
       .select("*", { count: "exact", head: true })
       .eq("status", "active"),
-
+    supabase.from("properties").select("*", { count: "exact", head: true }),
     supabase
-      .from("packages")
+      .from("properties")
       .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
-
-    supabase
-      .from("subscriptions")
-      .select("monthly_price")
       .eq("status", "active"),
-
     supabase
-      .from("tasks")
-      .select(`
-        id,
-        title,
-        status,
-        priority,
-        due_date,
-        property:properties!tasks_property_fk (
-          id,
-          title,
-          property_code
-        ),
-        service:services!tasks_service_fk (
-          id,
-          name
-        )
-      `)
-      .order("created_at", { ascending: false })
+      .from("properties")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "vacant"),
+    supabase
+      .from("clients")
+      .select("id, client_type, full_name, company_name, status")
+      .order("id", { ascending: false })
       .limit(5),
-
     supabase
-      .from("subscriptions")
-      .select(`
-        id,
-        start_date,
-        status,
-        monthly_price,
-        client:clients!subscriptions_client_fk (
-          id,
-          full_name,
-          company_name
-        ),
-        property:properties!subscriptions_property_fk (
-          id,
-          title,
-          property_code
-        ),
-        package:packages!subscriptions_package_fk (
-          id,
-          name
-        )
-      `)
-      .order("created_at", { ascending: false })
+      .from("properties")
+      .select("id, title, property_code, status")
+      .order("id", { ascending: false })
       .limit(5),
   ]);
 
-  const monthlyRevenue =
-    revenueData?.reduce((sum: number, subscription: any) => {
-      const value = Number(subscription.monthly_price || 0);
-      return sum + (Number.isNaN(value) ? 0 : value);
-    }, 0) || 0;
-
-  const upcomingDeadlines =
-    recentTasks?.filter((task: any) => task.due_date).slice(0, 5) || [];
+  const recentClients = recentClientsResult.data || [];
+  const recentProperties = recentPropertiesResult.data || [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Overview of operations and subscriptions</p>
-      </div>
+    <main style={{ display: "grid", gap: 20 }}>
+      <section
+        className="row"
+        style={{ justifyContent: "space-between", alignItems: "center" }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 30 }}>Dashboard</h1>
+          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
+            Quick overview of clients and properties
+          </p>
+        </div>
 
-      <div className="grid grid-4 gap-4">
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href="/clients/new" className="btn btn-primary">
+            + New Client
+          </Link>
+          <Link href="/properties/new" className="btn btn-ghost">
+            + New Property
+          </Link>
+        </div>
+      </section>
+
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
         <div className="card">
-          <p className="field-label">Open Tasks</p>
-          <p className="text-2xl font-semibold">{openTasksCount ?? 0}</p>
+          <div style={{ fontSize: 13, opacity: 0.7 }}>Total Clients</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            {totalClientsResult.count ?? 0}
+          </div>
         </div>
 
         <div className="card">
-          <p className="field-label">Overdue Tasks</p>
-          <p className="text-2xl font-semibold">{overdueTasksCount ?? 0}</p>
+          <div style={{ fontSize: 13, opacity: 0.7 }}>Active Clients</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            {activeClientsResult.count ?? 0}
+          </div>
         </div>
 
         <div className="card">
-          <p className="field-label">Active Subscriptions</p>
-          <p className="text-2xl font-semibold">{activeSubscriptionsCount ?? 0}</p>
+          <div style={{ fontSize: 13, opacity: 0.7 }}>Total Properties</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            {totalPropertiesResult.count ?? 0}
+          </div>
         </div>
 
         <div className="card">
-          <p className="field-label">Active Packages</p>
-          <p className="text-2xl font-semibold">{activePackagesCount ?? 0}</p>
+          <div style={{ fontSize: 13, opacity: 0.7 }}>Active Properties</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            {activePropertiesResult.count ?? 0}
+          </div>
         </div>
 
         <div className="card">
-          <p className="field-label">Monthly Revenue</p>
-          <p className="text-2xl font-semibold">€{monthlyRevenue.toFixed(2)}</p>
+          <div style={{ fontSize: 13, opacity: 0.7 }}>Vacant Properties</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            {vacantPropertiesResult.count ?? 0}
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-2 gap-4">
-        <div className="card space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="section-title">Recent Tasks</h2>
-            <Link href="/tasks" className="text-sm underline">
-              View all
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        <div className="card" style={{ display: "grid", gap: 14 }}>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "center" }}
+          >
+            <h3 style={{ margin: 0 }}>Recent Clients</h3>
+            <Link href="/clients" className="btn btn-ghost">
+              View All
             </Link>
           </div>
 
-          {recentTasks && recentTasks.length > 0 ? (
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Property</th>
-                    <th>Service</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentTasks.map((task: any) => {
-                    const propertyLabel =
-                      task.property?.property_code
-                        ? `${task.property.property_code} - ${task.property?.title || ""}`
-                        : task.property?.title || "-";
-
-                    return (
-                      <tr key={task.id}>
-                        <td>
-                          <Link href={`/tasks/${task.id}`}>
-                            {task.title || "-"}
-                          </Link>
-                        </td>
-                        <td>{propertyLabel}</td>
-                        <td>{task.service?.name || "-"}</td>
-                        <td>{formatLabel(task.status)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {recentClients.length === 0 ? (
+            <p style={{ margin: 0, opacity: 0.75 }}>No clients yet.</p>
           ) : (
-            <p>No recent tasks.</p>
+            <div style={{ display: "grid" }}>
+              {recentClients.map((client, index) => {
+                const name =
+                  client.client_type === "business"
+                    ? client.company_name || "Unnamed business"
+                    : client.full_name || "Unnamed individual";
+
+                return (
+                  <div
+                    key={client.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 12,
+                      padding: "12px 0",
+                      borderTop:
+                        index === 0 ? "none" : "1px solid var(--border)",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{name}</div>
+                      <div style={{ fontSize: 13, opacity: 0.7 }}>
+                        {client.client_type === "business"
+                          ? "Business"
+                          : "Individual"}{" "}
+                        • {client.status || "Unknown"}
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/clients/${client.id}`}
+                      className="btn btn-ghost"
+                    >
+                      View
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        <div className="card space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="section-title">Recent Subscriptions</h2>
-            <Link href="/subscriptions" className="text-sm underline">
-              View all
+        <div className="card" style={{ display: "grid", gap: 14 }}>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "center" }}
+          >
+            <h3 style={{ margin: 0 }}>Recent Properties</h3>
+            <Link href="/properties" className="btn btn-ghost">
+              View All
             </Link>
           </div>
 
-          {recentSubscriptions && recentSubscriptions.length > 0 ? (
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Client</th>
-                    <th>Package</th>
-                    <th>Status</th>
-                    <th>Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSubscriptions.map((subscription: any) => {
-                    const clientName =
-                      subscription.client?.company_name ||
-                      subscription.client?.full_name ||
-                      "-";
-
-                    return (
-                      <tr key={subscription.id}>
-                        <td>
-                          <Link href={`/subscriptions/${subscription.id}`}>
-                            {clientName}
-                          </Link>
-                        </td>
-                        <td>{subscription.package?.name || "-"}</td>
-                        <td>{formatLabel(subscription.status)}</td>
-                        <td>{formatPrice(subscription.monthly_price)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {recentProperties.length === 0 ? (
+            <p style={{ margin: 0, opacity: 0.75 }}>No properties yet.</p>
           ) : (
-            <p>No recent subscriptions.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-2 gap-4">
-        <div className="card space-y-4">
-          <h2 className="section-title">Quick Links</h2>
-
-          <div className="flex flex-wrap gap-2">
-            <Link href="/tasks/create" className="btn">
-              New Task
-            </Link>
-            <Link href="/subscriptions/create" className="btn">
-              New Subscription
-            </Link>
-            <Link href="/services/create" className="btn">
-              New Service
-            </Link>
-            <Link href="/packages/create" className="btn">
-              New Package
-            </Link>
-            <Link href="/properties/create" className="btn">
-              New Property
-            </Link>
-            <Link href="/clients/create" className="btn">
-              New Client
-            </Link>
-          </div>
-        </div>
-
-        <div className="card space-y-4">
-          <h2 className="section-title">Upcoming Deadlines</h2>
-
-          {upcomingDeadlines.length > 0 ? (
-            <div className="space-y-2">
-              {upcomingDeadlines.map((task: any) => (
+            <div style={{ display: "grid" }}>
+              {recentProperties.map((property, index) => (
                 <div
-                  key={task.id}
-                  className="flex items-center justify-between gap-4"
+                  key={property.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 12,
+                    padding: "12px 0",
+                    borderTop:
+                      index === 0 ? "none" : "1px solid var(--border)",
+                    alignItems: "center",
+                  }}
                 >
-                  <Link href={`/tasks/${task.id}`}>{task.title || "-"}</Link>
-                  <span>{formatDate(task.due_date)}</span>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>
+                      {property.title || "Untitled property"}
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.7 }}>
+                      {property.property_code || "No code"} •{" "}
+                      {property.status || "Unknown"}
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/properties/${property.id}`}
+                    className="btn btn-ghost"
+                  >
+                    View
+                  </Link>
                 </div>
               ))}
             </div>
-          ) : (
-            <p>No deadlines yet.</p>
           )}
         </div>
-      </div>
-    </div>
+      </section>
+
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <Link
+          href="/clients"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Clients</h3>
+          <p style={{ margin: 0, opacity: 0.75 }}>
+            View, search, edit, and manage all clients.
+          </p>
+        </Link>
+
+        <Link
+          href="/properties"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Properties</h3>
+          <p style={{ margin: 0, opacity: 0.75 }}>
+            Track properties, locations, and ownership details.
+          </p>
+        </Link>
+      </section>
+    </main>
   );
 }

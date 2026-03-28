@@ -66,6 +66,7 @@ export default async function ClientDetailPage({
   const { id } = await params;
 
   const { data: rawClient, error } = await supabase
+  
     .from("clients")
     .select(
       `
@@ -73,10 +74,19 @@ export default async function ClientDetailPage({
       municipality:municipalities ( id, name ),
       location:locations ( id, name, type )
     `
-    )
+    ) 
     .eq("id", id)
     .maybeSingle();
-
+const { data: properties } = await supabase
+  .from("properties")
+  .select(`
+    id,
+    property_code,
+    title,
+    status
+  `)
+  .eq("owner_client_id", id)
+  .order("created_at", { ascending: false });
   if (error) {
     return <div className="card">Error: {error.message}</div>;
   }
@@ -311,6 +321,64 @@ export default async function ClientDetailPage({
           </div>
         </div>
       </section>
+      <section className="card" style={{ display: "grid", gap: 16 }}>
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <h3 style={{ margin: 0 }}>Owned Properties</h3>
+
+    <Link
+      href={`/properties/new?owner_client_id=${id}`}
+      className="btn btn-primary"
+    >
+      + Add Property
+    </Link>
+  </div>
+
+  {!properties || properties.length === 0 ? (
+    <div style={{ opacity: 0.7 }}>
+      No properties assigned to this client yet.
+    </div>
+  ) : (
+    <div style={{ display: "grid", gap: 10 }}>
+      {properties.map((p: any) => (
+        <Link
+          key={p.id}
+          href={`/properties/${p.id}`}
+          className="card"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            textDecoration: "none",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 600 }}>
+              {p.title || "Untitled Property"}
+            </div>
+
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              {p.property_code || "-"}
+            </div>
+          </div>
+
+          <div
+            style={{
+              fontSize: 12,
+              padding: "4px 8px",
+              borderRadius: 999,
+              background:
+                p.status === "active"
+                  ? "rgba(34,197,94,0.12)"
+                  : "rgba(156,163,175,0.2)",
+            }}
+          >
+            {p.status || "unknown"}
+          </div>
+        </Link>
+      ))}
+    </div>
+  )}
+</section>
     </main>
   );
 }
