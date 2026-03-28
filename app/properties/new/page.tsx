@@ -75,7 +75,14 @@ type LocationOption = {
   municipality_id: string;
 };
 
-export default async function NewPropertyPage() {
+export default async function NewPropertyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ owner_client_id?: string }>;
+}) {
+  const params = await searchParams;
+  const preselectedOwnerId = params.owner_client_id || "";
+
   const [clientsResult, municipalitiesResult, locationsResult] =
     await Promise.all([
       supabase
@@ -139,6 +146,7 @@ export default async function NewPropertyPage() {
               municipalities={municipalities}
               locations={locations}
               createProperty={createProperty}
+              preselectedOwnerId={preselectedOwnerId}
             />
           )}
         </div>
