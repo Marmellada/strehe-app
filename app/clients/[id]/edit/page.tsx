@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
 import ClientLocationFields from "../../ClientLocationFields";
 
-
 async function updateClient(id: string, formData: FormData) {
   "use server";
 
@@ -51,6 +50,35 @@ async function updateClient(id: string, formData: FormData) {
   redirect(`/clients/${id}`);
 }
 
+type Municipality = {
+  id: string;
+  name: string;
+};
+
+type Location = {
+  id: string;
+  name: string;
+  type: string | null;
+  municipality_id: string | null;
+};
+
+type ClientRecord = {
+  id: string;
+  client_type: string | null;
+  full_name: string | null;
+  company_name: string | null;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  country: string | null;
+  municipality_id: string | null;
+  location_id: string | null;
+  notes: string | null;
+  status: string | null;
+};
+
 export default async function EditClientPage({
   params,
 }: {
@@ -58,183 +86,243 @@ export default async function EditClientPage({
 }) {
   const { id } = await params;
 
-  const [
-    { data: client, error: clientError },
-    { data: municipalities, error: municipalitiesError },
-    { data: locations, error: locationsError },
-  ] = await Promise.all([
-    supabase.from("clients").select("*").eq("id", id).maybeSingle(),
-    supabase.from("municipalities").select("id, name").order("name"),
-    supabase
-      .from("locations")
-      .select("id, name, type, municipality_id")
-      .order("name"),
-  ]);
+  const [clientResult, municipalitiesResult, locationsResult] =
+    await Promise.all([
+      supabase.from("clients").select("*").eq("id", id).maybeSingle(),
+      supabase.from("municipalities").select("id, name").order("name"),
+      supabase
+        .from("locations")
+        .select("id, name, type, municipality_id")
+        .order("name"),
+    ]);
 
-  if (clientError) {
-    return <div className="card">Error loading client: {clientError.message}</div>;
-  }
-
-  if (municipalitiesError) {
+  if (clientResult.error) {
     return (
       <div className="card">
-        Error loading municipalities: {municipalitiesError.message}
+        Error loading client: {clientResult.error.message}
       </div>
     );
   }
 
-  if (locationsError) {
+  if (municipalitiesResult.error) {
     return (
       <div className="card">
-        Error loading locations: {locationsError.message}
+        Error loading municipalities: {municipalitiesResult.error.message}
       </div>
     );
   }
+
+  if (locationsResult.error) {
+    return (
+      <div className="card">
+        Error loading locations: {locationsResult.error.message}
+      </div>
+    );
+  }
+
+  const client = clientResult.data as ClientRecord | null;
+  const municipalities = (municipalitiesResult.data || []) as Municipality[];
+  const locations = (locationsResult.data || []) as Location[];
 
   if (!client) {
     return <div className="card">Client not found</div>;
   }
 
   const updateClientWithId = updateClient.bind(null, id);
+  const isBusiness = client.client_type === "business";
 
   return (
-    <main>
-      <div className="row" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Edit Client</h2>
+    <main style={{ display: "grid", gap: 20 }}>
+      <section
+        className="row"
+        style={{ justifyContent: "space-between", alignItems: "center" }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 28 }}>Edit Client</h1>
+          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
+            Update client details and location
+          </p>
+        </div>
 
         <Link href={`/clients/${id}`} className="btn btn-ghost">
           Cancel
         </Link>
-      </div>
+      </section>
 
       <form
         action={updateClientWithId}
         className="card"
-        style={{ display: "grid", gap: 12, maxWidth: 740 }}
+        style={{ display: "grid", gap: 20, maxWidth: 820 }}
       >
-        <div className="grid-2">
-          <label className="field">
-            Client Type
-            <select
-              name="client_type"
-              className="input"
-              defaultValue={client.client_type}
-              required
-            >
-              <option value="individual">Individual</option>
-              <option value="business">Business</option>
-            </select>
-          </label>
+        <section style={{ display: "grid", gap: 12 }}>
+          <h3 style={{ margin: 0 }}>Basic Information</h3>
+
+          <div className="grid-2">
+            <label className="field">
+              Client Type
+              <select
+                name="client_type"
+                className="input"
+                defaultValue={client.client_type || "individual"}
+                required
+              >
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
+              </select>
+            </label>
+
+            <label className="field">
+              Status
+              <select
+                name="status"
+                className="input"
+                defaultValue={client.status || "active"}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+          </div>
 
           <label className="field">
-            Status
-            <select
-              name="status"
-              className="input"
-              defaultValue={client.status}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </label>
-        </div>
-
-        <label className="field">
-          Full Name
-          <input
-            name="full_name"
-            className="input"
-            defaultValue={client.full_name || ""}
-            placeholder="For individuals"
-          />
-        </label>
-
-        <label className="field">
-          Company Name
-          <input
-            name="company_name"
-            className="input"
-            defaultValue={client.company_name || ""}
-            placeholder="For businesses"
-          />
-        </label>
-
-        <label className="field">
-          Contact Person
-          <input
-            name="contact_person"
-            className="input"
-            defaultValue={client.contact_person || ""}
-            placeholder="For businesses"
-          />
-        </label>
-
-        <div className="grid-2">
-          <label className="field">
-            Phone
+            Full Name
             <input
-              name="phone"
+              name="full_name"
               className="input"
-              defaultValue={client.phone || ""}
+              defaultValue={client.full_name || ""}
+              placeholder="For individuals"
             />
           </label>
 
           <label className="field">
-            Email
+            Company Name
             <input
-              name="email"
-              type="email"
+              name="company_name"
               className="input"
-              defaultValue={client.email || ""}
+              defaultValue={client.company_name || ""}
+              placeholder="For businesses"
             />
           </label>
-        </div>
 
-        <label className="field">
-          Address Line 1
-          <input
-            name="address_line_1"
-            className="input"
-            defaultValue={client.address_line_1 || ""}
+          <label className="field">
+            Contact Person
+            <input
+              name="contact_person"
+              className="input"
+              defaultValue={client.contact_person || ""}
+              placeholder="Main contact person"
+            />
+          </label>
+
+          {isBusiness ? (
+            <div
+              style={{
+                fontSize: 13,
+                opacity: 0.7,
+                padding: "8px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+              }}
+            >
+              Business client selected. Company name and contact person should
+              be filled.
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: 13,
+                opacity: 0.7,
+                padding: "8px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+              }}
+            >
+              Individual client selected. Full name should be filled.
+            </div>
+          )}
+        </section>
+
+        <section style={{ display: "grid", gap: 12 }}>
+          <h3 style={{ margin: 0 }}>Contact Details</h3>
+
+          <div className="grid-2">
+            <label className="field">
+              Phone
+              <input
+                name="phone"
+                className="input"
+                defaultValue={client.phone || ""}
+                placeholder="+383..."
+              />
+            </label>
+
+            <label className="field">
+              Email
+              <input
+                name="email"
+                type="email"
+                className="input"
+                defaultValue={client.email || ""}
+                placeholder="name@example.com"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section style={{ display: "grid", gap: 12 }}>
+          <h3 style={{ margin: 0 }}>Address & Location</h3>
+
+          <label className="field">
+            Address Line 1
+            <input
+              name="address_line_1"
+              className="input"
+              defaultValue={client.address_line_1 || ""}
+              placeholder="Street and number"
+            />
+          </label>
+
+          <label className="field">
+            Address Line 2
+            <input
+              name="address_line_2"
+              className="input"
+              defaultValue={client.address_line_2 || ""}
+              placeholder="Apartment, floor, unit, landmark..."
+            />
+          </label>
+
+          <ClientLocationFields
+            municipalities={municipalities}
+            locations={locations}
+            defaultMunicipalityId={client.municipality_id || ""}
+            defaultLocationId={client.location_id || ""}
           />
-        </label>
 
-        <label className="field">
-          Address Line 2
-          <input
-            name="address_line_2"
-            className="input"
-            defaultValue={client.address_line_2 || ""}
-            placeholder="Apartment, floor, unit, landmark..."
-          />
-        </label>
+          <label className="field">
+            Country
+            <input
+              name="country"
+              className="input"
+              defaultValue={client.country || "Kosovo"}
+            />
+          </label>
+        </section>
 
-        <ClientLocationFields
-          municipalities={municipalities || []}
-          locations={locations || []}
-          defaultMunicipalityId={client.municipality_id || ""}
-          defaultLocationId={client.location_id || ""}
-        />
+        <section style={{ display: "grid", gap: 12 }}>
+          <h3 style={{ margin: 0 }}>Notes</h3>
 
-        <label className="field">
-          Country
-          <input
-            name="country"
-            className="input"
-            defaultValue={client.country || "Kosovo"}
-          />
-        </label>
-
-        <label className="field">
-          Notes
-          <textarea
-            name="notes"
-            className="input"
-            rows={4}
-            defaultValue={client.notes || ""}
-            placeholder="Internal notes..."
-          />
-        </label>
+          <label className="field">
+            Internal Notes
+            <textarea
+              name="notes"
+              className="input"
+              rows={4}
+              defaultValue={client.notes || ""}
+              placeholder="Internal notes..."
+            />
+          </label>
+        </section>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <Link href={`/clients/${id}`} className="btn btn-ghost">
