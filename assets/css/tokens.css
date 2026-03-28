@@ -1,0 +1,35 @@
+/* Strehë Admin — Design Tokens (Light + Dark) */
+:root {
+  --brand-blue: #1F4E79;
+  --brand-ochre: #C48A2E;
+  --brand-green: #5E9C49;
+  --brand-danger: #C23B22;
+
+  --neutral-900: #333333;
+  --neutral-700: #6B5F52;
+  --neutral-300: #D9CFBF;
+  --neutral-200: #E9DFCF;
+  --neutral-100: #F8F1E7;
+
+  --bg: var(--neutral-100);
+  --surface: #FFFFFF;
+  --text: var(--neutral-900);
+  --muted: var(--neutral-700);
+  --border: var(--neutral-200);
+  --link: var(--brand-blue);
+
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.06);
+  --focus-ring: 2px solid var(--brand-blue);
+}
+
+.theme-dark {
+  --bg: #111315;
+  --surface: #17191C;
+  --text: #ECECEC;
+  --muted: #B9B3A8;
+  --border: #2A2E33;
+  --link: #7FB7E0;
+  --shadow-sm: none;
+}
