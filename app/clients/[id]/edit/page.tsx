@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
+import ClientLocationFields from "../../ClientLocationFields";
 
 
 async function updateClient(id: string, formData: FormData) {
