@@ -3,14 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import DeletePropertyButton from "./DeletePropertyButton";
 
-async function deleteProperty(formData: FormData) {
+async function deleteProperty(id: string) {
   "use server";
-
-  const id = String(formData.get("id") || "").trim();
-
-  if (!id) {
-    throw new Error("Missing property id.");
-  }
 
   const { error } = await supabase.from("properties").delete().eq("id", id);
 
@@ -22,40 +16,18 @@ async function deleteProperty(formData: FormData) {
 }
 
 type RelatedMunicipality =
-  | {
-      id: string;
-      name: string;
-    }
-  | {
-      id: string;
-      name: string;
-    }[]
+  | { id: string; name: string }
+  | { id: string; name: string }[]
   | null;
 
 type RelatedLocation =
-  | {
-      id: string;
-      name: string;
-      type: string | null;
-    }
-  | {
-      id: string;
-      name: string;
-      type: string | null;
-    }[]
+  | { id: string; name: string; type: string | null }
+  | { id: string; name: string; type: string | null }[]
   | null;
 
 type RelatedClient =
-  | {
-      id: string;
-      full_name: string | null;
-      company_name: string | null;
-    }
-  | {
-      id: string;
-      full_name: string | null;
-      company_name: string | null;
-    }[]
+  | { id: string; full_name: string | null; company_name: string | null }
+  | { id: string; full_name: string | null; company_name: string | null }[]
   | null;
 
 type PropertyRecord = {
@@ -90,46 +62,40 @@ export default async function PropertyDetailPage({
 }: PropertyPageProps) {
   const { id } = await params;
 
-  const { data, error } = await supabase
-    .from("properties")
-    .select(
-      `
-        id,
-        property_code,
-        title,
-        owner_client_id,
-        municipality_id,
-        location_id,
-        address_line_1,
-        address_line_2,
-        country,
-        property_type,
-        status,
-        municipalities (
+  const [{ data, error }, { count: keysCount }] = await Promise.all([
+    supabase
+      .from("properties")
+      .select(
+        `
           id,
-          name
-        ),
-        locations (
-          id,
-          name,
-          type
-        ),
-        clients (
-          id,
-          full_name,
-          company_name
-        )
-      `
-    )
-    .eq("id", id)
-    .single();
+          property_code,
+          title,
+          owner_client_id,
+          municipality_id,
+          location_id,
+          address_line_1,
+          address_line_2,
+          country,
+          property_type,
+          status,
+          municipalities ( id, name ),
+          locations ( id, name, type ),
+          clients ( id, full_name, company_name )
+        `
+      )
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("keys")
+      .select("*", { count: "exact", head: true })
+      .eq("property_id", id),
+  ]);
 
   if (error || !data) {
     return notFound();
   }
 
   const property = data as PropertyRecord;
-
   const municipality = getSingleRelation(property.municipalities);
   const location = getSingleRelation(property.locations);
   const ownerClient = getSingleRelation(property.clients);
@@ -139,212 +105,151 @@ export default async function PropertyDetailPage({
     ownerClient?.full_name ||
     "No owner assigned";
 
+  const deletePropertyWithId = deleteProperty.bind(null, id);
+
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "flex-start" }}
-      >
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 12,
-                border: "1px solid var(--border)",
-                background: "var(--panel)",
-              }}
-            >
-              {property.property_type || "Property"}
-            </span>
+    <main className="space-y-6">
+      <div className="status-row">
+        <span className="badge badge-outline">
+          {property.property_type || "Property"}
+        </span>
+        <span
+          className={`badge ${
+            property.status === "active"
+              ? "badge-success"
+              : property.status === "vacant"
+              ? "badge-warning"
+              : "badge-outline"
+          }`}
+        >
+          {property.status || "Unknown"}
+        </span>
+      </div>
 
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 12,
-                border: "1px solid var(--border)",
-                background:
-                  property.status === "active"
-                    ? "rgba(34,197,94,0.12)"
-                    : property.status === "vacant"
-                      ? "rgba(245,158,11,0.12)"
-                      : "rgba(239,68,68,0.12)",
-              }}
-            >
-              {property.status || "Unknown"}
-            </span>
-          </div>
+      <div>
+        <h1 className="page-title">{property.title || "Untitled Property"}</h1>
+        <p className="page-subtitle mt-2">
+          {property.property_code || "No property code"}
+        </p>
+      </div>
 
-          <h1 style={{ margin: 0, fontSize: 28 }}>
-            {property.title || "Untitled Property"}
-          </h1>
+      <div className="top-actions">
+        <Link href="/properties" className="btn btn-ghost">
+          ← Back to Properties
+        </Link>
 
-          <div style={{ opacity: 0.72 }}>
-            {property.property_code || "No property code"}
-          </div>
+        <Link href={`/properties/${id}/edit`} className="btn btn-primary">
+          Edit Property
+        </Link>
+
+        <Link href={`/properties/${id}/keys`} className="btn btn-ghost">
+          Manage Keys {typeof keysCount === "number" ? `(${keysCount})` : ""}
+        </Link>
+
+        <form action={deletePropertyWithId}>
+          <DeletePropertyButton />
+        </form>
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-4">
+        <div className="card">
+          <span className="field-label">Owner</span>
+          <span className="field-value">{owner}</span>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link href="/properties" className="btn btn-ghost">
-            ← Back to Properties
-          </Link>
+        <div className="card">
+          <span className="field-label">Municipality</span>
+          <span className="field-value">{municipality?.name || "-"}</span>
+        </div>
 
-          <Link
-            href={`/properties/${property.id}/edit`}
-            className="btn btn-primary"
-          >
-            Edit Property
-          </Link>
+        <div className="card">
+          <span className="field-label">Neighborhood / Village</span>
+          <span className="field-value">{location?.name || "-"}</span>
+        </div>
 
-          <form action={deleteProperty}>
-            <input type="hidden" name="id" value={property.id} />
-            <DeletePropertyButton />
-          </form>
+        <div className="card">
+          <span className="field-label">Location Type</span>
+          <span className="field-value">{location?.type || "-"}</span>
         </div>
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-        }}
-      >
+      <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Owner</div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>{owner}</div>
-        </div>
+          <h2 className="section-title">Property Information</h2>
 
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Municipality</div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>
-            {municipality?.name || "-"}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>
-            Neighborhood / Village
-          </div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>
-            {location?.name || "-"}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Location Type</div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>
-            {location?.type || "-"}
-          </div>
-        </div>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 0.8fr",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <div className="card" style={{ display: "grid", gap: 18 }}>
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>
-              Property Information
-            </h3>
-
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Property Code</div>
-                <div style={{ marginTop: 4 }}>{property.property_code || "-"}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Title</div>
-                <div style={{ marginTop: 4 }}>{property.title || "-"}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Property Type</div>
-                <div style={{ marginTop: 4 }}>{property.property_type || "-"}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Status</div>
-                <div style={{ marginTop: 4 }}>{property.status || "-"}</div>
-              </div>
+          <div className="info-stack">
+            <div className="info-row">
+              <span className="field-label">Property Code</span>
+              <span className="field-value">{property.property_code || "-"}</span>
             </div>
-          </div>
 
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Address</h3>
+            <div className="info-row">
+              <span className="field-label">Title</span>
+              <span className="field-value">{property.title || "-"}</span>
+            </div>
 
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Address Line 1</div>
-                <div style={{ marginTop: 4 }}>
-                  {property.address_line_1 || "-"}
-                </div>
-              </div>
+            <div className="info-row">
+              <span className="field-label">Property Type</span>
+              <span className="field-value">{property.property_type || "-"}</span>
+            </div>
 
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Address Line 2</div>
-                <div style={{ marginTop: 4 }}>
-                  {property.address_line_2 || "-"}
-                </div>
-              </div>
+            <div className="info-row">
+              <span className="field-label">Status</span>
+              <span className="field-value">{property.status || "-"}</span>
+            </div>
 
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Country</div>
-                <div style={{ marginTop: 4 }}>{property.country || "-"}</div>
-              </div>
+            <div className="info-row pt-2">
+              <span className="section-title !mb-0 !text-base">Address</span>
+            </div>
+
+            <div className="info-row">
+              <span className="field-label">Address Line 1</span>
+              <span className="field-value">{property.address_line_1 || "-"}</span>
+            </div>
+
+            <div className="info-row">
+              <span className="field-label">Address Line 2</span>
+              <span className="field-value">{property.address_line_2 || "-"}</span>
+            </div>
+
+            <div className="info-row">
+              <span className="field-label">Country</span>
+              <span className="field-value">{property.country || "-"}</span>
             </div>
           </div>
         </div>
 
-        <div className="card" style={{ display: "grid", gap: 18 }}>
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Owner Summary</h3>
+        <div className="card">
+          <h2 className="section-title">Owner Summary</h2>
 
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Assigned Owner</div>
-                <div style={{ marginTop: 4 }}>{owner}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Municipality</div>
-                <div style={{ marginTop: 4 }}>{municipality?.name || "-"}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Location</div>
-                <div style={{ marginTop: 4 }}>{location?.name || "-"}</div>
-              </div>
+          <div className="summary-stack">
+            <div className="summary-item">
+              <span className="field-label">Assigned Owner</span>
+              <span className="field-value">{owner}</span>
             </div>
-          </div>
 
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Actions</h3>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <Link
-                href={`/properties/${property.id}/edit`}
-                className="btn btn-primary"
-              >
-                Edit Property
-              </Link>
-
-              <Link href="/properties/new" className="btn btn-ghost">
-                Add New Property
-              </Link>
-
-              <Link href="/properties" className="btn btn-ghost">
-                Back to List
-              </Link>
+            <div className="summary-item">
+              <span className="field-label">Municipality</span>
+              <span className="field-value">{municipality?.name || "-"}</span>
             </div>
+
+            <div className="summary-item">
+              <span className="field-label">Location</span>
+              <span className="field-value">{location?.name || "-"}</span>
+            </div>
+
+            <div className="summary-item">
+              <span className="field-label">Tracked Keys</span>
+              <span className="field-value">{keysCount || 0}</span>
+            </div>
+
+            {ownerClient?.id ? (
+              <div className="summary-item pt-2">
+                <Link href={`/clients/${ownerClient.id}`} className="btn btn-ghost">
+                  View Owner
+                </Link>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

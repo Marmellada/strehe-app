@@ -29,26 +29,12 @@ type ClientDetail = {
   notes: string | null;
   status: string | null;
   municipality:
-    | {
-        id: string;
-        name: string;
-      }
-    | {
-        id: string;
-        name: string;
-      }[]
+    | { id: string; name: string }
+    | { id: string; name: string }[]
     | null;
   location:
-    | {
-        id: string;
-        name: string;
-        type: string | null;
-      }
-    | {
-        id: string;
-        name: string;
-        type: string | null;
-      }[]
+    | { id: string; name: string; type: string | null }
+    | { id: string; name: string; type: string | null }[]
     | null;
 };
 
@@ -66,33 +52,44 @@ export default async function ClientDetailPage({
   const { id } = await params;
 
   const { data: rawClient, error } = await supabase
-  
     .from("clients")
     .select(
       `
-      *,
-      municipality:municipalities ( id, name ),
-      location:locations ( id, name, type )
-    `
-    ) 
+        *,
+        municipality:municipalities (
+          id,
+          name
+        ),
+        location:locations (
+          id,
+          name,
+          type
+        )
+      `
+    )
     .eq("id", id)
     .maybeSingle();
-const { data: properties } = await supabase
-  .from("properties")
-  .select(`
-    id,
-    property_code,
-    title,
-    status
-  `)
-  .eq("owner_client_id", id)
-  .order("created_at", { ascending: false });
+
+  const { data: properties } = await supabase
+    .from("properties")
+    .select("id, property_code, title, status")
+    .eq("owner_client_id", id)
+    .order("created_at", { ascending: false });
+
   if (error) {
-    return <div className="card">Error: {error.message}</div>;
+    return (
+      <main className="p-6">
+        <p className="text-red-400">Error: {error.message}</p>
+      </main>
+    );
   }
 
   if (!rawClient) {
-    return <div className="card">Client not found</div>;
+    return (
+      <main className="p-6">
+        <p className="text-gray-300">Client not found.</p>
+      </main>
+    );
   }
 
   const client = rawClient as ClientDetail;
@@ -101,284 +98,212 @@ const { data: properties } = await supabase
 
   const deleteClientWithId = deleteClient.bind(null, id);
 
-  const displayName =
-    client.client_type === "business"
-      ? client.company_name || "Unnamed Business"
-      : client.full_name || "Unnamed Client";
+  const isBusiness = client.client_type === "business";
+  const isActive = client.status === "active";
 
-  const subtitle =
-    client.client_type === "business"
-      ? client.contact_person
-        ? `Business client • Contact: ${client.contact_person}`
-        : "Business client"
-      : "Individual client";
+  const displayName = isBusiness
+    ? client.company_name || "Unnamed Business"
+    : client.full_name || "Unnamed Client";
+
+  const subtitle = isBusiness
+    ? client.contact_person
+      ? `Business client • Contact: ${client.contact_person}`
+      : "Business client"
+    : "Individual client";
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "flex-start" }}
-      >
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 12,
-                border: "1px solid var(--border)",
-                background: "var(--panel)",
-              }}
-            >
-              {client.client_type === "business" ? "Business" : "Individual"}
-            </span>
+    <main className="space-y-6">
+      <div className="status-row">
+        <span className="badge badge-outline">
+          {isBusiness ? "Business" : "Individual"}
+        </span>
+        <span className={`badge ${isActive ? "badge-success" : "badge-warning"}`}>
+          {isActive ? "Active" : "Inactive"}
+        </span>
+      </div>
 
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 12,
-                border: "1px solid var(--border)",
-                background:
-                  client.status === "active"
-                    ? "rgba(34,197,94,0.12)"
-                    : "rgba(239,68,68,0.12)",
-              }}
-            >
-              {client.status === "active" ? "Active" : "Inactive"}
-            </span>
-          </div>
+      <div>
+        <h1 className="page-title">{displayName}</h1>
+        <p className="page-subtitle mt-2">{subtitle}</p>
+      </div>
 
-          <h1 style={{ margin: 0, fontSize: 28 }}>{displayName}</h1>
-
-          <div style={{ opacity: 0.72 }}>{subtitle}</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link href="/clients" className="btn btn-ghost">
-            ← Back to Clients
-          </Link>
-
-          <Link href={`/clients/${id}/edit`} className="btn btn-primary">
-            Edit
-          </Link>
-
-          <DeleteClientButton action={deleteClientWithId} />
-        </div>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Phone</div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>
-            {client.phone ? (
-              <a href={`tel:${client.phone}`} style={{ textDecoration: "none" }}>
-                {client.phone}
-              </a>
-            ) : (
-              "-"
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Email</div>
-          <div style={{ marginTop: 6, fontWeight: 600, wordBreak: "break-word" }}>
-            {client.email ? (
-              <a
-                href={`mailto:${client.email}`}
-                style={{ textDecoration: "none" }}
-              >
-                {client.email}
-              </a>
-            ) : (
-              "-"
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Municipality</div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>
-            {municipality?.name || "-"}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Location</div>
-          <div style={{ marginTop: 6, fontWeight: 600 }}>
-            {location?.name || "-"}
-          </div>
-        </div>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 0.8fr",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <div className="card" style={{ display: "grid", gap: 18 }}>
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Address</h3>
-
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Address Line 1</div>
-                <div style={{ marginTop: 4 }}>{client.address_line_1 || "-"}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Address Line 2</div>
-                <div style={{ marginTop: 4 }}>{client.address_line_2 || "-"}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Country</div>
-                <div style={{ marginTop: 4 }}>{client.country || "-"}</div>
-              </div>
-            </div>
-          </div>
-
-          {client.notes ? (
-            <div>
-              <h3 style={{ marginTop: 0, marginBottom: 12 }}>Notes</h3>
-              <div style={{ whiteSpace: "pre-wrap" }}>{client.notes}</div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="card" style={{ display: "grid", gap: 18 }}>
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Client Summary</h3>
-
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Client Type</div>
-                <div style={{ marginTop: 4 }}>
-                  {client.client_type === "business" ? "Business" : "Individual"}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Status</div>
-                <div style={{ marginTop: 4 }}>
-                  {client.status === "active" ? "Active" : "Inactive"}
-                </div>
-              </div>
-
-              {client.client_type === "business" ? (
-                <>
-                  <div>
-                    <div style={{ fontSize: 13, opacity: 0.7 }}>Company Name</div>
-                    <div style={{ marginTop: 4 }}>
-                      {client.company_name || "-"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: 13, opacity: 0.7 }}>
-                      Contact Person
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      {client.contact_person || "-"}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 13, opacity: 0.7 }}>Full Name</div>
-                  <div style={{ marginTop: 4 }}>{client.full_name || "-"}</div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Actions</h3>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <Link href={`/clients/${id}/edit`} className="btn btn-primary">
-                Edit Client
-              </Link>
-
-              <Link href="/clients/new" className="btn btn-ghost">
-                Add New Client
-              </Link>
-
-              <Link href="/clients" className="btn btn-ghost">
-                Back to List
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-      <section className="card" style={{ display: "grid", gap: 16 }}>
-  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-    <h3 style={{ margin: 0 }}>Owned Properties</h3>
-
-    <Link
-      href={`/properties/new?owner_client_id=${id}`}
-      className="btn btn-primary"
-    >
-      + Add Property
-    </Link>
-  </div>
-
-  {!properties || properties.length === 0 ? (
-    <div style={{ opacity: 0.7 }}>
-      No properties assigned to this client yet.
-    </div>
-  ) : (
-    <div style={{ display: "grid", gap: 10 }}>
-      {properties.map((p: any) => (
-        <Link
-          key={p.id}
-          href={`/properties/${p.id}`}
-          className="card"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            textDecoration: "none",
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 600 }}>
-              {p.title || "Untitled Property"}
-            </div>
-
-            <div style={{ fontSize: 13, opacity: 0.7 }}>
-              {p.property_code || "-"}
-            </div>
-          </div>
-
-          <div
-            style={{
-              fontSize: 12,
-              padding: "4px 8px",
-              borderRadius: 999,
-              background:
-                p.status === "active"
-                  ? "rgba(34,197,94,0.12)"
-                  : "rgba(156,163,175,0.2)",
-            }}
-          >
-            {p.status || "unknown"}
-          </div>
+      <div className="top-actions">
+        <Link href="/clients" className="btn btn-ghost">
+          ← Back to Clients
         </Link>
-      ))}
-    </div>
-  )}
-</section>
+
+        <Link href={`/clients/${id}/edit`} className="btn btn-primary">
+          Edit Client
+        </Link>
+
+        <form action={deleteClientWithId}>
+          <DeleteClientButton />
+        </form>
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-4">
+        <div className="card">
+          <span className="field-label">Phone</span>
+          {client.phone ? (
+            <a href={`tel:${client.phone}`} className="field-value">
+              {client.phone}
+            </a>
+          ) : (
+            <span className="field-value-muted">-</span>
+          )}
+        </div>
+
+        <div className="card">
+          <span className="field-label">Email</span>
+          {client.email ? (
+            <a href={`mailto:${client.email}`} className="field-value">
+              {client.email}
+            </a>
+          ) : (
+            <span className="field-value-muted">-</span>
+          )}
+        </div>
+
+        <div className="card">
+          <span className="field-label">Municipality</span>
+          <span className="field-value">{municipality?.name || "-"}</span>
+        </div>
+
+        <div className="card">
+          <span className="field-label">Location</span>
+          <span className="field-value">{location?.name || "-"}</span>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div className="card">
+          <h2 className="section-title">Address</h2>
+
+          <div className="info-stack">
+            <div className="info-row">
+              <span className="field-label">Address Line 1</span>
+              <span className="field-value">{client.address_line_1 || "-"}</span>
+            </div>
+
+            <div className="info-row">
+              <span className="field-label">Address Line 2</span>
+              <span className="field-value">{client.address_line_2 || "-"}</span>
+            </div>
+
+            <div className="info-row">
+              <span className="field-label">Country</span>
+              <span className="field-value">{client.country || "-"}</span>
+            </div>
+
+            {client.notes ? (
+              <div className="info-row">
+                <span className="field-label">Notes</span>
+                <p className="field-value-muted whitespace-pre-wrap">
+                  {client.notes}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="card">
+          <h2 className="section-title">Client Summary</h2>
+
+          <div className="summary-stack">
+            <div className="summary-item">
+              <span className="field-label">Client Type</span>
+              <span className="field-value">
+                {isBusiness ? "Business" : "Individual"}
+              </span>
+            </div>
+
+            <div className="summary-item">
+              <span className="field-label">Status</span>
+              <span className="field-value">
+                {isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
+
+            {isBusiness ? (
+              <>
+                <div className="summary-item">
+                  <span className="field-label">Company Name</span>
+                  <span className="field-value">{client.company_name || "-"}</span>
+                </div>
+
+                <div className="summary-item">
+                  <span className="field-label">Contact Person</span>
+                  <span className="field-value">
+                    {client.contact_person || "-"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="summary-item">
+                <span className="field-label">Full Name</span>
+                <span className="field-value">{client.full_name || "-"}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="section-title !mb-0">Owned Properties</h2>
+            <p className="page-subtitle mt-1">
+              Properties currently assigned to this client.
+            </p>
+          </div>
+
+          <Link href="/properties/new" className="btn btn-primary">
+            + Add Property
+          </Link>
+        </div>
+
+        {!properties || properties.length === 0 ? (
+          <p className="field-value-muted">
+            No properties assigned to this client yet.
+          </p>
+        ) : (
+          <div className="related-list">
+            {properties.map((property) => (
+              <div key={property.id} className="related-item">
+                <div>
+                  <div className="related-item-title">
+                    {property.title || "Untitled Property"}
+                  </div>
+                  <div className="related-item-subtitle">
+                    {property.property_code || "-"}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`badge ${
+                      property.status === "active"
+                        ? "badge-success"
+                        : property.status === "vacant"
+                        ? "badge-warning"
+                        : "badge-outline"
+                    }`}
+                  >
+                    {property.status || "unknown"}
+                  </span>
+
+                  <Link
+                    href={`/properties/${property.id}`}
+                    className="btn btn-ghost"
+                  >
+                    View
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

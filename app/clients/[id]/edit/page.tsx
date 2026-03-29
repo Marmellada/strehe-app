@@ -1,7 +1,6 @@
-import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
-import ClientLocationFields from "../../ClientLocationFields";
+import { supabase } from "@/lib/supabase";
+import NewClientForm from "../../new/NewClientForm";
 
 async function updateClient(id: string, formData: FormData) {
   "use server";
@@ -129,211 +128,15 @@ export default async function EditClientPage({
   }
 
   const updateClientWithId = updateClient.bind(null, id);
-  const isBusiness = client.client_type === "business";
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>Edit Client</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
-            Update client details and location
-          </p>
-        </div>
-
-        <Link href={`/clients/${id}`} className="btn btn-ghost">
-          Cancel
-        </Link>
-      </section>
-
-      <form
-        action={updateClientWithId}
-        className="card"
-        style={{ display: "grid", gap: 20, maxWidth: 820 }}
-      >
-        <section style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Basic Information</h3>
-
-          <div className="grid-2">
-            <label className="field">
-              Client Type
-              <select
-                name="client_type"
-                className="input"
-                defaultValue={client.client_type || "individual"}
-                required
-              >
-                <option value="individual">Individual</option>
-                <option value="business">Business</option>
-              </select>
-            </label>
-
-            <label className="field">
-              Status
-              <select
-                name="status"
-                className="input"
-                defaultValue={client.status || "active"}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-          </div>
-
-          <label className="field">
-            Full Name
-            <input
-              name="full_name"
-              className="input"
-              defaultValue={client.full_name || ""}
-              placeholder="For individuals"
-            />
-          </label>
-
-          <label className="field">
-            Company Name
-            <input
-              name="company_name"
-              className="input"
-              defaultValue={client.company_name || ""}
-              placeholder="For businesses"
-            />
-          </label>
-
-          <label className="field">
-            Contact Person
-            <input
-              name="contact_person"
-              className="input"
-              defaultValue={client.contact_person || ""}
-              placeholder="Main contact person"
-            />
-          </label>
-
-          {isBusiness ? (
-            <div
-              style={{
-                fontSize: 13,
-                opacity: 0.7,
-                padding: "8px 10px",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-              }}
-            >
-              Business client selected. Company name and contact person should
-              be filled.
-            </div>
-          ) : (
-            <div
-              style={{
-                fontSize: 13,
-                opacity: 0.7,
-                padding: "8px 10px",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-              }}
-            >
-              Individual client selected. Full name should be filled.
-            </div>
-          )}
-        </section>
-
-        <section style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Contact Details</h3>
-
-          <div className="grid-2">
-            <label className="field">
-              Phone
-              <input
-                name="phone"
-                className="input"
-                defaultValue={client.phone || ""}
-                placeholder="+383..."
-              />
-            </label>
-
-            <label className="field">
-              Email
-              <input
-                name="email"
-                type="email"
-                className="input"
-                defaultValue={client.email || ""}
-                placeholder="name@example.com"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Address & Location</h3>
-
-          <label className="field">
-            Address Line 1
-            <input
-              name="address_line_1"
-              className="input"
-              defaultValue={client.address_line_1 || ""}
-              placeholder="Street and number"
-            />
-          </label>
-
-          <label className="field">
-            Address Line 2
-            <input
-              name="address_line_2"
-              className="input"
-              defaultValue={client.address_line_2 || ""}
-              placeholder="Apartment, floor, unit, landmark..."
-            />
-          </label>
-
-          <ClientLocationFields
-            municipalities={municipalities}
-            locations={locations}
-            defaultMunicipalityId={client.municipality_id || ""}
-            defaultLocationId={client.location_id || ""}
-          />
-
-          <label className="field">
-            Country
-            <input
-              name="country"
-              className="input"
-              defaultValue={client.country || "Kosovo"}
-            />
-          </label>
-        </section>
-
-        <section style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Notes</h3>
-
-          <label className="field">
-            Internal Notes
-            <textarea
-              name="notes"
-              className="input"
-              rows={4}
-              defaultValue={client.notes || ""}
-              placeholder="Internal notes..."
-            />
-          </label>
-        </section>
-
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Link href={`/clients/${id}`} className="btn btn-ghost">
-            Cancel
-          </Link>
-
-          <button type="submit" className="btn btn-primary">
-            Update Client
-          </button>
-        </div>
-      </form>
-    </main>
+    <NewClientForm
+      municipalities={municipalities}
+      locations={locations}
+      action={updateClientWithId}
+      initialData={client}
+      isEdit
+      clientId={id}
+    />
   );
 }
