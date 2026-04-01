@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { User } from "@/lib/users";
 
 type TaskEditFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   task: any;
   properties: any[];
-  clients: any[];
+  users: User[];
   services: any[];
   subscriptions: any[];
 };
@@ -16,14 +17,16 @@ export default function TaskEditForm({
   action,
   task,
   properties,
-  clients,
+  users,
   services,
   subscriptions,
 }: TaskEditFormProps) {
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     task.property_id || ""
   );
-  const [selectedServiceId, setSelectedServiceId] = useState(task.service_id || "");
+  const [selectedServiceId, setSelectedServiceId] = useState(
+    task.service_id || ""
+  );
 
   const [title, setTitle] = useState(task.title || "");
   const [description, setDescription] = useState(task.description || "");
@@ -47,7 +50,10 @@ export default function TaskEditForm({
   useEffect(() => {
     if (!selectedService) return;
 
-    if ((!task.title || title === task.title) && selectedService.default_title) {
+    if (
+      (!task.title || title === task.title) &&
+      selectedService.default_title
+    ) {
       setTitle(selectedService.default_title);
     }
 
@@ -111,38 +117,38 @@ export default function TaskEditForm({
         </div>
 
         <div>
-          <label htmlFor="reported_by_client_id" className="field-label">
+          <label htmlFor="reported_by_user_id" className="field-label">
             Reported By
           </label>
           <select
-            id="reported_by_client_id"
-            name="reported_by_client_id"
-            defaultValue={task.reported_by_client_id || ""}
+            id="reported_by_user_id"
+            name="reported_by_user_id"
+            defaultValue={task.reported_by_user_id || ""}
             className="input"
           >
-            <option value="">Select client</option>
-            {clients.map((client: any) => (
-              <option key={client.id} value={client.id}>
-                {client.company_name || client.full_name || "Unnamed Client"}
+            <option value="">Select user</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.full_name} ({user.role})
               </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label htmlFor="assigned_to_client_id" className="field-label">
+          <label htmlFor="assigned_to_user_id" className="field-label">
             Assigned To
           </label>
           <select
-            id="assigned_to_client_id"
-            name="assigned_to_client_id"
-            defaultValue={task.assigned_to_client_id || ""}
+            id="assigned_to_user_id"
+            name="assigned_to_user_id"
+            defaultValue={task.assigned_to_user_id || ""}
             className="input"
           >
-            <option value="">Select client</option>
-            {clients.map((client: any) => (
-              <option key={client.id} value={client.id}>
-                {client.company_name || client.full_name || "Unnamed Client"}
+            <option value="">Select user</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.full_name} ({user.role})
               </option>
             ))}
           </select>
@@ -162,7 +168,8 @@ export default function TaskEditForm({
             <option value="">Select service</option>
             {services.map((service: any) => (
               <option key={service.id} value={service.id}>
-                {service.name} {service.category ? `(${service.category})` : ""}
+                {service.name}{" "}
+                {service.category ? `(${service.category})` : ""}
               </option>
             ))}
           </select>
@@ -186,7 +193,6 @@ export default function TaskEditForm({
                 ? "Select subscription"
                 : "Select property first"}
             </option>
-
             {filteredSubscriptions.map((subscription: any) => {
               const clientName =
                 subscription.client?.company_name ||

@@ -1,30 +1,27 @@
+// lib/key-log.ts
+
 import { supabase } from "@/lib/supabase";
 
-type CreateKeyLogParams = {
+export type CreateKeyLogInput = {
   key_id: string;
-  action: "assigned" | "returned" | "lost" | "damaged" | "retired";
-  user_name: string;
-  notes?: string | null;
-  from_status: string | null;
-  to_status: string | null;
+  action: string;
+  performed_by_user_id: string;       // UUID — replaces user_name
+  notes?: string;
+  from_status?: string | null;
+  to_status?: string | null;
 };
 
-export async function createKeyLog({
-  key_id,
-  action,
-  user_name,
-  notes,
-  from_status,
-  to_status,
-}: CreateKeyLogParams) {
-  const { error } = await supabase.from("key_logs").insert({
-    key_id,
-    action,
-    user_name,
-    notes: notes || null,
-    from_status,
-    to_status,
-  });
+export async function createKeyLog(input: CreateKeyLogInput): Promise<void> {
+  const { error } = await supabase.from("key_logs").insert([
+    {
+      key_id:                input.key_id,
+      action:                input.action,
+      performed_by_user_id:  input.performed_by_user_id,
+      notes:                 input.notes || null,
+      from_status:           input.from_status ?? null,
+      to_status:             input.to_status ?? null,
+    },
+  ]);
 
   if (error) {
     throw new Error(`Failed to create key log: ${error.message}`);

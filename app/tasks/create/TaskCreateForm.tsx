@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { User } from "@/lib/users";
 
 type TaskCreateFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   properties: any[];
-  clients: any[];
+  users: User[];
   services: any[];
   subscriptions: any[];
 };
@@ -14,7 +15,7 @@ type TaskCreateFormProps = {
 export default function TaskCreateForm({
   action,
   properties,
-  clients,
+  users,
   services,
   subscriptions,
 }: TaskCreateFormProps) {
@@ -98,38 +99,38 @@ export default function TaskCreateForm({
         </div>
 
         <div>
-          <label htmlFor="reported_by_client_id" className="field-label">
+          <label htmlFor="reported_by_user_id" className="field-label">
             Reported By
           </label>
           <select
-            id="reported_by_client_id"
-            name="reported_by_client_id"
+            id="reported_by_user_id"
+            name="reported_by_user_id"
             defaultValue=""
             className="input"
           >
-            <option value="">Select client</option>
-            {clients.map((client: any) => (
-              <option key={client.id} value={client.id}>
-                {client.company_name || client.full_name || "Unnamed Client"}
+            <option value="">Select user</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.full_name} ({user.role})
               </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label htmlFor="assigned_to_client_id" className="field-label">
+          <label htmlFor="assigned_to_user_id" className="field-label">
             Assigned To
           </label>
           <select
-            id="assigned_to_client_id"
-            name="assigned_to_client_id"
+            id="assigned_to_user_id"
+            name="assigned_to_user_id"
             defaultValue=""
             className="input"
           >
-            <option value="">Select client</option>
-            {clients.map((client: any) => (
-              <option key={client.id} value={client.id}>
-                {client.company_name || client.full_name || "Unnamed Client"}
+            <option value="">Select user</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.full_name} ({user.role})
               </option>
             ))}
           </select>
@@ -171,7 +172,6 @@ export default function TaskCreateForm({
                 ? "Select subscription"
                 : "Select property first"}
             </option>
-
             {filteredSubscriptions.map((subscription: any) => {
               const clientName =
                 subscription.client?.company_name ||

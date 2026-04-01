@@ -1,85 +1,45 @@
+// app/tasks/[id]/page.tsx
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
+import { deleteTask } from "./actions";
 
-async function deleteTask(formData: FormData) {
-  "use server";
-
-  const id = String(formData.get("id") || "").trim();
-
-  if (!id) {
-    throw new Error("Missing task id.");
-  }
-
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  redirect("/tasks");
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-async function markTaskCompleted(formData: FormData) {
-  "use server";
+const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  pending: "secondary",
+  in_progress: "default",
+  completed: "outline",
+  cancelled: "destructive",
+  on_hold: "secondary",
+};
 
-  const id = String(formData.get("id") || "").trim();
+const priorityColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  urgent: "destructive",
+  high: "destructive",
+  medium: "default",
+  low: "secondary",
+};
 
-  if (!id) {
-    throw new Error("Missing task id.");
-  }
-
-  const { error } = await supabase
-    .from("tasks")
-    .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  redirect(`/tasks/${id}`);
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
-async function reopenTask(formData: FormData) {
-  "use server";
-
-  const id = String(formData.get("id") || "").trim();
-
-  if (!id) {
-    throw new Error("Missing task id.");
-  }
-
-  const { error } = await supabase
-    .from("tasks")
-    .update({
-      status: "open",
-      completed_at: null,
-    })
-    .eq("id", id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  redirect(`/tasks/${id}`);
-}
-
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "-";
-
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (l: string) => l.toUpperCase());
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-
-  return new Date(value).toLocaleString("en-GB", {
+function formatDateTime(dateStr: string | null) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -88,321 +48,360 @@ function formatDateTime(value: string | null | undefined) {
   });
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatPrice(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return "-";
-
-  const num = typeof value === "number" ? value : Number(value);
-
-  if (Number.isNaN(num)) return "-";
-
-  return `€${num.toFixed(2)}`;
-}
-
-type TaskPageProps = {
-  params: Promise<{ id: string }>;
-};
-
-export default async function TaskDetailPage({
-  params,
-}: TaskPageProps) {
+export default async function TaskDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data: task, error } = await supabase
     .from("tasks")
     .select(
       `
+      *,
+      property:properties!tasks_property_fk(
         id,
-        title,
-        description,
-        property_id,
-        reported_by_client_id,
-        assigned_to_client_id,
-        service_id,
-        subscription_id,
-        status,
-        priority,
-        due_date,
-        completed_at,
-        created_at,
-        updated_at,
-        property:properties!tasks_property_fk (
-          id,
-          title,
-          property_code,
-          address_line_1
-        ),
-        reported_by:clients!tasks_reported_by_fk (
-          id,
-          full_name,
-          company_name
-        ),
-        assigned_to:clients!tasks_assigned_to_fk (
-          id,
-          full_name,
-          company_name
-        ),
-        service:services!tasks_service_fk (
-          id,
-          name,
-          category,
-          base_price
-        ),
-        subscription:subscriptions!tasks_subscription_fk (
-          id,
-          status,
-          monthly_price,
-          start_date,
-          end_date,
-          client:clients!subscriptions_client_fk (
-            id,
-            full_name,
-            company_name
-          ),
-          property:properties!subscriptions_property_fk (
-            id,
-            title,
-            property_code
-          ),
-          package:packages!subscriptions_package_fk (
-            id,
-            name
-          )
-        )
-      `
+        property_code,
+        address_line_1,
+        address_line_2,
+        city,
+        country
+      ),
+      service:services!tasks_service_fk(
+        id,
+        name,
+        category
+      ),
+      subscription:subscriptions!tasks_subscription_fk(
+        id,
+        start_date,
+        end_date,
+        package:packages(name)
+      ),
+      assigned_user:users!tasks_assigned_to_user_id_fkey(
+        id,
+        full_name,
+        email,
+        role
+      ),
+      reported_user:users!tasks_reported_by_user_id_fkey(
+        id,
+        full_name,
+        email,
+        role
+      ),
+      assigned_client:clients!tasks_assigned_to_fk(
+        id,
+        full_name,
+        email
+      ),
+      reported_client:clients!tasks_reported_by_fk(
+        id,
+        full_name,
+        email
+      )
+    `
     )
     .eq("id", id)
     .single();
 
-  if (error || !data) {
-    return notFound();
+  if (error) {
+    console.error("Task fetch error:", error.message);
+    if (error.code === "PGRST116") {
+      notFound();
+    }
+    throw new Error(error.message);
   }
 
-  const task: any = data;
+  if (!task) {
+    notFound();
+  }
 
-  const reportedBy =
-    task.reported_by?.company_name ||
-    task.reported_by?.full_name ||
-    "-";
-
-  const assignedTo =
-    task.assigned_to?.company_name ||
-    task.assigned_to?.full_name ||
-    "-";
-
-  const subscriptionClientName =
-    task.subscription?.client?.company_name ||
-    task.subscription?.client?.full_name ||
-    "-";
-
-  const subscriptionPropertyLabel =
-    task.subscription?.property?.property_code
-      ? `${task.subscription.property.property_code} - ${task.subscription.property?.title || ""}`
-      : task.subscription?.property?.title || "-";
-
-  const isCompleted = task.status === "completed";
+  // Build a readable address string from parts
+  const propertyAddress = task.property
+    ? [
+        task.property.address_line_1,
+        task.property.address_line_2,
+        task.property.city,
+        task.property.country,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : null;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">{task.title || "Untitled Task"}</h1>
-          <p className="page-subtitle">{formatLabel(task.status)}</p>
-        </div>
+      <PageHeader
+        title={task.title}
+        description={`Task #${task.id.slice(0, 8).toUpperCase()}`}
+        actions={
+          <div className="flex items-center gap-3">
+            <Link href="/tasks">
+              <Button variant="ghost">← Back to Tasks</Button>
+            </Link>
+            <Link href={`/tasks/${task.id}/edit`}>
+              <Button variant="outline">Edit Task</Button>
+            </Link>
+          </div>
+        }
+      />
 
-        <div className="flex gap-2">
-          <Link href={`/tasks/${task.id}/edit`} className="btn">
-            Edit Task
-          </Link>
+      {/* Status Bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge variant={statusColors[task.status] || "default"}>
+          {task.status.replace("_", " ")}
+        </Badge>
+        <Badge variant={priorityColors[task.priority] || "default"}>
+          {task.priority} priority
+        </Badge>
+        {task.service && (
+          <Badge variant="default">{task.service.category}</Badge>
+        )}
+      </div>
 
-          {isCompleted ? (
-            <form action={reopenTask}>
-              <input type="hidden" name="id" value={task.id} />
-              <button type="submit" className="btn">
-                Reopen Task
-              </button>
-            </form>
-          ) : (
-            <form action={markTaskCompleted}>
-              <input type="hidden" name="id" value={task.id} />
-              <button type="submit" className="btn">
-                Mark Completed
-              </button>
-            </form>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Info */}
+        <div className="lg:col-span-2 space-y-6">
+
+          {/* Description */}
+          {task.description && (
+            <Card>
+              <div className="p-6">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Description
+                </h2>
+                <p className="text-white whitespace-pre-wrap">
+                  {task.description}
+                </p>
+              </div>
+            </Card>
           )}
 
-          <form action={deleteTask}>
-            <input type="hidden" name="id" value={task.id} />
-            <button type="submit" className="btn btn-danger">
-              Delete Task
-            </button>
-          </form>
+          {/* Property */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                Property
+              </h2>
+              {task.property ? (
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-white font-medium">{propertyAddress}</p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Code:{" "}
+                      <span className="text-gray-200">
+                        {task.property.property_code}
+                      </span>
+                    </p>
+                  </div>
+                  <Link href={`/properties/${task.property.id}`}>
+                    <Button variant="ghost" size="sm">
+                      View Property →
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">No property linked</p>
+              )}
+            </div>
+          </Card>
+
+          {/* Service */}
+          {task.service && (
+            <Card>
+              <div className="p-6">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                  Service
+                </h2>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium">{task.service.name}</p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Category:{" "}
+                      <span className="text-gray-200">
+                        {task.service.category}
+                      </span>
+                    </p>
+                  </div>
+                  <Link href={`/services/${task.service.id}`}>
+                    <Button variant="ghost" size="sm">
+                      View Service →
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Subscription */}
+          {task.subscription && (
+            <Card>
+              <div className="p-6">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                  Subscription Coverage
+                </h2>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-gray-400 text-xs uppercase">Package</p>
+                    <p className="text-white mt-1">
+                      {task.subscription.package?.name ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs uppercase">Start</p>
+                    <p className="text-white mt-1">
+                      {formatDate(task.subscription.start_date)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs uppercase">End</p>
+                    <p className="text-white mt-1">
+                      {formatDate(task.subscription.end_date)}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Link href={`/subscriptions/${task.subscription.id}`}>
+                    <Button variant="ghost" size="sm">
+                      View Subscription →
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+
+          {/* Timeline */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                Timeline
+              </h2>
+              <dl className="space-y-3">
+                <div>
+                  <dt className="text-gray-400 text-xs uppercase">Created</dt>
+                  <dd className="text-white text-sm mt-0.5">
+                    {formatDateTime(task.created_at)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-gray-400 text-xs uppercase">Due Date</dt>
+                  <dd className="text-white text-sm mt-0.5">
+                    {formatDate(task.due_date)}
+                  </dd>
+                </div>
+                {task.completed_at && (
+                  <div>
+                    <dt className="text-gray-400 text-xs uppercase">
+                      Completed
+                    </dt>
+                    <dd className="text-green-400 text-sm mt-0.5">
+                      {formatDateTime(task.completed_at)}
+                    </dd>
+                  </div>
+                )}
+                {task.updated_at && (
+                  <div>
+                    <dt className="text-gray-400 text-xs uppercase">
+                      Last Updated
+                    </dt>
+                    <dd className="text-white text-sm mt-0.5">
+                      {formatDateTime(task.updated_at)}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          </Card>
+
+          {/* People */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                People
+              </h2>
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-gray-400 text-xs uppercase">
+                    Assigned To
+                  </dt>
+                  <dd className="text-white text-sm mt-0.5">
+                    {task.assigned_user ? (
+                      `${task.assigned_user.full_name} (${task.assigned_user.role})`
+                    ) : task.assigned_client ? (
+                      `${task.assigned_client.full_name} — Client`
+                    ) : (
+                      <span className="text-gray-500 italic">Unassigned</span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-gray-400 text-xs uppercase">
+                    Reported By
+                  </dt>
+                  <dd className="text-white text-sm mt-0.5">
+                    {task.reported_user ? (
+                      `${task.reported_user.full_name} (${task.reported_user.role})`
+                    ) : task.reported_client ? (
+                      `${task.reported_client.full_name} — Client`
+                    ) : (
+                      <span className="text-gray-500 italic">Not recorded</span>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </Card>
+
+          {/* Cost */}
+          {(task.estimated_cost !== null || task.actual_cost !== null) && (
+            <Card>
+              <div className="p-6">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                  Cost (EUR)
+                </h2>
+                <dl className="space-y-3">
+                  {task.estimated_cost !== null && (
+                    <div>
+                      <dt className="text-gray-400 text-xs uppercase">
+                        Estimated
+                      </dt>
+                      <dd className="text-white text-sm mt-0.5">
+                        €{Number(task.estimated_cost).toFixed(2)}
+                      </dd>
+                    </div>
+                  )}
+                  {task.actual_cost !== null && (
+                    <div>
+                      <dt className="text-gray-400 text-xs uppercase">
+                        Actual
+                      </dt>
+                      <dd className="text-green-400 text-sm mt-0.5">
+                        €{Number(task.actual_cost).toFixed(2)}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 
-      <div className="card">
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Title</p>
-            <p>{task.title || "-"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Status</p>
-            <p>{formatLabel(task.status)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Priority</p>
-            <p>{formatLabel(task.priority)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Due Date</p>
-            <p>{formatDate(task.due_date)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Completed At</p>
-            <p>{formatDateTime(task.completed_at)}</p>
-          </div>
+      {/* Danger Zone */}
+      <Card className="border border-red-900/50">
+        <div className="p-6">
+          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">
+            Danger Zone
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Permanently delete this task. This action cannot be undone.
+          </p>
+          <DeleteTaskButton taskId={task.id} deleteAction={deleteTask} />
         </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">Property</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Property</p>
-            <p>{task.property?.title || "-"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Property Code</p>
-            <p>{task.property?.property_code || "-"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Address</p>
-            <p>{task.property?.address_line_1 || "-"}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">People</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Reported By</p>
-            <p>{reportedBy}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Assigned To</p>
-            <p>{assignedTo}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">Service Link</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Service</p>
-            <p>{task.service?.name || "-"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Category</p>
-            <p>{formatLabel(task.service?.category)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Base Price</p>
-            <p>{formatPrice(task.service?.base_price)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">Subscription Link</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Subscription Status</p>
-            <p>{formatLabel(task.subscription?.status)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Subscription Price</p>
-            <p>{formatPrice(task.subscription?.monthly_price)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Client</p>
-            <p>{subscriptionClientName}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Property</p>
-            <p>{subscriptionPropertyLabel}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Package</p>
-            <p>{task.subscription?.package?.name || "-"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Start Date</p>
-            <p>{formatDate(task.subscription?.start_date)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">End Date</p>
-            <p>{formatDate(task.subscription?.end_date)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">Description</h2>
-        <p>{task.description || "No description provided."}</p>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">System Info</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Created At</p>
-            <p>{formatDateTime(task.created_at)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Updated At</p>
-            <p>{formatDateTime(task.updated_at)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <Link href="/tasks" className="text-sm underline">
-          ← Back to tasks
-        </Link>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// app/keys/page.tsx
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
@@ -22,6 +23,11 @@ type RelatedProperty =
     }[]
   | null;
 
+type HolderUser =
+  | { full_name: string | null }
+  | { full_name: string | null }[]
+  | null;
+
 type KeyRow = {
   id: string;
   key_code: string | null;
@@ -29,6 +35,7 @@ type KeyRow = {
   key_type: string | null;
   status: string | null;
   holder_name: string | null;
+  holder_user: HolderUser;
   storage_location: string | null;
   last_checked_out_at: string | null;
   property_id: string | null;
@@ -112,60 +119,68 @@ export default async function KeysPage({
   const property_id = params.property_id || "";
   const search = params.search || "";
 
-  const [{ data: properties }, { data: allKeys }, { data: filteredKeys, error }] =
-    await Promise.all([
-      supabase
-        .from("properties")
-        .select("id, title, property_code")
-        .order("title"),
-      supabase.from("keys").select("id, status"),
-      (async () => {
-        let query = supabase
-          .from("keys")
-          .select(
-            `
+  const [
+    { data: properties },
+    { data: allKeys },
+    { data: filteredKeys, error },
+  ] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("id, title, property_code")
+      .order("title"),
+
+    supabase.from("keys").select("id, status"),
+
+    (async () => {
+      let query = supabase
+        .from("keys")
+        .select(
+          `
+            id,
+            key_code,
+            name,
+            key_type,
+            status,
+            holder_name,
+            storage_location,
+            last_checked_out_at,
+            property_id,
+            properties (
               id,
-              key_code,
-              name,
-              key_type,
-              status,
-              holder_name,
-              storage_location,
-              last_checked_out_at,
-              property_id,
-              properties (
-                id,
-                title,
-                property_code,
-                address_line_1
-              )
-            `
-          )
-          .order("created_at", { ascending: false });
+              title,
+              property_code,
+              address_line_1
+            ),
+            holder_user:users!keys_holder_user_fk (
+              full_name
+            )
+          `
+        )
+        .order("created_at", { ascending: false });
 
-        if (status) {
-          query = query.eq("status", status);
-        }
+      if (status) {
+        query = query.eq("status", status);
+      }
 
-        if (property_id) {
-          query = query.eq("property_id", property_id);
-        }
+      if (property_id) {
+        query = query.eq("property_id", property_id);
+      }
 
-        if (search) {
-          query = query.or(
-            [
-              `name.ilike.%${search}%`,
-              `key_code.ilike.%${search}%`,
-              `key_type.ilike.%${search}%`,
-              `holder_name.ilike.%${search}%`,
-              `storage_location.ilike.%${search}%`,
-            ].join(",")
-          );
-        }
+      if (search) {
+        query = query.or(
+          [
+            `name.ilike.%${search}%`,
+            `key_code.ilike.%${search}%`,
+            `key_type.ilike.%${search}%`,
+            `holder_name.ilike.%${search}%`,
+            `storage_location.ilike.%${search}%`,
+          ].join(",")
+        );
+      }
 
-        return await query;
-      })(),
-    ]);
+      return await query;
+    })(),
+  ]);
 
   if (error) {
     return <div className="card">Error loading keys: {error.message}</div>;
@@ -219,6 +234,7 @@ export default async function KeysPage({
         </p>
       </div>
 
+      {/* ── Status summary cards ── */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="card">
           <span className="field-label">All Keys</span>
@@ -251,6 +267,7 @@ export default async function KeysPage({
         </div>
       </section>
 
+      {/* ── Quick status filters ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Quick Status Filters</h2>
@@ -259,13 +276,7 @@ export default async function KeysPage({
           </p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {statusLinks.map((item) => {
             const active = status === item.value;
 
@@ -286,6 +297,7 @@ export default async function KeysPage({
         </div>
       </section>
 
+      {/* ── Filters form ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Filters</h2>
@@ -317,12 +329,18 @@ export default async function KeysPage({
 
           <label className="field">
             Property
-            <select name="property_id" defaultValue={property_id} className="input">
+            <select
+              name="property_id"
+              defaultValue={property_id}
+              className="input"
+            >
               <option value="">All properties</option>
               {propertyOptions.map((property) => (
                 <option key={property.id} value={property.id}>
                   {property.title || "Untitled Property"}
-                  {property.property_code ? ` (${property.property_code})` : ""}
+                  {property.property_code
+                    ? ` (${property.property_code})`
+                    : ""}
                 </option>
               ))}
             </select>
@@ -350,6 +368,7 @@ export default async function KeysPage({
         </form>
       </section>
 
+      {/* ── Keys list ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Keys List</h2>
@@ -359,16 +378,19 @@ export default async function KeysPage({
         </div>
 
         {keys.length === 0 ? (
-          <p className="field-value-muted">No keys found for the current filters.</p>
+          <p className="field-value-muted">
+            No keys found for the current filters.
+          </p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gap: 16,
-            }}
-          >
+          <div style={{ display: "grid", gap: 16 }}>
             {keys.map((key) => {
               const property = getSingleRelation(key.properties);
+              const holderUser = getSingleRelation(key.holder_user);
+
+              // Prefer linked user name, fall back to legacy free-text,
+              // then fall back to "In storage"
+              const holderDisplay =
+                holderUser?.full_name ?? key.holder_name ?? "In storage";
 
               return (
                 <div
@@ -383,6 +405,7 @@ export default async function KeysPage({
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
+                    {/* Title row */}
                     <div
                       style={{
                         display: "flex",
@@ -392,36 +415,45 @@ export default async function KeysPage({
                         marginBottom: 10,
                       }}
                     >
-                      <div className="related-item-title" style={{ margin: 0 }}>
+                      <div
+                        className="related-item-title"
+                        style={{ margin: 0 }}
+                      >
                         {key.name || "Unnamed Key"}
                       </div>
 
-                      <span className={`badge ${getStatusBadgeClass(key.status)}`}>
+                      <span
+                        className={`badge ${getStatusBadgeClass(key.status)}`}
+                      >
                         {key.status || "Unknown"}
                       </span>
 
                       {key.key_type ? (
-                        <span className="badge badge-outline">{key.key_type}</span>
+                        <span className="badge badge-outline">
+                          {key.key_type}
+                        </span>
                       ) : null}
                     </div>
 
+                    {/* Detail grid */}
                     <div
                       style={{
                         display: "grid",
                         gap: 8,
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(220px, 1fr))",
                       }}
                     >
                       <div>
                         <div className="field-label">Tag</div>
-                        <div className="field-value">{key.key_code || "-"}</div>
+                        <div className="field-value">
+                          {key.key_code || "-"}
+                        </div>
                       </div>
 
                       <div>
                         <div className="field-label">Holder</div>
-                        <div className="field-value">
-                          {key.holder_name || "In storage"}
-                        </div>
+                        <div className="field-value">{holderDisplay}</div>
                       </div>
 
                       <div>
@@ -442,7 +474,9 @@ export default async function KeysPage({
                         <div className="field-label">Property</div>
                         <div className="field-value">
                           {property?.title || "-"}
-                          {property?.property_code ? ` (${property.property_code})` : ""}
+                          {property?.property_code
+                            ? ` (${property.property_code})`
+                            : ""}
                         </div>
                       </div>
 
@@ -455,6 +489,7 @@ export default async function KeysPage({
                     </div>
                   </div>
 
+                  {/* Actions */}
                   <div
                     style={{
                       display: "flex",
