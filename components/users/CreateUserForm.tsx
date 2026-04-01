@@ -150,7 +150,7 @@ export function CreateUserForm({ roles }: CreateUserFormProps) {
       </div>
 
       <div className="flex gap-3 pt-2">
-        <Button type="submit" variant="primary" disabled={isLoading}>
+        <Button type="submit" variant="default" disabled={isLoading}>
           {isLoading ? "Creating..." : "Create User"}
         </Button>
         <Button
