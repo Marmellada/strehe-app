@@ -75,11 +75,11 @@ export default async function UsersPage() {
                     {/* Name + Meta */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">
+                        <h3 className="font-medium text-gray-900">
                           {user.full_name}
                         </h3>
                         {!user.is_active && (
-                          <Badge variant="red">Inactive</Badge>
+                          <Badge variant="destructive">Inactive</Badge>
                         )}
                       </div>
 
@@ -104,17 +104,24 @@ export default async function UsersPage() {
                       <Badge
                         variant={
                           user.roles.name === 'Owner'
-                            ? 'blue'
+                            ? 'default'
                             : user.roles.name === 'Auditor'
-                            ? 'yellow'
-                            : 'gray'
+                            ? 'secondary'
+                            : 'outline'
+                        }
+                        className={
+                          user.roles.name === 'Owner'
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : user.roles.name === 'Auditor'
+                            ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                            : ''
                         }
                       >
                         <Shield className="w-3 h-3 mr-1" />
                         {user.roles.name}
                       </Badge>
                     ) : (
-                      <Badge variant="gray">No Role</Badge>
+                      <Badge variant="outline">No Role</Badge>
                     )}
                   </div>
 
