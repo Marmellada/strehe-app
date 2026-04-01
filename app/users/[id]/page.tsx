@@ -3,7 +3,6 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { notFound } from 'next/navigation'
 import {
-  User,
   Mail,
   Phone,
   Shield,
@@ -25,10 +24,12 @@ function formatDate(iso: string) {
   })
 }
 
-function getRoleBadgeVariant(roleName: string) {
-  if (roleName === 'Owner') return 'blue' as const
-  if (roleName === 'Auditor') return 'yellow' as const
-  return 'gray' as const
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+
+function getRoleBadgeVariant(roleName: string): BadgeVariant {
+  if (roleName === 'Owner') return 'default'
+  if (roleName === 'Auditor') return 'secondary'
+  return 'outline'
 }
 
 export default async function UserDetailPage({ params }: UserDetailPageProps) {
@@ -57,12 +58,12 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
         action={
           <div className="flex items-center gap-2">
             {user.is_active ? (
-              <Badge variant="success">
+              <Badge variant="default" className="bg-green-500 hover:bg-green-600">
                 <CircleCheck className="w-3 h-3 mr-1" />
                 Active
               </Badge>
             ) : (
-              <Badge variant="red">
+              <Badge variant="destructive">
                 <CircleX className="w-3 h-3 mr-1" />
                 Inactive
               </Badge>
