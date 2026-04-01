@@ -17,7 +17,7 @@ export function DeleteTaskButton({
       <input type="hidden" name="taskId" value={taskId} />
       <Button
         type="submit"
-        variant="danger"
+        variant="destructive"
         size="sm"
         onClick={(e) => {
           if (!confirm("Delete this task permanently?")) {
