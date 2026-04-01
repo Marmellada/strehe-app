@@ -49,52 +49,83 @@ export default function RootLayout({
               <strong>STREHË Admin</strong>
             </div>
 
-            <nav
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "20px",
-                marginTop: "24px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <Link href="/">Dashboard</Link>
-                <Link href="/clients">Clients</Link>
-                <Link href="/properties">Properties</Link>
-                <Link href="/tasks">Tasks</Link>
-                <Link href="/subscriptions">Subscriptions</Link>
-              </div>
+           <nav
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px",
+    marginTop: "24px",
+  }}
+>
+  {/* Main Navigation */}
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "12px",
+    }}
+  >
+    <Link href="/">Dashboard</Link>
+    <Link href="/clients">Clients</Link>
+    <Link href="/properties">Properties</Link>
+    <Link href="/units">Units</Link>
+    <Link href="/tenants">Tenants</Link>
+    <Link href="/leases">Leases</Link>
+    <Link href="/tasks">Tasks</Link>
+  </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <p
-                  style={{
-                    margin: "8px 0 2px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "var(--muted-foreground, #94a3b8)",
-                  }}
-                >
-                  Settings
-                </p>
+  {/* Billing Section */}
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "12px",
+    }}
+  >
+    <p
+      style={{
+        margin: "8px 0 2px",
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        color: "var(--muted-foreground, #94a3b8)",
+      }}
+    >
+      Billing
+    </p>
+    <Link href="/billing">Invoices</Link>
+    <Link href="/billing/payments">Payments</Link>
+    <Link href="/banks">Banks</Link>
+  </div>
 
-                <Link href="/services">Services</Link>
-                <Link href="/packages">Packages</Link>
-              </div>
-            </nav>
+  {/* Settings Section */}
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "12px",
+    }}
+  >
+    <p
+      style={{
+        margin: "8px 0 2px",
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        color: "var(--muted-foreground, #94a3b8)",
+      }}
+    >
+      Settings
+    </p>
+    <Link href="/services">Services</Link>
+    <Link href="/packages">Packages</Link>
+    <Link href="/subscriptions">Subscriptions</Link>
+    <Link href="/settings">System Settings</Link>
+  </div>
+</nav>
+
           </aside>
 
           <div className="main">
