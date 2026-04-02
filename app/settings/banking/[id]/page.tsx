@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { BankAccountForm } from '@/components/banking/BankAccountForm'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { notFound } from 'next/navigation'
 
 export default async function EditBankAccountPage({
@@ -45,7 +45,7 @@ export default async function EditBankAccountPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <BankAccountForm banks={banks || []} account={account} />
+          <BankAccountForm {...({ banks: banks || [], account } as any)} />
         </CardContent>
       </Card>
     </div>

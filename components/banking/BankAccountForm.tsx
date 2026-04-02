@@ -103,7 +103,7 @@ export function BankAccountForm({ action, initialData }: BankAccountFormProps) {
           <Checkbox
             id="is_primary"
             name="is_primary"
-            defaultChecked={initialData?.is_primary}
+            defaultChecked={initialData?.is_primary ?? false}
           />
           <Label htmlFor="is_primary" className="cursor-pointer">
             Set as primary account

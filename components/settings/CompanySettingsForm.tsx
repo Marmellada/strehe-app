@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FormInput } from '@/components/ui/FormInput';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/ui/Label';
 import { Alert } from '@/components/ui/Alert';
 import { createOrUpdateCompany } from '@/lib/actions/settings';
 import type { Database } from '@/types/supabase';
