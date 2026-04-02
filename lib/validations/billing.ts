@@ -1,50 +1,51 @@
-import { z } from "zod";
+import { z } from 'zod'
 
-export const lineItemSchema = z.object({
-  description: z.string().min(1, "Description is required"),
-  quantity: z.number().min(0.01, "Quantity must be positive"),
-  unit_price: z.number().min(0, "Unit price must be non-negative"),
-  vat_rate: z.number().min(0).max(100).default(18),
-  temp_id: z.string().optional(), // For client-side tracking
-});
-
+// Invoice validation schema
 export const createInvoiceSchema = z.object({
-  // Invoice type
-  invoice_type: z.enum(["property_tenant", "client"]),
-
-  // Property/Tenant fields (required if invoice_type = property_tenant)
-  property_id: z.string().uuid().optional().nullable(),
-  tenant_id: z.string().uuid().optional().nullable(),
-
-  // Client field (required if invoice_type = client)
-  client_id: z.string().uuid().optional().nullable(),
-
-  // Invoice details
-  issue_date: z.string().min(1, "Issue date is required"),
-  due_date: z.string().min(1, "Due date is required"),
-  payment_terms: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-
-  // Bank account
-  bank_id: z.string().uuid("Please select a bank account"),
-
-  // Line items
-  items: z.array(lineItemSchema).min(1, "At least one line item is required"),
-}).refine(
-  (data) => {
-    if (data.invoice_type === "property_tenant") {
-      return data.property_id && data.tenant_id;
-    }
-    if (data.invoice_type === "client") {
-      return data.client_id;
-    }
-    return false;
-  },
-  {
-    message: "Please select property & tenant OR client based on invoice type",
-    path: ["invoice_type"],
+  invoice_type: z.enum(['monthly_rent', 'utilities', 'maintenance', 'other']),
+  property_id: z.string().uuid().optional(),
+  unit_id: z.string().uuid().optional(),
+  tenant_id: z.string().uuid().optional(),
+  client_id: z.string().uuid().optional(),
+  issue_date: z.string().min(1, 'Issue date is required'),
+  due_date: z.string().min(1, 'Due date is required'),
+  line_items: z.array(z.object({
+    description: z.string().min(1, 'Description is required'),
+    quantity: z.number().min(0.01, 'Quantity must be positive'),
+    unit_price: z.number().min(0, 'Unit price must be non-negative'),
+    tax_rate: z.number().min(0).max(100, 'Tax rate must be between 0 and 100'),
+  })).min(1, 'At least one line item is required'),
+  notes: z.string().optional(),
+  payment_terms: z.string().optional(),
+}).refine((data) => {
+  // Validate based on invoice type
+  if (data.invoice_type === 'monthly_rent') {
+    return data.property_id && data.unit_id && data.tenant_id
   }
-);
+  if (data.invoice_type === 'utilities' || data.invoice_type === 'maintenance') {
+    return data.property_id && data.unit_id
+  }
+  if (data.invoice_type === 'other') {
+    return data.client_id
+  }
+  return true
+}, {
+  message: 'Required fields missing for selected invoice type',
+  path: ['invoice_type'],
+})
 
-export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
-export type LineItemInput = z.infer<typeof lineItemSchema>;
+// Bank Account validation schema
+export const bankAccountSchema = z.object({
+  bank_id: z.string().uuid().optional(),
+  bank_name: z.string().min(1, 'Bank name is required'),
+  account_name: z.string().optional(),
+  account_number: z.string().optional(),
+  iban: z.string()
+    .min(1, 'IBAN is required')
+    .regex(/^XK\d{18}$/, 'IBAN must be in format: XK followed by 18 digits'),
+  swift_bic: z.string().optional(),
+  is_primary: z.boolean().default(false),
+})
+
+export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>
+export type BankAccountInput = z.infer<typeof bankAccountSchema>

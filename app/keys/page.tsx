@@ -1,6 +1,5 @@
-// app/keys/page.tsx
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 type SearchParams = Promise<{
   status?: string;
@@ -113,6 +112,7 @@ export default async function KeysPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const supabase = await createClient();
   const params = await searchParams;
 
   const status = params.status || "";
@@ -387,8 +387,6 @@ export default async function KeysPage({
               const property = getSingleRelation(key.properties);
               const holderUser = getSingleRelation(key.holder_user);
 
-              // Prefer linked user name, fall back to legacy free-text,
-              // then fall back to "In storage"
               const holderDisplay =
                 holderUser?.full_name ?? key.holder_name ?? "In storage";
 
@@ -405,7 +403,6 @@ export default async function KeysPage({
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    {/* Title row */}
                     <div
                       style={{
                         display: "flex",
@@ -435,7 +432,6 @@ export default async function KeysPage({
                       ) : null}
                     </div>
 
-                    {/* Detail grid */}
                     <div
                       style={{
                         display: "grid",
@@ -489,7 +485,6 @@ export default async function KeysPage({
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div
                     style={{
                       display: "flex",

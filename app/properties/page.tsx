@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 type RelatedName = { name: string | null } | { name: string | null }[] | null;
 
@@ -34,6 +34,7 @@ export default async function PropertiesPage({
     search?: string;
   }>;
 }) {
+  const supabase = await createClient();
   const params = await searchParams;
 
   const municipalityId = params.municipality_id || "";

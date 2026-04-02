@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "-";
@@ -20,6 +20,8 @@ function formatPrice(value: number | string | null | undefined) {
 }
 
 export default async function ServicesPage() {
+  const supabase = await createClient();
+  
   const { data: services, error } = await supabase
     .from("services")
     .select(`
