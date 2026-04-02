@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { FormInput } from '@/components/ui/FormInput';
-import { Label } from '@/components/ui/Label';
-import { Alert } from '@/components/ui/Alert';
-import { createOrUpdateCompany } from '@/lib/actions/settings';
-import type { Database } from '@/types/supabase';
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { FormInput } from "@/components/ui/FormInput";
+import { Label } from "@/components/ui/Label";
+import { Alert } from "@/components/ui/Alert";
+import { createOrUpdateCompany } from "@/lib/actions/settings";
+import type { Database } from "@/types/supabase";
 
-type CompanySettings = Database['public']['Tables']['company_settings']['Row'];
+type CompanySettings = Database["public"]["Tables"]["company_settings"]["Row"];
 
 interface CompanySettingsFormProps {
   initialData: CompanySettings | null;
@@ -39,7 +39,7 @@ export function CompanySettingsForm({
       if (result.error) {
         setError(result.error);
       } else {
-        setSuccess('Company settings saved successfully.');
+        setSuccess("Company settings saved successfully.");
         router.refresh();
       }
     });
@@ -54,7 +54,7 @@ export function CompanySettingsForm({
             label="Company Name"
             name="company_name"
             placeholder="STREHË Prona"
-            defaultValue={initialData?.company_name ?? ''}
+            defaultValue={initialData?.company_name ?? ""}
             required
           />
 
@@ -62,14 +62,14 @@ export function CompanySettingsForm({
             label="VAT Number"
             name="vat_number"
             placeholder="600123456"
-            defaultValue={initialData?.vat_number ?? ''}
+            defaultValue={initialData?.vat_number ?? ""}
           />
 
           <FormInput
             label="Currency"
             name="currency"
             placeholder="EUR"
-            defaultValue={initialData?.currency ?? 'EUR'}
+            defaultValue={initialData?.currency ?? "EUR"}
           />
 
           <FormInput
@@ -78,7 +78,7 @@ export function CompanySettingsForm({
             type="number"
             step="0.01"
             placeholder="18.00"
-            defaultValue={initialData?.vat_rate?.toString() ?? '18.00'}
+            defaultValue={initialData?.vat_rate?.toString() ?? "18.00"}
           />
         </div>
       </Card>
@@ -91,7 +91,7 @@ export function CompanySettingsForm({
             name="email"
             type="email"
             placeholder="info@strehe.com"
-            defaultValue={initialData?.email ?? ''}
+            defaultValue={initialData?.email ?? ""}
           />
 
           <FormInput
@@ -99,7 +99,7 @@ export function CompanySettingsForm({
             name="phone"
             type="tel"
             placeholder="+383 xx xxx xxx"
-            defaultValue={initialData?.phone ?? ''}
+            defaultValue={initialData?.phone ?? ""}
           />
         </div>
       </Card>
@@ -111,7 +111,7 @@ export function CompanySettingsForm({
             label="Street Address"
             name="address"
             placeholder="Rr. Xhabir Toqani, Bb1/5"
-            defaultValue={initialData?.address ?? ''}
+            defaultValue={initialData?.address ?? ""}
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -119,14 +119,14 @@ export function CompanySettingsForm({
               label="City"
               name="city"
               placeholder="Prishtinë"
-              defaultValue={initialData?.city ?? ''}
+              defaultValue={initialData?.city ?? ""}
             />
 
             <FormInput
               label="Country"
               name="country"
               placeholder="Kosovo"
-              defaultValue={initialData?.country ?? 'Kosovo'}
+              defaultValue={initialData?.country ?? "Kosovo"}
             />
           </div>
         </div>
@@ -190,7 +190,7 @@ export function CompanySettingsForm({
 
       <div className="flex justify-end">
         <Button type="submit" disabled={isPending}>
-          {isPending ? 'Saving...' : 'Save Settings'}
+          {isPending ? "Saving..." : "Save Settings"}
         </Button>
       </div>
     </form>

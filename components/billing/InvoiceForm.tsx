@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -17,7 +17,6 @@ import { LineItemsEditor } from "./LineItemsEditor";
 import { createInvoice } from "@/lib/actions/billing";
 import { computeInvoiceTotals } from "@/lib/billing-helpers";
 import type { LineItemInput } from "@/lib/validations/billing";
-
 
 type PropertyOption = {
   id: string;
@@ -211,12 +210,10 @@ export function InvoiceForm({
           <SelectContent>
             {bankAccounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
-                {(
-  Array.isArray(account.banks)
-    ? account.banks[0]?.name
-    : account.banks?.name
-) || "Bank"}{" "}
-— {account.iban}
+                {(Array.isArray(account.banks)
+                  ? account.banks[0]?.name
+                  : account.banks?.name) || "Bank"}{" "}
+                — {account.iban}
               </SelectItem>
             ))}
           </SelectContent>

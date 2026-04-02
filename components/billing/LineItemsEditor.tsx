@@ -7,14 +7,17 @@ import { Trash2, Plus } from "lucide-react";
 import { computeLineItemTotal } from "@/lib/billing-helpers";
 import type { LineItemInput } from "@/lib/validations/billing";
 
-
 interface LineItemsEditorProps {
   items: LineItemInput[];
   onChange: (items: LineItemInput[]) => void;
   errors?: Record<string, string[]>;
 }
 
-export function LineItemsEditor({ items, onChange, errors }: LineItemsEditorProps) {
+export function LineItemsEditor({
+  items,
+  onChange,
+  errors,
+}: LineItemsEditorProps) {
   const addItem = () => {
     onChange([
       ...items,
@@ -32,7 +35,11 @@ export function LineItemsEditor({ items, onChange, errors }: LineItemsEditorProp
     onChange(items.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof LineItemInput, value: any) => {
+  const updateItem = (
+    index: number,
+    field: keyof LineItemInput,
+    value: any
+  ) => {
     const updated = [...items];
     updated[index] = { ...updated[index], [field]: value };
     onChange(updated);
@@ -48,9 +55,7 @@ export function LineItemsEditor({ items, onChange, errors }: LineItemsEditorProp
         </Button>
       </div>
 
-      {errors?.items && (
-        <p className="text-sm text-red-600">{errors.items[0]}</p>
-      )}
+      {errors?.items && <p className="text-sm text-red-600">{errors.items[0]}</p>}
 
       <div className="space-y-3">
         {items.map((item, index) => {
@@ -61,8 +66,7 @@ export function LineItemsEditor({ items, onChange, errors }: LineItemsEditorProp
           );
 
           return (
-            <div key={item.temp_id || index} className="p-4 border rounded-lg space-y-3">
-              {/* Description */}
+            <div key={item.temp_id || index} className="space-y-3 rounded-lg border p-4">
               <div>
                 <Label htmlFor={`item-${index}-description`}>Description</Label>
                 <Input
@@ -73,7 +77,6 @@ export function LineItemsEditor({ items, onChange, errors }: LineItemsEditorProp
                 />
               </div>
 
-              {/* Quantity, Unit Price, VAT Rate */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label htmlFor={`item-${index}-quantity`}>Quantity</Label>
@@ -119,13 +122,15 @@ export function LineItemsEditor({ items, onChange, errors }: LineItemsEditorProp
                 </div>
               </div>
 
-              {/* Totals Preview */}
-              <div className="flex items-center justify-between pt-2 border-t text-sm">
+              <div className="flex items-center justify-between border-t pt-2 text-sm">
                 <div className="space-x-4 text-gray-600">
                   <span>Subtotal: €{subtotal.toFixed(2)}</span>
                   <span>VAT: €{vatAmount.toFixed(2)}</span>
-                  <span className="font-semibold text-gray-900">Total: €{total.toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900">
+                    Total: €{total.toFixed(2)}
+                  </span>
                 </div>
+
                 {items.length > 1 && (
                   <Button
                     type="button"

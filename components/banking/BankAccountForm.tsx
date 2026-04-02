@@ -1,41 +1,44 @@
-"use client"
+"use client";
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { Label } from '@/components/ui/Label'
-import { Checkbox } from '@/components/ui/Checkbox'
-import { Alert } from '@/components/ui/Alert'
-import type { BankAccount } from '@/types/banking'
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Alert } from "@/components/ui/Alert";
+import type { BankAccount } from "@/types/banking";
 
 interface BankAccountFormProps {
-  action: (formData: FormData) => Promise<{ success: boolean; error?: string }>
-  initialData?: BankAccount
+  action: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
+  initialData?: BankAccount;
 }
 
-export function BankAccountForm({ action, initialData }: BankAccountFormProps) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+export function BankAccountForm({
+  action,
+  initialData,
+}: BankAccountFormProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
 
-    const formData = new FormData(e.currentTarget)
+    const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      const result = await action(formData)
+      const result = await action(formData);
       if (result.success) {
-        router.push('/settings/banking')
-        router.refresh()
+        router.push("/settings/banking");
+        router.refresh();
       } else {
-        setError(result.error || 'An unexpected error occurred')
+        setError(result.error || "An unexpected error occurred");
       }
-    })
-  }
+    });
+  };
 
   return (
     <Card className="p-6">
@@ -66,7 +69,7 @@ export function BankAccountForm({ action, initialData }: BankAccountFormProps) {
           <Input
             id="account_number"
             name="account_number"
-            defaultValue={initialData?.account_number || ''}
+            defaultValue={initialData?.account_number || ""}
             placeholder="e.g., 1234567890"
           />
         </div>
@@ -92,7 +95,7 @@ export function BankAccountForm({ action, initialData }: BankAccountFormProps) {
           <Input
             id="swift_bic"
             name="swift_bic"
-            defaultValue={initialData?.swift_bic || ''}
+            defaultValue={initialData?.swift_bic || ""}
             placeholder="e.g., RBKOXKPR"
             pattern="^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$"
             title="Must be 8 or 11 characters (e.g., RBKOXKPR)"
@@ -112,7 +115,7 @@ export function BankAccountForm({ action, initialData }: BankAccountFormProps) {
 
         <div className="flex gap-4">
           <Button type="submit" disabled={isPending}>
-            {isPending ? 'Saving...' : initialData ? 'Update Account' : 'Add Account'}
+            {isPending ? "Saving..." : initialData ? "Update Account" : "Add Account"}
           </Button>
           <Button
             type="button"
@@ -125,5 +128,5 @@ export function BankAccountForm({ action, initialData }: BankAccountFormProps) {
         </div>
       </form>
     </Card>
-  )
+  );
 }
