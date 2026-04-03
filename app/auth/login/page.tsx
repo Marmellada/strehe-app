@@ -21,7 +21,7 @@ async function loginAction(formData: FormData) {
     redirect("/auth/login?error=Please%20enter%20email%20and%20password");
   }
 
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  const safeNext = next.startsWith("/") ? next : "/";
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -29,7 +29,11 @@ async function loginAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/auth/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(safeNext)}`);
+    redirect(
+      `/auth/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(
+        safeNext
+      )}`
+    );
   }
 
   redirect(safeNext);
@@ -37,8 +41,7 @@ async function loginAction(formData: FormData) {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const nextPath =
-    params?.next && params.next.startsWith("/") ? params.next : "/dashboard";
+  const nextPath = params?.next && params.next.startsWith("/") ? params.next : "/";
   const error = params?.error || "";
 
   return (
