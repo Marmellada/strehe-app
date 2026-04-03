@@ -9,7 +9,6 @@ export default function TasksRememberFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Save filters on change
   useEffect(() => {
     const params = searchParams.toString();
     if (params) {
@@ -17,7 +16,6 @@ export default function TasksRememberFilters() {
     }
   }, [searchParams]);
 
-  // Restore filters if none exist
   useEffect(() => {
     const hasParams = searchParams.toString().length > 0;
 
@@ -28,7 +26,7 @@ export default function TasksRememberFilters() {
         router.replace(`/tasks?${saved}`);
       }
     }
-  }, []);
+  }, [router, searchParams]);
 
   return null;
 }

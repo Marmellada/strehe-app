@@ -109,7 +109,10 @@ function buildQueryString(
 
   const search = new URLSearchParams();
 
-  const entries = Object.entries(merged) as Array<[keyof FilterParams, string | undefined]>;
+  const entries = Object.entries(merged) as Array<
+    [keyof FilterParams, string | undefined]
+  >;
+
   for (const [key, value] of entries) {
     if (value && value.trim() !== "") {
       search.set(key, value);
@@ -120,7 +123,10 @@ function buildQueryString(
   return query ? `/tasks?${query}` : "/tasks";
 }
 
-function getKpiCardClasses(active: boolean, tone: "default" | "danger" = "default") {
+function getKpiCardClasses(
+  active: boolean,
+  tone: "default" | "danger" = "default"
+) {
   if (active && tone === "danger") {
     return "card p-4 ring-2 ring-red-500 border-red-300 bg-red-50/50";
   }
@@ -130,6 +136,14 @@ function getKpiCardClasses(active: boolean, tone: "default" | "danger" = "defaul
   }
 
   return "card p-4 hover:border-gray-300 transition";
+}
+
+function getSavedViewClasses(active: boolean) {
+  if (active) {
+    return "btn";
+  }
+
+  return "btn btn-secondary";
 }
 
 export default async function TasksPage({
@@ -347,16 +361,15 @@ export default async function TasksPage({
     (task) => task.status === "completed"
   ).length;
   const overdueCount = typedTasks.filter(
-    (task) => task.due_date && task.due_date < today && task.status !== "completed"
+    (task) =>
+      task.due_date && task.due_date < today && task.status !== "completed"
   ).length;
   const unassignedCount = typedTasks.filter(
     (task) => !task.assigned_user_id
   ).length;
-  const manualCount = typedTasks.filter(
-    (task) => !task.subscription_id
-  ).length;
-  const subscriptionCount = typedTasks.filter(
-    (task) => Boolean(task.subscription_id)
+  const manualCount = typedTasks.filter((task) => !task.subscription_id).length;
+  const subscriptionCount = typedTasks.filter((task) =>
+    Boolean(task.subscription_id)
   ).length;
 
   const openHref = buildQueryString(params, {
@@ -417,9 +430,25 @@ export default async function TasksPage({
     page: "1",
   });
 
+  const operationsHref = "/tasks?status=open&due=overdue";
+  const myWorkHref =
+    appUser.role === "admin" || appUser.role === "office"
+      ? "/tasks?assigned=me"
+      : "/tasks?assigned=me";
+  const backlogHref = "/tasks?status=open&assigned=unassigned&source=manual";
+
+  const operationsActive =
+    params.status === "open" && params.due === "overdue";
+  const myWorkActive = params.assigned === "me";
+  const backlogActive =
+    params.status === "open" &&
+    params.assigned === "unassigned" &&
+    params.source === "manual";
+
   return (
     <div className="space-y-6">
       <TasksRememberFilters />
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Tasks</h1>
@@ -436,6 +465,26 @@ export default async function TasksPage({
             + New Task
           </Link>
         ) : null}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-wide text-gray-500">
+          Saved Views
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Link href={operationsHref} className={getSavedViewClasses(operationsActive)}>
+            Operations
+          </Link>
+
+          <Link href={myWorkHref} className={getSavedViewClasses(myWorkActive)}>
+            My Work
+          </Link>
+
+          <Link href={backlogHref} className={getSavedViewClasses(backlogActive)}>
+            Backlog
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -466,65 +515,100 @@ export default async function TasksPage({
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <Link href={openHref} className={getKpiCardClasses(params.status === "open")}>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Open</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{openCount}</div>
+        <Link
+          href={openHref}
+          className={getKpiCardClasses(params.status === "open")}
+        >
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Open
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {openCount}
+          </div>
         </Link>
 
         <Link
           href={inProgressHref}
           className={getKpiCardClasses(params.status === "in_progress")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">In Progress</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{inProgressCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            In Progress
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {inProgressCount}
+          </div>
         </Link>
 
         <Link
           href={blockedHref}
           className={getKpiCardClasses(params.status === "blocked")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">Blocked</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{blockedCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Blocked
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {blockedCount}
+          </div>
         </Link>
 
         <Link
           href={completedHref}
           className={getKpiCardClasses(params.status === "completed")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">Completed</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{completedCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Completed
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {completedCount}
+          </div>
         </Link>
 
         <Link
           href={overdueHref}
           className={getKpiCardClasses(params.due === "overdue", "danger")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">Overdue</div>
-          <div className="mt-2 text-2xl font-semibold text-red-600">{overdueCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Overdue
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-red-600">
+            {overdueCount}
+          </div>
         </Link>
 
         <Link
           href={unassignedHref}
           className={getKpiCardClasses(params.assigned === "unassigned")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">Unassigned</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{unassignedCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Unassigned
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {unassignedCount}
+          </div>
         </Link>
 
         <Link
           href={manualHref}
           className={getKpiCardClasses(params.source === "manual")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">Manual</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{manualCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Manual
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {manualCount}
+          </div>
         </Link>
 
         <Link
           href={subscriptionHref}
           className={getKpiCardClasses(params.source === "subscription")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">Subscription</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">{subscriptionCount}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Subscription
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">
+            {subscriptionCount}
+          </div>
         </Link>
       </div>
 
@@ -739,7 +823,10 @@ export default async function TasksPage({
                   : "-";
 
                 return (
-                  <tr key={task.id} className={isOverdue ? "bg-red-50/40" : ""}>
+                  <tr
+                    key={task.id}
+                    className={isOverdue ? "bg-red-50/40" : ""}
+                  >
                     <td>
                       <div className="flex gap-2 items-center flex-wrap">
                         <Link href={`/tasks/${task.id}`}>
