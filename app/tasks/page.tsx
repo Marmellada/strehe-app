@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 
+const PAGE_SIZE = 20;
+
 type TaskRow = {
   id: string;
   title: string | null;
@@ -35,6 +37,7 @@ type FilterParams = {
   property?: string;
   assignee_id?: string;
   source?: string;
+  page?: string;
 };
 
 function formatDate(dateString: string | null) {
@@ -94,6 +97,28 @@ function getSourceClasses(isAutoTask: boolean) {
     : "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
 }
 
+function buildQueryString(
+  params: FilterParams,
+  overrides: Partial<FilterParams> = {}
+) {
+  const merged: FilterParams = {
+    ...params,
+    ...overrides,
+  };
+
+  const search = new URLSearchParams();
+
+  const entries = Object.entries(merged) as Array<[keyof FilterParams, string | undefined]>;
+  for (const [key, value] of entries) {
+    if (value && value.trim() !== "") {
+      search.set(key, value);
+    }
+  }
+
+  const query = search.toString();
+  return query ? `/tasks?${query}` : "/tasks";
+}
+
 export default async function TasksPage({
   searchParams,
 }: {
@@ -114,10 +139,15 @@ export default async function TasksPage({
   const canUseAdminAssigneeFilter =
     appUser.role === "admin" || appUser.role === "office";
 
+  const currentPage = Math.max(Number(params.page || "1") || 1, 1);
+  const from = (currentPage - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   let query = supabase
     .from("tasks")
     .select(
-      "id, title, status, priority, due_date, assigned_user_id, property_id, subscription_id, created_at"
+      "id, title, status, priority, due_date, assigned_user_id, property_id, subscription_id, created_at",
+      { count: "exact" }
     )
     .order("created_at", { ascending: false });
 
@@ -168,7 +198,7 @@ export default async function TasksPage({
     query = query.gt("due_date", today);
   }
 
-  const { data: tasks, error } = await query;
+  const { data: tasks, error, count } = await query.range(from, to);
 
   if (error) {
     return (
@@ -182,6 +212,8 @@ export default async function TasksPage({
   }
 
   const typedTasks: TaskRow[] = (tasks || []) as TaskRow[];
+  const total = count || 0;
+  const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
 
   const assignedUserIds = Array.from(
     new Set(
@@ -319,7 +351,9 @@ export default async function TasksPage({
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Tasks</h1>
-          <p className="page-subtitle">Operations dashboard for manual and subscription work</p>
+          <p className="page-subtitle">
+            Operations dashboard for manual and subscription work
+          </p>
           <p className="page-subtitle mt-1">
             Signed in as: <strong>{appUser.role}</strong>
           </p>
@@ -330,6 +364,33 @@ export default async function TasksPage({
             + New Task
           </Link>
         ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link href="/tasks" className="btn btn-secondary">
+          All
+        </Link>
+        <Link href="/tasks?status=open" className="btn btn-secondary">
+          Open
+        </Link>
+        <Link href="/tasks?due=overdue" className="btn btn-secondary">
+          Overdue
+        </Link>
+        <Link href="/tasks?status=completed" className="btn btn-secondary">
+          Completed
+        </Link>
+        <Link href="/tasks?source=manual" className="btn btn-secondary">
+          Manual
+        </Link>
+        <Link href="/tasks?source=subscription" className="btn btn-secondary">
+          Subscription
+        </Link>
+        <Link href="/tasks?assigned=me" className="btn btn-secondary">
+          My Tasks
+        </Link>
+        <Link href="/tasks?assigned=unassigned" className="btn btn-secondary">
+          Unassigned
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -540,6 +601,8 @@ export default async function TasksPage({
             </div>
           )}
 
+          <input type="hidden" name="page" value="1" />
+
           <div className="xl:col-span-7 flex items-end gap-3">
             <button type="submit" className="btn">
               Apply Filters
@@ -583,10 +646,7 @@ export default async function TasksPage({
                   : "-";
 
                 return (
-                  <tr
-                    key={task.id}
-                    className={isOverdue ? "bg-red-50/40" : ""}
-                  >
+                  <tr key={task.id} className={isOverdue ? "bg-red-50/40" : ""}>
                     <td>
                       <div className="flex gap-2 items-center flex-wrap">
                         <Link href={`/tasks/${task.id}`}>
@@ -636,9 +696,53 @@ export default async function TasksPage({
             </tbody>
           </table>
 
-          {typedTasks.length === 0 && (
+          {typedTasks.length === 0 ? (
             <div className="empty-state">No tasks found.</div>
-          )}
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-gray-200 px-4 py-4">
+          <div className="text-sm text-gray-500">
+            Showing <strong>{total === 0 ? 0 : from + 1}</strong> to{" "}
+            <strong>{Math.min(to + 1, total)}</strong> of{" "}
+            <strong>{total}</strong> tasks
+          </div>
+
+          <div className="flex items-center gap-2">
+            {currentPage > 1 ? (
+              <Link
+                href={buildQueryString(params, {
+                  page: String(currentPage - 1),
+                })}
+                className="btn btn-secondary"
+              >
+                Prev
+              </Link>
+            ) : (
+              <span className="btn btn-secondary opacity-50 pointer-events-none">
+                Prev
+              </span>
+            )}
+
+            <span className="text-sm text-gray-500">
+              Page {currentPage} / {totalPages}
+            </span>
+
+            {currentPage < totalPages ? (
+              <Link
+                href={buildQueryString(params, {
+                  page: String(currentPage + 1),
+                })}
+                className="btn btn-secondary"
+              >
+                Next
+              </Link>
+            ) : (
+              <span className="btn btn-secondary opacity-50 pointer-events-none">
+                Next
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
