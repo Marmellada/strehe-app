@@ -10,7 +10,7 @@ export default function UnauthorizedPage() {
         </p>
 
         <div style={{ display: "flex", gap: 12 }}>
-          <Link href="/dashboard" className="btn btn-primary">
+          <Link href="/" className="btn btn-primary">
             Go to dashboard
           </Link>
           <Link href="/auth/logout" className="btn btn-secondary">
