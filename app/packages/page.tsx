@@ -2,54 +2,46 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
 type SearchParams = Promise<{
-  status?: string;
-  property_id?: string;
   search?: string;
+  status?: string;
 }>;
 
-type RelatedProperty =
+type ServiceRelation =
   | {
       id: string;
-      title: string | null;
-      property_code: string | null;
-      address_line_1: string | null;
+      name: string | null;
+      category: string | null;
+      base_price: number | string | null;
+      is_active: boolean | null;
     }
   | {
       id: string;
-      title: string | null;
-      property_code: string | null;
-      address_line_1: string | null;
+      name: string | null;
+      category: string | null;
+      base_price: number | string | null;
+      is_active: boolean | null;
     }[]
   | null;
 
-type RecipientUser =
-  | { full_name: string | null }
-  | { full_name: string | null }[]
-  | null;
+type PackageServiceRow = {
+  id: string;
+  included_quantity: number | null;
+  services: ServiceRelation;
+};
 
 type PackageRow = {
   id: string;
-  tracking_code: string | null;
+  name: string | null;
   description: string | null;
-  status: string | null;
-  carrier: string | null;
-  recipient_name: string | null;
-  recipient_user: RecipientUser;
-  storage_location: string | null;
-  received_at: string | null;
-  picked_up_at: string | null;
-  property_id: string | null;
-  properties: RelatedProperty;
+  monthly_price: number | string | null;
+  is_active: boolean | null;
+  created_at: string | null;
+  package_services: PackageServiceRow[] | null;
 };
 
-type PropertyOption = {
+type SubscriptionRow = {
   id: string;
-  title: string | null;
-  property_code: string | null;
-};
-
-type StatusCountRow = {
-  id: string;
+  package_id: string | null;
   status: string | null;
 };
 
@@ -59,48 +51,50 @@ function getSingleRelation<T>(value: T | T[] | null): T | null {
   return value;
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "-";
+function formatPrice(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "—";
 
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+  const num = typeof value === "number" ? value : Number(value);
+
+  if (Number.isNaN(num)) return "—";
+
+  return `€${num.toFixed(2)}`;
 }
 
-function getStatusBadgeClass(status: string | null) {
-  switch (status) {
-    case "pending":
-      return "badge-warning";
-    case "received":
-      return "badge-success";
-    case "picked_up":
-      return "badge-outline";
-    case "returned":
-      return "badge-danger";
-    default:
-      return "badge-outline";
+function formatLabel(value: string | null | undefined) {
+  if (!value) return "—";
+
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getIncludedServicesLabel(packageServices: PackageServiceRow[] | null) {
+  if (!packageServices || packageServices.length === 0) {
+    return "No services assigned";
   }
+
+  return packageServices
+    .map((row) => {
+      const service = getSingleRelation(row.services);
+      const qty = Number(row.included_quantity || 0);
+      const qtyLabel = qty > 0 ? `${qty}x` : "—";
+      return `${qtyLabel} ${service?.name || "Unnamed service"}`;
+    })
+    .join(" · ");
 }
 
 function buildPackagesPageHref({
-  status,
-  property_id,
   search,
+  status,
 }: {
-  status?: string;
-  property_id?: string;
   search?: string;
+  status?: string;
 }) {
   const params = new URLSearchParams();
 
-  if (status) params.set("status", status);
-  if (property_id) params.set("property_id", property_id);
   if (search) params.set("search", search);
+  if (status) params.set("status", status);
 
   const query = params.toString();
   return query ? `/packages?${query}` : "/packages";
@@ -114,171 +108,166 @@ export default async function PackagesPage({
   const supabase = await createClient();
   const params = await searchParams;
 
-  const status = params.status || "";
-  const property_id = params.property_id || "";
   const search = params.search || "";
+  const status = params.status || "";
 
-  const [
-    { data: properties },
-    { data: allPackages },
-    { data: filteredPackages, error },
-  ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("id, title, property_code")
-      .order("title"),
-
-    supabase.from("packages").select("id, status"),
-
-    (async () => {
-      let query = supabase
-        .from("packages")
-        .select(
-          `
+  const [{ data: packagesData, error }, { data: subscriptionsData }] =
+    await Promise.all([
+      (async () => {
+        let query = supabase
+          .from("packages")
+          .select(
+            `
             id,
-            tracking_code,
+            name,
             description,
-            status,
-            carrier,
-            recipient_name,
-            storage_location,
-            received_at,
-            picked_up_at,
-            property_id,
-            properties (
+            monthly_price,
+            is_active,
+            created_at,
+            package_services (
               id,
-              title,
-              property_code,
-              address_line_1
-            ),
-            recipient_user:users!packages_recipient_user_fk (
-              full_name
+              included_quantity,
+              services (
+                id,
+                name,
+                category,
+                base_price,
+                is_active
+              )
             )
           `
-        )
-        .order("received_at", { ascending: false });
+          )
+          .order("created_at", { ascending: false });
 
-      if (status) {
-        query = query.eq("status", status);
-      }
+        if (status === "active") {
+          query = query.eq("is_active", true);
+        } else if (status === "inactive") {
+          query = query.eq("is_active", false);
+        }
 
-      if (property_id) {
-        query = query.eq("property_id", property_id);
-      }
+        if (search) {
+          query = query.or(
+            `name.ilike.%${search}%,description.ilike.%${search}%`
+          );
+        }
 
-      if (search) {
-        query = query.or(
-          [
-            `tracking_code.ilike.%${search}%`,
-            `description.ilike.%${search}%`,
-            `carrier.ilike.%${search}%`,
-            `recipient_name.ilike.%${search}%`,
-            `storage_location.ilike.%${search}%`,
-          ].join(",")
-        );
-      }
+        return await query;
+      })(),
 
-      return await query;
-    })(),
-  ]);
+      supabase.from("subscriptions").select("id, package_id, status"),
+    ]);
 
   if (error) {
     return <div className="card">Error loading packages: {error.message}</div>;
   }
 
-  const propertyOptions = (properties || []) as PropertyOption[];
-  const packages = (filteredPackages || []) as PackageRow[];
-  const allPackageRows = (allPackages || []) as StatusCountRow[];
+  const packages = (packagesData || []) as PackageRow[];
+  const subscriptions = (subscriptionsData || []) as SubscriptionRow[];
 
-  const counts = allPackageRows.reduce(
-    (acc, row) => {
-      const currentStatus = row.status || "unknown";
+  const activeContractsByPackageId = new Map<string, number>();
+
+  for (const subscription of subscriptions) {
+    if (!subscription.package_id) continue;
+
+    const currentStatus = (subscription.status || "").toLowerCase();
+    const isActiveLike =
+      currentStatus === "active" || currentStatus === "paused";
+
+    if (!isActiveLike) continue;
+
+    activeContractsByPackageId.set(
+      subscription.package_id,
+      (activeContractsByPackageId.get(subscription.package_id) || 0) + 1
+    );
+  }
+
+  const totals = packages.reduce(
+    (acc, pkg) => {
+      const packageServices = pkg.package_services || [];
 
       acc.total += 1;
 
-      if (currentStatus === "pending") acc.pending += 1;
-      else if (currentStatus === "received") acc.received += 1;
-      else if (currentStatus === "picked_up") acc.picked_up += 1;
-      else if (currentStatus === "returned") acc.returned += 1;
-      else acc.other += 1;
+      if (pkg.is_active) {
+        acc.active += 1;
+      } else {
+        acc.inactive += 1;
+      }
+
+      acc.serviceLinks += packageServices.length;
+      acc.activeContracts += activeContractsByPackageId.get(pkg.id) || 0;
 
       return acc;
     },
     {
       total: 0,
-      pending: 0,
-      received: 0,
-      picked_up: 0,
-      returned: 0,
-      other: 0,
+      active: 0,
+      inactive: 0,
+      serviceLinks: 0,
+      activeContracts: 0,
     }
   );
 
-  const statusLinks = [
-    { label: "All", value: "", count: counts.total },
-    { label: "Pending", value: "pending", count: counts.pending },
-    { label: "Received", value: "received", count: counts.received },
-    { label: "Picked Up", value: "picked_up", count: counts.picked_up },
-    { label: "Returned", value: "returned", count: counts.returned },
+  const quickFilters = [
+    { label: "All", value: "", count: totals.total },
+    { label: "Active", value: "active", count: totals.active },
+    { label: "Inactive", value: "inactive", count: totals.inactive },
   ];
 
   return (
     <main className="space-y-6">
-      <div>
-        <h1 className="page-title">Packages</h1>
-        <p className="page-subtitle mt-2">
-          Track package deliveries and pickups across all properties.
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="page-title">Packages</h1>
+          <p className="page-subtitle mt-2">
+            Manage contractual service bundles used in contracts.
+          </p>
+        </div>
+
+        <Link href="/packages/create" className="btn btn-primary">
+          + New Package
+        </Link>
       </div>
 
-      {/* ── Status summary cards ── */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="card">
-          <span className="field-label">All Packages</span>
-          <span className="field-value">{counts.total}</span>
+          <span className="field-label">Total Packages</span>
+          <span className="field-value">{totals.total}</span>
         </div>
 
         <div className="card">
-          <span className="field-label">Pending</span>
-          <span className="field-value">{counts.pending}</span>
+          <span className="field-label">Active Packages</span>
+          <span className="field-value">{totals.active}</span>
         </div>
 
         <div className="card">
-          <span className="field-label">Received</span>
-          <span className="field-value">{counts.received}</span>
+          <span className="field-label">Inactive Packages</span>
+          <span className="field-value">{totals.inactive}</span>
         </div>
 
         <div className="card">
-          <span className="field-label">Picked Up</span>
-          <span className="field-value">{counts.picked_up}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Returned</span>
-          <span className="field-value">{counts.returned}</span>
+          <span className="field-label">Active Contracts</span>
+          <span className="field-value">{totals.activeContracts}</span>
         </div>
       </section>
 
-      {/* ── Quick status filters ── */}
       <section className="card">
         <div className="mb-4">
-          <h2 className="section-title !mb-0">Quick Status Filters</h2>
+          <h2 className="section-title !mb-0">Quick Filters</h2>
           <p className="page-subtitle mt-1">
-            Jump between delivery lifecycle states.
+            Filter packages by commercial status.
           </p>
         </div>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {statusLinks.map((item) => {
+          {quickFilters.map((item) => {
             const active = status === item.value;
 
             return (
               <Link
                 key={item.label}
                 href={buildPackagesPageHref({
-                  status: item.value,
-                  property_id,
                   search,
+                  status: item.value,
                 })}
                 className={active ? "btn btn-primary" : "btn btn-ghost"}
               >
@@ -289,12 +278,11 @@ export default async function PackagesPage({
         </div>
       </section>
 
-      {/* ── Filters form ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Filters</h2>
           <p className="page-subtitle mt-1">
-            Narrow the list by property, status, or keyword.
+            Search packages by name or description.
           </p>
         </div>
 
@@ -303,209 +291,153 @@ export default async function PackagesPage({
           style={{
             display: "grid",
             gap: 16,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "minmax(240px, 2fr) minmax(180px, 1fr) auto",
             alignItems: "end",
           }}
         >
           <label className="field">
-            Status
-            <select name="status" defaultValue={status} className="input">
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="received">Received</option>
-              <option value="picked_up">Picked Up</option>
-              <option value="returned">Returned</option>
-            </select>
-          </label>
-
-          <label className="field">
-            Property
-            <select
-              name="property_id"
-              defaultValue={property_id}
-              className="input"
-            >
-              <option value="">All properties</option>
-              {propertyOptions.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.title || "Untitled Property"}
-                  {property.property_code
-                    ? ` (${property.property_code})`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
             Search
             <input
+              type="text"
               name="search"
-              className="input"
               defaultValue={search}
-              placeholder="Tracking, description, carrier..."
+              className="input"
+              placeholder="Search package name or description"
             />
           </label>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button type="submit" className="btn btn-primary">
-              Apply Filters
-            </button>
+          <label className="field">
+            Status
+            <select name="status" defaultValue={status} className="input">
+              <option value="">All statuses</option>
+              <option value="active">Active only</option>
+              <option value="inactive">Inactive only</option>
+            </select>
+          </label>
 
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="submit" className="btn btn-primary">
+              Apply
+            </button>
             <Link href="/packages" className="btn btn-ghost">
-              Reset
+              Clear
             </Link>
           </div>
         </form>
       </section>
 
-      {/* ── Packages list ── */}
+      <section className="card" style={{ padding: 0, overflow: "hidden" }}>
+        {packages.length === 0 ? (
+          <div style={{ padding: 24 }}>
+            <h3 style={{ marginTop: 0 }}>No packages found</h3>
+            <p style={{ opacity: 0.75 }}>
+              Create your first contractual package to use it in contracts.
+            </p>
+            <Link href="/packages/create" className="btn btn-primary">
+              + New Package
+            </Link>
+          </div>
+        ) : (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Package</th>
+                  <th>Monthly Price</th>
+                  <th>Status</th>
+                  <th>Included Services</th>
+                  <th>Active Contracts</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {packages.map((pkg) => {
+                  const packageServices = pkg.package_services || [];
+                  const activeContracts =
+                    activeContractsByPackageId.get(pkg.id) || 0;
+
+                  return (
+                    <tr key={pkg.id}>
+                      <td>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <Link href={`/packages/${pkg.id}`}>
+                            {pkg.name || "Untitled package"}
+                          </Link>
+                          <span style={{ fontSize: 13, opacity: 0.75 }}>
+                            {pkg.description || "No description"}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>{formatPrice(pkg.monthly_price)}</td>
+
+                      <td>
+                        <span
+                          className={pkg.is_active ? "badge-success" : "badge-outline"}
+                        >
+                          {pkg.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <strong>{packageServices.length}</strong>
+                          <span style={{ fontSize: 13, opacity: 0.75 }}>
+                            {getIncludedServicesLabel(packageServices)}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>{activeContracts}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section className="card">
         <div className="mb-4">
-          <h2 className="section-title !mb-0">Packages List</h2>
+          <h2 className="section-title !mb-0">V1 Package Meaning</h2>
           <p className="page-subtitle mt-1">
-            {packages.length} package{packages.length === 1 ? "" : "s"} found.
+            Packages are commercial bundles used in contracts, while services
+            remain reusable catalog items for both contracts and billing.
           </p>
         </div>
 
-        {packages.length === 0 ? (
-          <p className="field-value-muted">
-            No packages found for the current filters.
-          </p>
-        ) : (
-          <div style={{ display: "grid", gap: 16 }}>
-            {packages.map((pkg) => {
-              const property = getSingleRelation(pkg.properties);
-              const recipientUser = getSingleRelation(pkg.recipient_user);
-
-              const recipientDisplay =
-                recipientUser?.full_name ??
-                pkg.recipient_name ??
-                "Unknown recipient";
-
-              return (
-                <div
-                  key={pkg.id}
-                  className="related-item"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) auto",
-                    gap: 20,
-                    alignItems: "start",
-                    padding: 20,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <div
-                        className="related-item-title"
-                        style={{ margin: 0 }}
-                      >
-                        {pkg.description || "Package"}
-                      </div>
-
-                      <span
-                        className={`badge ${getStatusBadgeClass(pkg.status)}`}
-                      >
-                        {pkg.status || "Unknown"}
-                      </span>
-
-                      {pkg.carrier ? (
-                        <span className="badge badge-outline">
-                          {pkg.carrier}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        gridTemplateColumns:
-                          "repeat(auto-fit, minmax(220px, 1fr))",
-                      }}
-                    >
-                      <div>
-                        <div className="field-label">Tracking Code</div>
-                        <div className="field-value">
-                          {pkg.tracking_code || "-"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Recipient</div>
-                        <div className="field-value">{recipientDisplay}</div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Storage</div>
-                        <div className="field-value">
-                          {pkg.storage_location || "-"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Received At</div>
-                        <div className="field-value">
-                          {formatDate(pkg.received_at)}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Picked Up At</div>
-                        <div className="field-value">
-                          {formatDate(pkg.picked_up_at)}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Property</div>
-                        <div className="field-value">
-                          {property?.title || "-"}
-                          {property?.property_code
-                            ? ` (${property.property_code})`
-                            : ""}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Address</div>
-                        <div className="field-value">
-                          {property?.address_line_1 || "-"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      justifyContent: "flex-end",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <Link
-                      href={`/packages/${pkg.id}`}
-                      className="btn btn-ghost"
-                    >
-                      Open
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          }}
+        >
+          <div className="card">
+            <div className="field-label">Package</div>
+            <div className="field-value">Contract bundle</div>
+            <p style={{ marginTop: 8, opacity: 0.75 }}>
+              Example: Basic, Standard, Premium
+            </p>
           </div>
-        )}
+
+          <div className="card">
+            <div className="field-label">Service</div>
+            <div className="field-value">Catalog item</div>
+            <p style={{ marginTop: 8, opacity: 0.75 }}>
+              Used inside packages and later on invoices.
+            </p>
+          </div>
+
+          <div className="card">
+            <div className="field-label">Contract</div>
+            <div className="field-value">Property assignment</div>
+            <p style={{ marginTop: 8, opacity: 0.75 }}>
+              One property enrolled in one package.
+            </p>
+          </div>
+        </div>
       </section>
     </main>
   );

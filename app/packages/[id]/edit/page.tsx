@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+
+type EditPackagePageProps = {
+  params: Promise<{ id: string }>;
+};
 
 async function updatePackage(formData: FormData) {
   "use server";
+
+  const supabase = await createClient();
 
   const id = String(formData.get("id") || "").trim();
   const name = String(formData.get("name") || "").trim();
@@ -16,7 +22,7 @@ async function updatePackage(formData: FormData) {
   }
 
   if (!name) {
-    throw new Error("Name is required.");
+    throw new Error("Package name is required.");
   }
 
   const monthly_price =
@@ -33,6 +39,7 @@ async function updatePackage(formData: FormData) {
       description: description || null,
       monthly_price,
       is_active,
+      updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
@@ -43,24 +50,23 @@ async function updatePackage(formData: FormData) {
   redirect(`/packages/${id}`);
 }
 
-type EditPackagePageProps = {
-  params: Promise<{ id: string }>;
-};
-
 export default async function EditPackagePage({
   params,
 }: EditPackagePageProps) {
+  const supabase = await createClient();
   const { id } = await params;
 
   const { data: pkg, error } = await supabase
     .from("packages")
-    .select(`
+    .select(
+      `
       id,
       name,
       description,
       monthly_price,
       is_active
-    `)
+    `
+    )
     .eq("id", id)
     .single();
 
@@ -69,11 +75,11 @@ export default async function EditPackagePage({
   }
 
   return (
-    <div className="space-y-6">
+    <main className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="page-title">Edit Package</h1>
-          <p className="page-subtitle">{pkg.name || "-"}</p>
+          <p className="page-subtitle mt-2">{pkg.name || "—"}</p>
         </div>
 
         <div className="flex gap-2">
@@ -83,77 +89,86 @@ export default async function EditPackagePage({
         </div>
       </div>
 
-      <form action={updatePackage} className="card space-y-6">
-        <input type="hidden" name="id" value={pkg.id} />
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <label htmlFor="name" className="field-label">
-              Name *
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              defaultValue={pkg.name || ""}
-              required
-              className="input"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="monthly_price" className="field-label">
-              Monthly Price
-            </label>
-            <input
-              id="monthly_price"
-              name="monthly_price"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={pkg.monthly_price ?? ""}
-              className="input"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="is_active" className="field-label">
-              Status
-            </label>
-            <select
-              id="is_active"
-              name="is_active"
-              defaultValue={String(pkg.is_active)}
-              className="input"
-            >
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-          </div>
-
-          <div className="col-span-2">
-            <label htmlFor="description" className="field-label">
-              Description
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              rows={6}
-              defaultValue={pkg.description || ""}
-              className="input"
-            />
-          </div>
+      <section className="card">
+        <div className="mb-4">
+          <h2 className="section-title !mb-0">Package Details</h2>
+          <p className="page-subtitle mt-1">
+            Update the commercial definition of this contractual package.
+          </p>
         </div>
 
-        <div className="flex gap-2">
-          <Link href={`/packages/${pkg.id}`} className="btn">
-            Cancel
-          </Link>
-          <button type="submit" className="btn btn-primary">
-            Save Changes
-          </button>
-        </div>
-      </form>
-    </div>
+        <form action={updatePackage} className="space-y-6">
+          <input type="hidden" name="id" value={pkg.id} />
+
+          <div className="grid grid-2 gap-4">
+            <div>
+              <label htmlFor="name" className="field-label">
+                Package Name *
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                defaultValue={pkg.name || ""}
+                required
+                className="input"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="monthly_price" className="field-label">
+                Monthly Price
+              </label>
+              <input
+                id="monthly_price"
+                name="monthly_price"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={pkg.monthly_price ?? ""}
+                className="input"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="is_active" className="field-label">
+                Status
+              </label>
+              <select
+                id="is_active"
+                name="is_active"
+                defaultValue={pkg.is_active ? "true" : "false"}
+                className="input"
+              >
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+
+            <div className="col-span-2">
+              <label htmlFor="description" className="field-label">
+                Description
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                rows={6}
+                defaultValue={pkg.description || ""}
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Link href={`/packages/${pkg.id}`} className="btn">
+              Cancel
+            </Link>
+            <button type="submit" className="btn btn-primary">
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
   );
 }
