@@ -46,21 +46,19 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const pathnameSafe = request.nextUrl.pathname;
-
-  if (isPublicPath(pathnameSafe)) {
+  if (isPublicPath(pathname)) {
     return response;
   }
 
-  // ✅ IMPORTANT FIX: use getClaims() instead of getUser()
-  const { data } = await supabase.auth.getClaims();
-const claims = data?.claims ?? null;
+  const claimsResult = await supabase.auth.getClaims();
+  const rawClaims = (claimsResult.data as { claims?: { sub?: string }; sub?: string } | null);
 
-  const isAuthenticated = !!claims;
+  const claims = rawClaims?.claims ?? rawClaims ?? null;
+  const userId = claims?.sub ?? null;
 
-  if (!isAuthenticated) {
+  if (!userId) {
     const loginUrl = new URL("/auth/login", request.url);
-    loginUrl.searchParams.set("next", pathnameSafe);
+    loginUrl.searchParams.set("next", pathname);
 
     const redirectResponse = NextResponse.redirect(loginUrl);
 
@@ -70,9 +68,6 @@ const claims = data?.claims ?? null;
 
     return redirectResponse;
   }
-
-  // OPTIONAL: still get user id for DB lookup
-  const userId = claims.sub;
 
   const { data: appUser } = await supabase
     .from("app_users")
@@ -92,7 +87,7 @@ const claims = data?.claims ?? null;
     return unauthorizedResponse;
   }
 
-  if (pathnameSafe === "/keys" || pathnameSafe.startsWith("/keys/")) {
+  if (pathname === "/keys" || pathname.startsWith("/keys/")) {
     if (appUser.role === "contractor") {
       const unauthorizedResponse = NextResponse.redirect(
         new URL("/unauthorized", request.url)
