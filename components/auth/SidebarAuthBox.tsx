@@ -1,23 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 
 export default async function SidebarAuthBox() {
-  const supabase = await createClient();
+  const current = await getCurrentUser();
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  if (!current) return null;
 
-  if (error || !user) {
-    return null;
-  }
+  const { authUser, appUser } = current;
 
-  const email = user.email || "Logged in user";
-  const fullName =
-    user.user_metadata?.full_name ||
-    user.user_metadata?.name ||
-    user.user_metadata?.display_name ||
-    null;
+  const email = authUser.email || "Logged in user";
+  const fullName = appUser.full_name;
 
   return (
     <div
@@ -88,16 +79,11 @@ export default async function SidebarAuthBox() {
           <button
             type="submit"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
               width: "100%",
               minHeight: "40px",
-              padding: "10px 12px",
               borderRadius: "10px",
               border: "1px solid rgba(255,255,255,0.16)",
               color: "#fff",
-              textDecoration: "none",
               fontSize: "14px",
               fontWeight: 600,
               background: "transparent",

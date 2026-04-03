@@ -11,6 +11,7 @@ type TaskActionRow = {
   id: string;
   assigned_user_id: string | null;
   status: string | null;
+  subscription_id: string | null;
 };
 
 async function loadTaskForAction(taskId: string) {
@@ -18,7 +19,7 @@ async function loadTaskForAction(taskId: string) {
 
   const { data: task, error } = await supabase
     .from("tasks")
-    .select("id, assigned_user_id, status")
+    .select("id, assigned_user_id, status, subscription_id")
     .eq("id", taskId)
     .single();
 
@@ -184,11 +185,27 @@ export async function unassignTask(formData: FormData) {
 export async function assignTaskToMe(formData: FormData) {
   const taskId = String(formData.get("taskId") || "").trim();
 
-  const { authUser } = await requireRole(["admin", "office"]);
+  const { authUser, appUser } = await requireRole([
+    "admin",
+    "office",
+    "field",
+    "contractor",
+  ]);
+
   const { supabase, task } = await loadTaskForAction(taskId);
 
   if (task.status === "completed") {
     throw new Error("Completed tasks cannot be reassigned. Reopen first.");
+  }
+
+  const canAssign =
+    appUser.role === "admin" ||
+    appUser.role === "office" ||
+    appUser.role === "field" ||
+    appUser.role === "contractor";
+
+  if (!canAssign) {
+    throw new Error("You are not allowed to assign this task.");
   }
 
   const { error } = await supabase
@@ -213,7 +230,11 @@ export async function deleteTask(formData: FormData) {
 
   await requireRole(["admin", "office"]);
 
-  const supabase = await createClient();
+  const { supabase, task } = await loadTaskForAction(taskId);
+
+  if (task.subscription_id) {
+    throw new Error("Auto-generated subscription tasks cannot be deleted manually.");
+  }
 
   const { error } = await supabase.from("tasks").delete().eq("id", taskId);
 

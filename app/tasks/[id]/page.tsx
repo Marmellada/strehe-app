@@ -26,6 +26,8 @@ type TaskRow = {
   assigned_user_id: string | null;
   created_by_user_id: string | null;
   property_id: string | null;
+  subscription_id: string | null;
+  service_id: string | null;
   created_at: string | null;
   updated_at: string | null;
   completed_at: string | null;
@@ -168,6 +170,8 @@ export default async function TaskDetailPage({ params }: PageProps) {
       assigned_user_id,
       created_by_user_id,
       property_id,
+      subscription_id,
+      service_id,
       created_at,
       updated_at,
       completed_at
@@ -189,6 +193,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
   }
 
   const typedTask = task as TaskRow;
+  const isAutoTask = Boolean(typedTask.subscription_id);
 
   const isRestrictedRole =
     appUser.role === "field" || appUser.role === "contractor";
@@ -212,8 +217,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
   const canReopenTask = canManageTask && isCompleted;
   const canShowEditButton = canManageTask && !isCompleted;
-  const canAddReport = (canManageTask || typedTask.assigned_user_id === authUser.id) && !isCompleted;
+  const canAddReport =
+    (canManageTask || typedTask.assigned_user_id === authUser.id) && !isCompleted;
   const canShowAssignmentActions = canManageTask && !isCompleted;
+  const canDeleteTask = canManageTask && !isAutoTask;
   const isMyTask = typedTask.assigned_user_id === authUser.id;
 
   const userIdsToLoad = Array.from(
@@ -368,6 +375,12 @@ export default async function TaskDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {isAutoTask ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          This is an auto-generated subscription task. It can be worked on and reassigned, but it cannot be deleted manually.
+        </div>
+      ) : null}
+
       <div className="flex items-center gap-2 flex-wrap">
         <span
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(
@@ -383,6 +396,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
           )}`}
         >
           {formatLabel(typedTask.priority)} Priority
+        </span>
+
+        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+          {isAutoTask ? "Subscription Task" : "Manual Task"}
         </span>
 
         {isMyTask ? (
@@ -420,6 +437,13 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
+                  <dt className="text-xs uppercase text-gray-500">Source</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {isAutoTask ? "Subscription" : "Manual"}
+                  </dd>
+                </div>
+
+                <div>
                   <dt className="text-xs uppercase text-gray-500">Status</dt>
                   <dd className="mt-1 text-sm text-gray-900">
                     {formatLabel(typedTask.status)}
@@ -452,6 +476,15 @@ export default async function TaskDetailPage({ params }: PageProps) {
                           .filter(Boolean)
                           .join(" — ")
                       : "—"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Subscription Link
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {typedTask.subscription_id || "—"}
                   </dd>
                 </div>
               </dl>
@@ -543,9 +576,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
               </div>
 
               {typedReports.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  No reports yet.
-                </p>
+                <p className="text-sm text-gray-500">No reports yet.</p>
               ) : (
                 <div className="space-y-6">
                   {typedReports.map((report) => {
@@ -553,8 +584,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                       ? reportUserMap.get(report.created_by_user_id) || null
                       : null;
 
-                    const reportImages =
-                      attachmentsByReport.get(report.id) || [];
+                    const reportImages = attachmentsByReport.get(report.id) || [];
 
                     return (
                       <div
@@ -716,20 +746,66 @@ export default async function TaskDetailPage({ params }: PageProps) {
             </div>
           </div>
 
+          <div className="card">
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                Source Info
+              </h2>
+
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">Task Type</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {isAutoTask ? "Auto-generated from subscription" : "Manual task"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Subscription ID
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900 break-all">
+                    {typedTask.subscription_id || "—"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Service ID
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900 break-all">
+                    {typedTask.service_id || "—"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
           {canManageTask ? (
             <div className="card border border-red-200">
               <div className="p-6">
                 <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wider mb-2">
                   Danger Zone
                 </h2>
-                <p className="text-sm text-gray-600 mb-4">
-                  Permanently delete this task. This action cannot be undone.
-                </p>
 
-                <DeleteTaskButton
-                  taskId={typedTask.id}
-                  deleteAction={deleteTask}
-                />
+                {canDeleteTask ? (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Permanently delete this task. This action cannot be undone.
+                    </p>
+
+                    <DeleteTaskButton
+                      taskId={typedTask.id}
+                      deleteAction={deleteTask}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600">
+                      Auto-generated subscription tasks cannot be deleted manually.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           ) : null}

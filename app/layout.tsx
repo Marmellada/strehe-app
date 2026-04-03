@@ -6,7 +6,7 @@ import { Geist, Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
-import { getCurrentUserWithRole } from "@/lib/auth/get-current-user-with-role";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -30,7 +30,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const current = await getCurrentUserWithRole();
+  const current = await getCurrentUser();
   const role = current?.appUser.role ?? null;
 
   return (

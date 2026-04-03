@@ -5,8 +5,8 @@ import { requireRole } from "@/lib/auth/require-role";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { FormInput } from "@/components/ui/FormInput";
 import { revalidatePath } from "next/cache";
+import TaskForm from "@/components/tasks/TaskForm";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -21,6 +21,22 @@ type TaskEditRow = {
   status: string | null;
   due_date: string | null;
   completed_at: string | null;
+  property_id: string | null;
+  subscription_id: string | null;
+  service_id: string | null;
+};
+
+type AppUserRow = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+};
+
+type PropertyRow = {
+  id: string;
+  property_code: string | null;
+  title: string | null;
+  address_line_1: string | null;
 };
 
 async function updateTask(formData: FormData) {
@@ -29,19 +45,20 @@ async function updateTask(formData: FormData) {
   await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
-  const taskId = String(formData.get("taskId") || "");
+  const taskId = String(formData.get("taskId") || "").trim();
   const title = String(formData.get("title") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const assigned_user_id = String(formData.get("assigned_user_id") || "").trim();
   const priority = String(formData.get("priority") || "").trim();
   const status = String(formData.get("status") || "").trim();
   const due_date = String(formData.get("due_date") || "").trim();
+  const property_id = String(formData.get("property_id") || "").trim();
 
-  if (!title) throw new Error("Title is required");
+  if (!title) throw new Error("Title is required.");
 
   const { data: existingTask, error: existingTaskError } = await supabase
     .from("tasks")
-    .select("id, status")
+    .select("id, status, property_id, subscription_id, service_id")
     .eq("id", taskId)
     .single();
 
@@ -53,15 +70,25 @@ async function updateTask(formData: FormData) {
     throw new Error("Completed tasks cannot be edited. Reopen first.");
   }
 
-  const updates: Record<string, any> = {
+  const isAutoTask = Boolean(existingTask.subscription_id);
+
+  const updates: Record<string, string | null> = {
     title,
     description: description || null,
     assigned_user_id: assigned_user_id || null,
     priority,
     status,
     due_date: due_date || null,
-    updated_at: new Date().toISOString(),
   };
+
+  if (isAutoTask) {
+    updates.property_id = existingTask.property_id;
+  } else {
+    if (!property_id) {
+      throw new Error("Property is required.");
+    }
+    updates.property_id = property_id;
+  }
 
   if (status === "completed") {
     updates.completed_at = new Date().toISOString();
@@ -92,13 +119,24 @@ export default async function TaskEditPage({ params }: PageProps) {
   const [
     { data: task, error: taskError },
     { data: users, error: usersError },
+    { data: properties, error: propertiesError },
   ] = await Promise.all([
-    supabase.from("tasks").select("*").eq("id", id).single(),
+    supabase
+      .from("tasks")
+      .select(
+        "id, title, description, assigned_user_id, priority, status, due_date, completed_at, property_id, subscription_id, service_id"
+      )
+      .eq("id", id)
+      .single(),
     supabase
       .from("app_users")
-      .select("id, email, full_name, role")
+      .select("id, email, full_name")
       .eq("is_active", true)
       .order("full_name"),
+    supabase
+      .from("properties")
+      .select("id, property_code, title, address_line_1")
+      .order("property_code"),
   ]);
 
   if (taskError) {
@@ -114,14 +152,18 @@ export default async function TaskEditPage({ params }: PageProps) {
     throw new Error(`Failed to load users: ${usersError.message}`);
   }
 
+  if (propertiesError) {
+    throw new Error(`Failed to load properties: ${propertiesError.message}`);
+  }
+
   const typedTask = task as TaskEditRow;
+  const typedUsers = (users || []) as AppUserRow[];
+  const typedProperties = (properties || []) as PropertyRow[];
+  const isAutoTask = Boolean(typedTask.subscription_id);
 
   if (typedTask.status === "completed") {
     redirect(`/tasks/${id}`);
   }
-
-  const selectClass =
-    "w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
     <div className="space-y-6">
@@ -136,99 +178,23 @@ export default async function TaskEditPage({ params }: PageProps) {
       />
 
       <Card>
-        <form action={updateTask} className="p-6 space-y-6">
-          <input type="hidden" name="taskId" value={id} />
-
-          <div className="grid grid-cols-1 gap-6">
-            <FormInput
-              label="Title"
-              name="title"
-              required
-              defaultValue={typedTask.title ?? ""}
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Description
-              </label>
-              <textarea
-                name="description"
-                rows={4}
-                defaultValue={typedTask.description ?? ""}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
+        <div className="p-6 space-y-6">
+          {isAutoTask ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              This is an auto-generated subscription task. Property linkage is locked.
             </div>
-          </div>
+          ) : null}
 
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Status
-              </label>
-              <select
-                name="status"
-                defaultValue={typedTask.status ?? "open"}
-                className={selectClass}
-              >
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="blocked">Blocked</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Priority
-              </label>
-              <select
-                name="priority"
-                defaultValue={typedTask.priority ?? "medium"}
-                className={selectClass}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Assign To
-            </label>
-            <select
-              name="assigned_user_id"
-              defaultValue={typedTask.assigned_user_id ?? ""}
-              className={selectClass}
-            >
-              <option value="">— Unassigned —</option>
-              {(users || []).map((u: any) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name?.trim() || u.email} ({u.role})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <FormInput
-            label="Due Date"
-            name="due_date"
-            type="date"
-            defaultValue={typedTask.due_date?.split("T")[0] ?? ""}
+          <TaskForm
+            action={updateTask}
+            users={typedUsers}
+            properties={typedProperties}
+            task={typedTask}
+            cancelHref={`/tasks/${id}`}
+            submitLabel="Save Changes"
+            lockProperty={isAutoTask}
           />
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700">
-            <Link href={`/tasks/${id}`}>
-              <Button type="button" variant="ghost">
-                Cancel
-              </Button>
-            </Link>
-
-            <Button type="submit">Save Changes</Button>
-          </div>
-        </form>
+        </div>
       </Card>
     </div>
   );
