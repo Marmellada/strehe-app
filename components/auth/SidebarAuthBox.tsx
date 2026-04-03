@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SidebarAuthBox() {
@@ -85,26 +84,29 @@ export default async function SidebarAuthBox() {
           <div style={{ marginBottom: "12px" }} />
         )}
 
-        <Link
-          href="/auth/logout"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "100%",
-            minHeight: "40px",
-            padding: "10px 12px",
-            borderRadius: "10px",
-            border: "1px solid rgba(255,255,255,0.16)",
-            color: "#fff",
-            textDecoration: "none",
-            fontSize: "14px",
-            fontWeight: 600,
-            background: "transparent",
-          }}
-        >
-          Log out
-        </Link>
+        <form action="/auth/logout" method="post">
+          <button
+            type="submit"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              minHeight: "40px",
+              padding: "10px 12px",
+              borderRadius: "10px",
+              border: "1px solid rgba(255,255,255,0.16)",
+              color: "#fff",
+              textDecoration: "none",
+              fontSize: "14px",
+              fontWeight: 600,
+              background: "transparent",
+              cursor: "pointer",
+            }}
+          >
+            Log out
+          </button>
+        </form>
       </div>
     </div>
   );
