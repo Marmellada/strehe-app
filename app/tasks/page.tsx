@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import TasksRememberFilters from "@/components/tasks/TasksRememberFilters";
 
 const PAGE_SIZE = 20;
 
@@ -418,6 +419,7 @@ export default async function TasksPage({
 
   return (
     <div className="space-y-6">
+      <TasksRememberFilters />
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Tasks</h1>
