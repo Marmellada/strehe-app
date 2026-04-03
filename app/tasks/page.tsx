@@ -20,11 +20,21 @@ type AppUserRow = {
   full_name: string | null;
 };
 
+type PropertyRow = {
+  id: string;
+  property_code: string | null;
+  title: string | null;
+};
+
 type FilterParams = {
   status?: string;
   priority?: string;
   assigned?: string;
   due?: string;
+  search?: string;
+  property?: string;
+  assignee_id?: string;
+  source?: string;
 };
 
 function formatDate(dateString: string | null) {
@@ -51,35 +61,37 @@ function formatLabel(value: string | null) {
 function getStatusClasses(status: string | null) {
   switch (status) {
     case "open":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200";
     case "in_progress":
-      return "bg-amber-50 text-amber-700 border border-amber-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200";
     case "blocked":
-      return "bg-red-50 text-red-700 border border-red-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-red-50 text-red-700 border border-red-200";
     case "completed":
-      return "bg-green-50 text-green-700 border border-green-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 border border-green-200";
     default:
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
   }
 }
 
 function getPriorityClasses(priority: string | null) {
   switch (priority) {
     case "urgent":
-      return "bg-red-50 text-red-700 border border-red-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-red-50 text-red-700 border border-red-200";
     case "high":
-      return "bg-orange-50 text-orange-700 border border-orange-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200";
     case "medium":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200";
     case "low":
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
     default:
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
   }
 }
 
-function getDueFilterCondition(due: string, query: ReturnType<typeof createClient> extends Promise<infer T> ? any : any) {
-  return query;
+function getSourceClasses(isAutoTask: boolean) {
+  return isAutoTask
+    ? "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200"
+    : "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
 }
 
 export default async function TasksPage({
@@ -97,8 +109,10 @@ export default async function TasksPage({
   ]);
 
   const supabase = await createClient();
-
   const today = new Date().toISOString().slice(0, 10);
+  const canCreate = appUser.role === "admin" || appUser.role === "office";
+  const canUseAdminAssigneeFilter =
+    appUser.role === "admin" || appUser.role === "office";
 
   let query = supabase
     .from("tasks")
@@ -111,13 +125,8 @@ export default async function TasksPage({
     query = query.eq("assigned_user_id", authUser.id);
   }
 
-  if (params.status) {
-    query = query.eq("status", params.status);
-  }
-
-  if (params.priority) {
-    query = query.eq("priority", params.priority);
-  }
+  if (params.status) query = query.eq("status", params.status);
+  if (params.priority) query = query.eq("priority", params.priority);
 
   if (params.assigned === "me") {
     query = query.eq("assigned_user_id", authUser.id);
@@ -125,6 +134,26 @@ export default async function TasksPage({
 
   if (params.assigned === "unassigned") {
     query = query.is("assigned_user_id", null);
+  }
+
+  if (params.property) {
+    query = query.eq("property_id", params.property);
+  }
+
+  if (params.search) {
+    query = query.ilike("title", `%${params.search}%`);
+  }
+
+  if (canUseAdminAssigneeFilter && params.assignee_id) {
+    query = query.eq("assigned_user_id", params.assignee_id);
+  }
+
+  if (params.source === "manual") {
+    query = query.is("subscription_id", null);
+  }
+
+  if (params.source === "subscription") {
+    query = query.not("subscription_id", "is", null);
   }
 
   if (params.due === "overdue") {
@@ -162,41 +191,135 @@ export default async function TasksPage({
     )
   );
 
+  const propertyIds = Array.from(
+    new Set(
+      typedTasks
+        .map((task) => task.property_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
   let assigneeMap = new Map<string, string>();
+  let propertyMap = new Map<string, string>();
 
-  if (assignedUserIds.length > 0) {
-    const { data: assignees, error: assigneesError } = await supabase
-      .from("app_users")
-      .select("id, email, full_name")
-      .in("id", assignedUserIds);
+  const [assigneeResult, propertyResult, allUsersResult, allPropertiesResult] =
+    await Promise.all([
+      assignedUserIds.length > 0
+        ? supabase
+            .from("app_users")
+            .select("id, email, full_name")
+            .in("id", assignedUserIds)
+        : Promise.resolve({ data: [], error: null }),
+      propertyIds.length > 0
+        ? supabase
+            .from("properties")
+            .select("id, property_code, title")
+            .in("id", propertyIds)
+        : Promise.resolve({ data: [], error: null }),
+      canUseAdminAssigneeFilter
+        ? supabase
+            .from("app_users")
+            .select("id, email, full_name")
+            .eq("is_active", true)
+            .order("full_name", { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from("properties")
+        .select("id, property_code, title")
+        .order("property_code", { ascending: true }),
+    ]);
 
-    if (assigneesError) {
-      return (
-        <div className="p-8">
-          <h1 className="text-red-500 font-bold mb-2">Assignee Load Error</h1>
-          <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
-            {JSON.stringify(assigneesError, null, 2)}
-          </pre>
-        </div>
-      );
-    }
-
-    assigneeMap = new Map(
-      ((assignees || []) as AppUserRow[]).map((user) => [
-        user.id,
-        user.full_name?.trim() || user.email || "Unnamed User",
-      ])
+  if (assigneeResult.error) {
+    return (
+      <div className="p-8">
+        <h1 className="text-red-500 font-bold mb-2">Assignee Load Error</h1>
+        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+          {JSON.stringify(assigneeResult.error, null, 2)}
+        </pre>
+      </div>
     );
   }
 
-  const canCreate = appUser.role === "admin" || appUser.role === "office";
+  if (propertyResult.error) {
+    return (
+      <div className="p-8">
+        <h1 className="text-red-500 font-bold mb-2">Property Load Error</h1>
+        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+          {JSON.stringify(propertyResult.error, null, 2)}
+        </pre>
+      </div>
+    );
+  }
+
+  if (allUsersResult.error) {
+    return (
+      <div className="p-8">
+        <h1 className="text-red-500 font-bold mb-2">Users Load Error</h1>
+        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+          {JSON.stringify(allUsersResult.error, null, 2)}
+        </pre>
+      </div>
+    );
+  }
+
+  if (allPropertiesResult.error) {
+    return (
+      <div className="p-8">
+        <h1 className="text-red-500 font-bold mb-2">Properties Load Error</h1>
+        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+          {JSON.stringify(allPropertiesResult.error, null, 2)}
+        </pre>
+      </div>
+    );
+  }
+
+  assigneeMap = new Map(
+    ((assigneeResult.data || []) as AppUserRow[]).map((user) => [
+      user.id,
+      user.full_name?.trim() || user.email || "Unnamed User",
+    ])
+  );
+
+  propertyMap = new Map(
+    ((propertyResult.data || []) as PropertyRow[]).map((property) => [
+      property.id,
+      [property.property_code, property.title].filter(Boolean).join(" — ") ||
+        "Unknown Property",
+    ])
+  );
+
+  const allUsers = (allUsersResult.data || []) as AppUserRow[];
+  const allProperties = (allPropertiesResult.data || []) as PropertyRow[];
+
+  const openCount = typedTasks.filter((task) => task.status === "open").length;
+  const inProgressCount = typedTasks.filter(
+    (task) => task.status === "in_progress"
+  ).length;
+  const blockedCount = typedTasks.filter(
+    (task) => task.status === "blocked"
+  ).length;
+  const completedCount = typedTasks.filter(
+    (task) => task.status === "completed"
+  ).length;
+  const overdueCount = typedTasks.filter(
+    (task) => task.due_date && task.due_date < today && task.status !== "completed"
+  ).length;
+  const unassignedCount = typedTasks.filter(
+    (task) => !task.assigned_user_id
+  ).length;
+  const manualCount = typedTasks.filter(
+    (task) => !task.subscription_id
+  ).length;
+  const subscriptionCount = typedTasks.filter(
+    (task) => Boolean(task.subscription_id)
+  ).length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Tasks</h1>
-          <p className="page-subtitle">Manage operational work</p>
+          <p className="page-subtitle">Operations dashboard for manual and subscription work</p>
           <p className="page-subtitle mt-1">
             Signed in as: <strong>{appUser.role}</strong>
           </p>
@@ -209,10 +332,71 @@ export default async function TasksPage({
         ) : null}
       </div>
 
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Open</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{openCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">In Progress</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{inProgressCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Blocked</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{blockedCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Completed</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{completedCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Overdue</div>
+          <div className="mt-2 text-2xl font-semibold text-red-600">{overdueCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Unassigned</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{unassignedCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Manual</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{manualCount}</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">Subscription</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{subscriptionCount}</div>
+        </div>
+      </div>
+
       <div className="card p-4">
-        <form className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-4">
+        <form className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
+          <div className="xl:col-span-2">
+            <label
+              htmlFor="search"
+              className="block text-sm font-medium text-gray-300 mb-1.5"
+            >
+              Search
+            </label>
+            <input
+              id="search"
+              name="search"
+              placeholder="Search title..."
+              defaultValue={params.search || ""}
+              className="input"
+            />
+          </div>
+
           <div>
-            <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1.5">
+            <label
+              htmlFor="status"
+              className="block text-sm font-medium text-gray-300 mb-1.5"
+            >
               Status
             </label>
             <select
@@ -221,7 +405,7 @@ export default async function TasksPage({
               defaultValue={params.status || ""}
               className="input"
             >
-              <option value="">All</option>
+              <option value="">All Status</option>
               <option value="open">Open</option>
               <option value="in_progress">In Progress</option>
               <option value="blocked">Blocked</option>
@@ -230,7 +414,10 @@ export default async function TasksPage({
           </div>
 
           <div>
-            <label htmlFor="priority" className="block text-sm font-medium text-gray-300 mb-1.5">
+            <label
+              htmlFor="priority"
+              className="block text-sm font-medium text-gray-300 mb-1.5"
+            >
               Priority
             </label>
             <select
@@ -239,7 +426,7 @@ export default async function TasksPage({
               defaultValue={params.priority || ""}
               className="input"
             >
-              <option value="">All</option>
+              <option value="">All Priority</option>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
@@ -248,23 +435,10 @@ export default async function TasksPage({
           </div>
 
           <div>
-            <label htmlFor="assigned" className="block text-sm font-medium text-gray-300 mb-1.5">
-              Assigned
-            </label>
-            <select
-              id="assigned"
-              name="assigned"
-              defaultValue={params.assigned || ""}
-              className="input"
+            <label
+              htmlFor="due"
+              className="block text-sm font-medium text-gray-300 mb-1.5"
             >
-              <option value="">All</option>
-              <option value="me">My Tasks</option>
-              <option value="unassigned">Unassigned</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="due" className="block text-sm font-medium text-gray-300 mb-1.5">
               Due
             </label>
             <select
@@ -273,16 +447,102 @@ export default async function TasksPage({
               defaultValue={params.due || ""}
               className="input"
             >
-              <option value="">All</option>
+              <option value="">All Due</option>
               <option value="overdue">Overdue</option>
               <option value="today">Today</option>
               <option value="upcoming">Upcoming</option>
             </select>
           </div>
 
-          <div className="flex items-end gap-3">
+          <div>
+            <label
+              htmlFor="source"
+              className="block text-sm font-medium text-gray-300 mb-1.5"
+            >
+              Source
+            </label>
+            <select
+              id="source"
+              name="source"
+              defaultValue={params.source || ""}
+              className="input"
+            >
+              <option value="">All Sources</option>
+              <option value="manual">Manual</option>
+              <option value="subscription">Subscription</option>
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="property"
+              className="block text-sm font-medium text-gray-300 mb-1.5"
+            >
+              Property
+            </label>
+            <select
+              id="property"
+              name="property"
+              defaultValue={params.property || ""}
+              className="input"
+            >
+              <option value="">All Properties</option>
+              {allProperties.map((property) => (
+                <option key={property.id} value={property.id}>
+                  {[property.property_code, property.title]
+                    .filter(Boolean)
+                    .join(" — ")}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {canUseAdminAssigneeFilter ? (
+            <div>
+              <label
+                htmlFor="assignee_id"
+                className="block text-sm font-medium text-gray-300 mb-1.5"
+              >
+                Assignee
+              </label>
+              <select
+                id="assignee_id"
+                name="assignee_id"
+                defaultValue={params.assignee_id || ""}
+                className="input"
+              >
+                <option value="">All Assignees</option>
+                {allUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.full_name?.trim() || user.email || "Unnamed User"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label
+                htmlFor="assigned"
+                className="block text-sm font-medium text-gray-300 mb-1.5"
+              >
+                Assigned
+              </label>
+              <select
+                id="assigned"
+                name="assigned"
+                defaultValue={params.assigned || ""}
+                className="input"
+              >
+                <option value="">All</option>
+                <option value="me">My Tasks</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </div>
+          )}
+
+          <div className="xl:col-span-7 flex items-end gap-3">
             <button type="submit" className="btn">
-              Apply
+              Apply Filters
             </button>
             <Link href="/tasks" className="btn btn-secondary">
               Reset
@@ -297,25 +557,38 @@ export default async function TasksPage({
             <thead>
               <tr>
                 <th>Title</th>
+                <th>Property</th>
                 <th>Source</th>
-                <th>Assigned To</th>
+                <th>Assigned</th>
                 <th>Status</th>
                 <th>Priority</th>
-                <th>Due Date</th>
+                <th>Due</th>
               </tr>
             </thead>
             <tbody>
               {typedTasks.map((task) => {
                 const isMyTask = task.assigned_user_id === authUser.id;
                 const isAutoTask = Boolean(task.subscription_id);
+                const isOverdue =
+                  Boolean(task.due_date) &&
+                  task.due_date! < today &&
+                  task.status !== "completed";
+
                 const assignedTo = task.assigned_user_id
                   ? assigneeMap.get(task.assigned_user_id) || "Unknown User"
                   : "Unassigned";
 
+                const propertyLabel = task.property_id
+                  ? propertyMap.get(task.property_id) || "Unknown Property"
+                  : "-";
+
                 return (
-                  <tr key={task.id}>
+                  <tr
+                    key={task.id}
+                    className={isOverdue ? "bg-red-50/40" : ""}
+                  >
                     <td>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex gap-2 items-center flex-wrap">
                         <Link href={`/tasks/${task.id}`}>
                           {task.title || "-"}
                         </Link>
@@ -325,32 +598,37 @@ export default async function TasksPage({
                             My Task
                           </span>
                         ) : null}
+
+                        {isOverdue ? (
+                          <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                            Overdue
+                          </span>
+                        ) : null}
                       </div>
                     </td>
+
+                    <td>{propertyLabel}</td>
+
                     <td>
-                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                      <span className={getSourceClasses(isAutoTask)}>
                         {isAutoTask ? "Subscription" : "Manual"}
                       </span>
                     </td>
+
                     <td>{assignedTo}</td>
+
                     <td>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(
-                          task.status
-                        )}`}
-                      >
+                      <span className={getStatusClasses(task.status)}>
                         {formatLabel(task.status)}
                       </span>
                     </td>
+
                     <td>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getPriorityClasses(
-                          task.priority
-                        )}`}
-                      >
+                      <span className={getPriorityClasses(task.priority)}>
                         {formatLabel(task.priority)}
                       </span>
                     </td>
+
                     <td>{formatDate(task.due_date)}</td>
                   </tr>
                 );
