@@ -10,28 +10,38 @@ type CurrentUserWithRole = {
   appUser: AppUser;
 };
 
+type ClaimsShape = {
+  sub?: string;
+  email?: string;
+  claims?: {
+    sub?: string;
+    email?: string;
+  };
+};
+
 export async function getCurrentUserWithRole(): Promise<CurrentUserWithRole | null> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const claimsResult = await supabase.auth.getClaims();
+  const rawClaims = (claimsResult.data as ClaimsShape | null) ?? null;
 
-  console.log("[RBAC] auth.getUser()", {
-    authError: authError?.message ?? null,
-    userId: user?.id ?? null,
-    email: user?.email ?? null,
+  const claims = rawClaims?.claims ?? rawClaims ?? null;
+  const userId = claims?.sub ?? null;
+  const email = claims?.email;
+
+  console.log("[RBAC] auth.getClaims()", {
+    userId,
+    email: email ?? null,
   });
 
-  if (authError || !user) {
+  if (!userId) {
     return null;
   }
 
   const { data: appUserRow, error: appUserError } = await supabase
     .from("app_users")
     .select("id, email, full_name, role, is_active")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   console.log("[RBAC] app_users lookup", {
@@ -44,13 +54,13 @@ export async function getCurrentUserWithRole(): Promise<CurrentUserWithRole | nu
   }
 
   if (!isAppRole(appUserRow.role)) {
-    throw new Error(`Invalid role found for user ${user.id}: ${appUserRow.role}`);
+    throw new Error(`Invalid role found for user ${userId}: ${appUserRow.role}`);
   }
 
   return {
     authUser: {
-      id: user.id,
-      email: user.email,
+      id: userId,
+      email,
     },
     appUser: {
       id: appUserRow.id,
