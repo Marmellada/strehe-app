@@ -5,8 +5,10 @@ import Link from "next/link";
 import { Geist, Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
+import { getCurrentUserWithRole } from "@/lib/auth/get-current-user-with-role";
 
-const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
+const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,19 +25,37 @@ export const metadata: Metadata = {
   description: "STREHË Prona management app",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const current = await getCurrentUserWithRole();
+  const role = current?.appUser.role ?? null;
+
   return (
     <html
       lang="en"
-      className={cn("theme-dark", "h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", figtree.variable)}
+      className={cn(
+        "theme-dark",
+        "h-full",
+        "antialiased",
+        geistSans.variable,
+        geistMono.variable,
+        "font-sans",
+        figtree.variable
+      )}
     >
       <body className="min-h-full">
         <div className="layout">
-          <aside className="sidebar">
+          <aside
+            className="sidebar"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              minHeight: "100vh",
+            }}
+          >
             <div className="brand">
               <div
                 style={{
@@ -49,83 +69,82 @@ export default function RootLayout({
               <strong>STREHË Admin</strong>
             </div>
 
-           <nav
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: "20px",
-    marginTop: "24px",
-  }}
->
-  {/* Main Navigation */}
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: "12px",
-    }}
-  >
-    <Link href="/">Dashboard</Link>
-    <Link href="/clients">Clients</Link>
-    <Link href="/properties">Properties</Link>
-    <Link href="/units">Units</Link>
-    <Link href="/tenants">Tenants</Link>
-    <Link href="/leases">Leases</Link>
-    <Link href="/tasks">Tasks</Link>
-  </div>
+            <nav
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "20px",
+                marginTop: "24px",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <Link href="/">Dashboard</Link>
+              </div>
 
-  {/* Billing Section */}
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: "12px",
-    }}
-  >
-    <p
-      style={{
-        margin: "8px 0 2px",
-        fontSize: 12,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        color: "var(--muted-foreground, #94a3b8)",
-      }}
-    >
-      Billing
-    </p>
-    <Link href="/billing">Invoices</Link>
-    <Link href="/billing/payments">Payments</Link>
-    <Link href="/banks">Banks</Link>
-  </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <p
+                  style={{
+                    margin: "8px 0 2px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "var(--muted-foreground, #94a3b8)",
+                  }}
+                >
+                  Operations
+                </p>
 
-  {/* Settings Section */}
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: "12px",
-    }}
-  >
-    <p
-      style={{
-        margin: "8px 0 2px",
-        fontSize: 12,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        color: "var(--muted-foreground, #94a3b8)",
-      }}
-    >
-      Settings
-    </p>
-    <Link href="/services">Services</Link>
-    <Link href="/packages">Packages</Link>
-    <Link href="/subscriptions">Subscriptions</Link>
-    <Link href="/settings">System Settings</Link>
-  </div>
-</nav>
+                <Link href="/clients">Clients</Link>
+                <Link href="/properties">Properties</Link>
 
+                {(role === "admin" || role === "office" || role === "field") ? (
+                  <Link href="/keys">Keys</Link>
+                ) : null}
+
+                <Link href="/tasks">Tasks</Link>
+                <Link href="/subscriptions">Contracts</Link>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <p
+                  style={{
+                    margin: "8px 0 2px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "var(--muted-foreground, #94a3b8)",
+                  }}
+                >
+                  Configuration
+                </p>
+
+                <Link href="/services">Services</Link>
+                <Link href="/packages">Packages</Link>
+              </div>
+
+              {role === "admin" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <p
+                    style={{
+                      margin: "8px 0 2px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      color: "var(--muted-foreground, #94a3b8)",
+                    }}
+                  >
+                    System
+                  </p>
+
+                  <Link href="/settings">Settings</Link>
+                </div>
+              ) : null}
+            </nav>
+
+            <SidebarAuthBox />
           </aside>
 
           <div className="main">

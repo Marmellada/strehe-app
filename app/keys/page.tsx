@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 type SearchParams = Promise<{
   status?: string;
@@ -112,6 +113,8 @@ export default async function KeysPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const { appUser } = await requireRole(["admin", "office", "field"]);
+
   const supabase = await createClient();
   const params = await searchParams;
 
@@ -232,9 +235,11 @@ export default async function KeysPage({
         <p className="page-subtitle mt-2">
           Operational overview of all keys across properties.
         </p>
+        <p className="page-subtitle mt-1">
+          Signed in as: <strong>{appUser.role}</strong>
+        </p>
       </div>
 
-      {/* ── Status summary cards ── */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="card">
           <span className="field-label">All Keys</span>
@@ -267,7 +272,6 @@ export default async function KeysPage({
         </div>
       </section>
 
-      {/* ── Quick status filters ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Quick Status Filters</h2>
@@ -297,7 +301,6 @@ export default async function KeysPage({
         </div>
       </section>
 
-      {/* ── Filters form ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Filters</h2>
@@ -368,7 +371,6 @@ export default async function KeysPage({
         </form>
       </section>
 
-      {/* ── Keys list ── */}
       <section className="card">
         <div className="mb-4">
           <h2 className="section-title !mb-0">Keys List</h2>

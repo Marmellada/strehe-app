@@ -1,20 +1,221 @@
-// app/tasks/[id]/actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
-export async function deleteTask(formData: FormData) {
-  const taskId = formData.get("taskId") as string;
-  if (!taskId) throw new Error("Task ID is required");
+type AllowedRole = "admin" | "office" | "field" | "contractor";
 
+type TaskActionRow = {
+  id: string;
+  assigned_user_id: string | null;
+  status: string | null;
+};
+
+async function loadTaskForAction(taskId: string) {
   const supabase = await createClient();
+
+  const { data: task, error } = await supabase
+    .from("tasks")
+    .select("id, assigned_user_id, status")
+    .eq("id", taskId)
+    .single();
+
+  if (error || !task) {
+    throw new Error("Task not found.");
+  }
+
+  return { supabase, task: task as TaskActionRow };
+}
+
+function canManageAnyTask(role: AllowedRole) {
+  return role === "admin" || role === "office";
+}
+
+function canManageOwnAssignedTask(role: AllowedRole) {
+  return role === "field" || role === "contractor";
+}
+
+export async function markTaskInProgress(formData: FormData) {
+  const taskId = String(formData.get("taskId") || "").trim();
+
+  const { authUser, appUser } = await requireRole([
+    "admin",
+    "office",
+    "field",
+    "contractor",
+  ]);
+
+  const role = appUser.role as AllowedRole;
+  const { supabase, task } = await loadTaskForAction(taskId);
+
+  const canManage =
+    canManageAnyTask(role) ||
+    (canManageOwnAssignedTask(role) && task.assigned_user_id === authUser.id);
+
+  if (!canManage) {
+    throw new Error("You are not allowed to update this task.");
+  }
+
+  if (task.status === "completed") {
+    throw new Error("Completed tasks must be reopened before they can be updated.");
+  }
 
   const { error } = await supabase
     .from("tasks")
-    .delete()
+    .update({
+      status: "in_progress",
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", taskId);
+
+  if (error) {
+    throw new Error(`Failed to update task: ${error.message}`);
+  }
+
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  redirect(`/tasks/${taskId}`);
+}
+
+export async function markTaskCompleted(formData: FormData) {
+  const taskId = String(formData.get("taskId") || "").trim();
+
+  const { authUser, appUser } = await requireRole([
+    "admin",
+    "office",
+    "field",
+    "contractor",
+  ]);
+
+  const role = appUser.role as AllowedRole;
+  const { supabase, task } = await loadTaskForAction(taskId);
+
+  const canManage =
+    canManageAnyTask(role) ||
+    (canManageOwnAssignedTask(role) && task.assigned_user_id === authUser.id);
+
+  if (!canManage) {
+    throw new Error("You are not allowed to update this task.");
+  }
+
+  if (task.status === "completed") {
+    throw new Error("Task is already completed.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      status: "completed",
+      completed_at: now,
+      updated_at: now,
+    })
+    .eq("id", taskId);
+
+  if (error) {
+    throw new Error(`Failed to complete task: ${error.message}`);
+  }
+
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  redirect(`/tasks/${taskId}`);
+}
+
+export async function reopenTask(formData: FormData) {
+  const taskId = String(formData.get("taskId") || "").trim();
+
+  await requireRole(["admin", "office"]);
+
+  const { supabase, task } = await loadTaskForAction(taskId);
+
+  if (task.status !== "completed") {
+    throw new Error("Only completed tasks can be reopened.");
+  }
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      status: "open",
+      completed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+
+  if (error) {
+    throw new Error(`Failed to reopen task: ${error.message}`);
+  }
+
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  redirect(`/tasks/${taskId}`);
+}
+
+export async function unassignTask(formData: FormData) {
+  const taskId = String(formData.get("taskId") || "").trim();
+
+  await requireRole(["admin", "office"]);
+
+  const { supabase, task } = await loadTaskForAction(taskId);
+
+  if (task.status === "completed") {
+    throw new Error("Completed tasks cannot be reassigned. Reopen first.");
+  }
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      assigned_user_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+
+  if (error) {
+    throw new Error(`Failed to unassign task: ${error.message}`);
+  }
+
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  redirect(`/tasks/${taskId}`);
+}
+
+export async function assignTaskToMe(formData: FormData) {
+  const taskId = String(formData.get("taskId") || "").trim();
+
+  const { authUser } = await requireRole(["admin", "office"]);
+  const { supabase, task } = await loadTaskForAction(taskId);
+
+  if (task.status === "completed") {
+    throw new Error("Completed tasks cannot be reassigned. Reopen first.");
+  }
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      assigned_user_id: authUser.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+
+  if (error) {
+    throw new Error(`Failed to assign task: ${error.message}`);
+  }
+
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  redirect(`/tasks/${taskId}`);
+}
+
+export async function deleteTask(formData: FormData) {
+  const taskId = String(formData.get("taskId") || "").trim();
+
+  await requireRole(["admin", "office"]);
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("tasks").delete().eq("id", taskId);
 
   if (error) {
     throw new Error(`Failed to delete task: ${error.message}`);
@@ -22,32 +223,4 @@ export async function deleteTask(formData: FormData) {
 
   revalidatePath("/tasks");
   redirect("/tasks");
-}
-
-export async function updateTaskStatus(
-  taskId: string,
-  status: string
-) {
-  const supabase = await createClient();
-
-  const updates: Record<string, unknown> = {
-    status,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (status === "completed") {
-    updates.completed_at = new Date().toISOString();
-  }
-
-  const { error } = await supabase
-    .from("tasks")
-    .update(updates)
-    .eq("id", taskId);
-
-  if (error) {
-    throw new Error(`Failed to update task status: ${error.message}`);
-  }
-
-  revalidatePath(`/tasks/${taskId}`);
-  revalidatePath("/tasks");
 }

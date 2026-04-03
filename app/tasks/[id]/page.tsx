@@ -1,351 +1,670 @@
-// app/tasks/[id]/page.tsx
-import { notFound } from "next/navigation";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { requireRole } from "@/lib/auth/require-role";
 import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
 import { deleteTask } from "./actions";
+import {
+  assignTaskToMe,
+  markTaskCompleted,
+  markTaskInProgress,
+  reopenTask,
+  unassignTask,
+} from "./actions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending: "secondary",
-  in_progress: "default",
-  completed: "outline",
-  cancelled: "destructive",
-  on_hold: "secondary",
+type TaskRow = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
+  due_date: string | null;
+  assigned_user_id: string | null;
+  created_by_user_id: string | null;
+  property_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  completed_at: string | null;
 };
 
-const priorityColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  urgent: "destructive",
-  high: "destructive",
-  medium: "default",
-  low: "secondary",
+type AppUserRow = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: string | null;
 };
 
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-GB", {
+type PropertyRow = {
+  id: string;
+  property_code: string | null;
+  title: string | null;
+  address_line_1: string | null;
+};
+
+type TaskReportRow = {
+  id: string;
+  report_type: string | null;
+  notes: string | null;
+  created_at: string | null;
+  created_by_user_id: string | null;
+  status_at_submission: string | null;
+};
+
+type TaskAttachmentRow = {
+  id: string;
+  task_report_id: string | null;
+  storage_path: string;
+  file_name: string | null;
+};
+
+type ReportImageRow = {
+  id: string;
+  file_name: string | null;
+  signed_url: string;
+};
+
+function formatDate(dateString: string | null) {
+  if (!dateString) return "—";
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  });
+  }).format(date);
 }
 
-function formatDateTime(dateStr: string | null) {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("en-GB", {
+function formatDateTime(dateString: string | null) {
+  if (!dateString) return "—";
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  });
+  }).format(date);
+}
+
+function formatLabel(value: string | null) {
+  if (!value) return "—";
+
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getPersonLabel(user: AppUserRow | null) {
+  if (!user) return "—";
+  return user.full_name?.trim() || user.email || "Unnamed User";
+}
+
+function getRoleLabel(user: AppUserRow | null) {
+  if (!user?.role) return null;
+  return formatLabel(user.role);
+}
+
+function getStatusClasses(status: string | null) {
+  switch (status) {
+    case "open":
+      return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "in_progress":
+      return "bg-amber-50 text-amber-700 border border-amber-200";
+    case "blocked":
+      return "bg-red-50 text-red-700 border border-red-200";
+    case "completed":
+      return "bg-green-50 text-green-700 border border-green-200";
+    default:
+      return "bg-gray-50 text-gray-700 border border-gray-200";
+  }
+}
+
+function getPriorityClasses(priority: string | null) {
+  switch (priority) {
+    case "urgent":
+      return "bg-red-50 text-red-700 border border-red-200";
+    case "high":
+      return "bg-orange-50 text-orange-700 border border-orange-200";
+    case "medium":
+      return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "low":
+      return "bg-gray-50 text-gray-700 border border-gray-200";
+    default:
+      return "bg-gray-50 text-gray-700 border border-gray-200";
+  }
 }
 
 export default async function TaskDetailPage({ params }: PageProps) {
   const { id } = await params;
+
+  const { authUser, appUser } = await requireRole([
+    "admin",
+    "office",
+    "field",
+    "contractor",
+  ]);
+
   const supabase = await createClient();
 
   const { data: task, error } = await supabase
     .from("tasks")
     .select(
       `
-      *,
-      property:properties!tasks_property_fk(
-        id,
-        property_code,
-        address_line_1,
-        address_line_2,
-        city,
-        country
-      ),
-      service:services!tasks_service_fk(
-        id,
-        name,
-        category
-      ),
-      subscription:subscriptions!tasks_subscription_fk(
-        id,
-        start_date,
-        end_date,
-        package:packages(name)
-      ),
-      assigned_user:users!tasks_assigned_to_user_id_fkey(
-        id,
-        full_name,
-        email,
-        role
-      ),
-      reported_user:users!tasks_reported_by_user_id_fkey(
-        id,
-        full_name,
-        email,
-        role
-      ),
-      assigned_client:clients!tasks_assigned_to_fk(
-        id,
-        full_name,
-        email
-      ),
-      reported_client:clients!tasks_reported_by_fk(
-        id,
-        full_name,
-        email
-      )
-    `
+      id,
+      title,
+      description,
+      status,
+      priority,
+      due_date,
+      assigned_user_id,
+      created_by_user_id,
+      property_id,
+      created_at,
+      updated_at,
+      completed_at
+      `
     )
     .eq("id", id)
     .single();
 
   if (error) {
-    console.error("Task fetch error:", error.message);
     if (error.code === "PGRST116") {
       notFound();
     }
-    throw new Error(error.message);
+
+    throw new Error(`Failed to load task: ${error.message}`);
   }
 
   if (!task) {
     notFound();
   }
 
-  // Build a readable address string from parts
-  const propertyAddress = task.property
-    ? [
-        task.property.address_line_1,
-        task.property.address_line_2,
-        task.property.city,
-        task.property.country,
-      ]
-        .filter(Boolean)
-        .join(", ")
+  const typedTask = task as TaskRow;
+
+  const isRestrictedRole =
+    appUser.role === "field" || appUser.role === "contractor";
+
+  const canViewTask =
+    !isRestrictedRole || typedTask.assigned_user_id === authUser.id;
+
+  if (!canViewTask) {
+    notFound();
+  }
+
+  const isCompleted = typedTask.status === "completed";
+  const canManageTask = appUser.role === "admin" || appUser.role === "office";
+  const canUpdateOwnAssignedStatus =
+    (appUser.role === "field" || appUser.role === "contractor") &&
+    typedTask.assigned_user_id === authUser.id &&
+    !isCompleted;
+
+  const canUseQuickStatusActions =
+    (canManageTask && !isCompleted) || canUpdateOwnAssignedStatus;
+
+  const canReopenTask = canManageTask && isCompleted;
+  const canShowEditButton = canManageTask && !isCompleted;
+  const canAddReport = (canManageTask || typedTask.assigned_user_id === authUser.id) && !isCompleted;
+  const canShowAssignmentActions = canManageTask && !isCompleted;
+  const isMyTask = typedTask.assigned_user_id === authUser.id;
+
+  const userIdsToLoad = Array.from(
+    new Set(
+      [typedTask.assigned_user_id, typedTask.created_by_user_id].filter(
+        (value): value is string => Boolean(value)
+      )
+    )
+  );
+
+  let userMap = new Map<string, AppUserRow>();
+
+  if (userIdsToLoad.length > 0) {
+    const { data: users, error: usersError } = await supabase
+      .from("app_users")
+      .select("id, email, full_name, role")
+      .in("id", userIdsToLoad);
+
+    if (usersError) {
+      throw new Error(`Failed to load task users: ${usersError.message}`);
+    }
+
+    userMap = new Map(
+      ((users || []) as AppUserRow[]).map((user) => [user.id, user])
+    );
+  }
+
+  const assignedUser = typedTask.assigned_user_id
+    ? userMap.get(typedTask.assigned_user_id) || null
     : null;
+
+  const createdByUser = typedTask.created_by_user_id
+    ? userMap.get(typedTask.created_by_user_id) || null
+    : null;
+
+  let property: PropertyRow | null = null;
+
+  if (typedTask.property_id) {
+    const { data: propertyData, error: propertyError } = await supabase
+      .from("properties")
+      .select("id, property_code, title, address_line_1")
+      .eq("id", typedTask.property_id)
+      .single();
+
+    if (propertyError && propertyError.code !== "PGRST116") {
+      throw new Error(`Failed to load property: ${propertyError.message}`);
+    }
+
+    property = (propertyData as PropertyRow | null) || null;
+  }
+
+  const { data: reports, error: reportsError } = await supabase
+    .from("task_reports")
+    .select(
+      "id, report_type, notes, created_at, created_by_user_id, status_at_submission"
+    )
+    .eq("task_id", typedTask.id)
+    .order("created_at", { ascending: false });
+
+  if (reportsError) {
+    throw new Error(`Failed to load reports: ${reportsError.message}`);
+  }
+
+  const typedReports: TaskReportRow[] = (reports || []) as TaskReportRow[];
+
+  const reportUserIds = Array.from(
+    new Set(
+      typedReports
+        .map((report) => report.created_by_user_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  let reportUserMap = new Map<string, AppUserRow>();
+
+  if (reportUserIds.length > 0) {
+    const { data: reportUsers, error: reportUsersError } = await supabase
+      .from("app_users")
+      .select("id, email, full_name, role")
+      .in("id", reportUserIds);
+
+    if (reportUsersError) {
+      throw new Error(
+        `Failed to load report users: ${reportUsersError.message}`
+      );
+    }
+
+    reportUserMap = new Map(
+      ((reportUsers || []) as AppUserRow[]).map((user) => [user.id, user])
+    );
+  }
+
+  const { data: attachments, error: attachmentsError } = await supabase
+    .from("task_attachments")
+    .select("id, task_report_id, storage_path, file_name")
+    .eq("task_id", typedTask.id);
+
+  if (attachmentsError) {
+    throw new Error(`Failed to load attachments: ${attachmentsError.message}`);
+  }
+
+  const typedAttachments: TaskAttachmentRow[] =
+    (attachments || []) as TaskAttachmentRow[];
+
+  const attachmentsByReport = new Map<string, ReportImageRow[]>();
+
+  for (const attachment of typedAttachments) {
+    if (!attachment.task_report_id) continue;
+
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      .from("task-attachments")
+      .createSignedUrl(attachment.storage_path, 60 * 60);
+
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      continue;
+    }
+
+    if (!attachmentsByReport.has(attachment.task_report_id)) {
+      attachmentsByReport.set(attachment.task_report_id, []);
+    }
+
+    attachmentsByReport.get(attachment.task_report_id)!.push({
+      id: attachment.id,
+      file_name: attachment.file_name,
+      signed_url: signedUrlData.signedUrl,
+    });
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={task.title}
-        description={`Task #${task.id.slice(0, 8).toUpperCase()}`}
-        actions={
-          <div className="flex items-center gap-3">
-            <Link href="/tasks">
-              <Button variant="ghost">← Back to Tasks</Button>
-            </Link>
-            <Link href={`/tasks/${task.id}/edit`}>
-              <Button variant="outline">Edit Task</Button>
-            </Link>
-          </div>
-        }
-      />
-
-      {/* Status Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Badge variant={statusColors[task.status] || "default"}>
-          {task.status.replace("_", " ")}
-        </Badge>
-        <Badge variant={priorityColors[task.priority] || "default"}>
-          {task.priority} priority
-        </Badge>
-        {task.service && (
-          <Badge variant="default">{task.service.category}</Badge>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-
-          {/* Description */}
-          {task.description && (
-            <Card>
-              <div className="p-6">
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                  Description
-                </h2>
-                <p className="text-white whitespace-pre-wrap">
-                  {task.description}
-                </p>
-              </div>
-            </Card>
-          )}
-
-          {/* Property */}
-          <Card>
-            <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                Property
-              </h2>
-              {task.property ? (
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-white font-medium">{propertyAddress}</p>
-                    <p className="text-gray-400 text-sm mt-1">
-                      Code:{" "}
-                      <span className="text-gray-200">
-                        {task.property.property_code}
-                      </span>
-                    </p>
-                  </div>
-                  <Link href={`/properties/${task.property.id}`}>
-                    <Button variant="ghost" size="sm">
-                      View Property →
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <p className="text-gray-500 italic">No property linked</p>
-              )}
-            </div>
-          </Card>
-
-          {/* Service */}
-          {task.service && (
-            <Card>
-              <div className="p-6">
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                  Service
-                </h2>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">{task.service.name}</p>
-                    <p className="text-gray-400 text-sm mt-1">
-                      Category:{" "}
-                      <span className="text-gray-200">
-                        {task.service.category}
-                      </span>
-                    </p>
-                  </div>
-                  <Link href={`/services/${task.service.id}`}>
-                    <Button variant="ghost" size="sm">
-                      View Service →
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Subscription */}
-          {task.subscription && (
-            <Card>
-              <div className="p-6">
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                  Subscription Coverage
-                </h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-gray-400 text-xs uppercase">Package</p>
-                    <p className="text-white mt-1">
-                      {task.subscription.package?.name ?? "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs uppercase">Start</p>
-                    <p className="text-white mt-1">
-                      {formatDate(task.subscription.start_date)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-xs uppercase">End</p>
-                    <p className="text-white mt-1">
-                      {formatDate(task.subscription.end_date)}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <Link href={`/subscriptions/${task.subscription.id}`}>
-                    <Button variant="ghost" size="sm">
-                      View Subscription →
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </Card>
-          )}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="page-title">{typedTask.title || "Untitled Task"}</h1>
+          <p className="page-subtitle">
+            Task ID: <span className="font-medium">{typedTask.id}</span>
+          </p>
+          <p className="page-subtitle mt-1">
+            Signed in as: <strong>{appUser.role}</strong>
+          </p>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link href="/tasks" className="btn btn-secondary">
+            Back to Tasks
+          </Link>
 
-          {/* Timeline */}
-          <Card>
+          {canShowEditButton ? (
+            <Link href={`/tasks/${typedTask.id}/edit`} className="btn">
+              Edit Task
+            </Link>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(
+            typedTask.status
+          )}`}
+        >
+          {formatLabel(typedTask.status)}
+        </span>
+
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getPriorityClasses(
+            typedTask.priority
+          )}`}
+        >
+          {formatLabel(typedTask.priority)} Priority
+        </span>
+
+        {isMyTask ? (
+          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+            My Task
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-6">
+          <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                Timeline
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                Description
               </h2>
-              <dl className="space-y-3">
+
+              {typedTask.description ? (
+                <p className="whitespace-pre-wrap text-sm leading-6 text-gray-900">
+                  {typedTask.description}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 italic">
+                  No description provided.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                Task Summary
+              </h2>
+
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <dt className="text-gray-400 text-xs uppercase">Created</dt>
-                  <dd className="text-white text-sm mt-0.5">
-                    {formatDateTime(task.created_at)}
+                  <dt className="text-xs uppercase text-gray-500">Status</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatLabel(typedTask.status)}
                   </dd>
                 </div>
+
                 <div>
-                  <dt className="text-gray-400 text-xs uppercase">Due Date</dt>
-                  <dd className="text-white text-sm mt-0.5">
-                    {formatDate(task.due_date)}
+                  <dt className="text-xs uppercase text-gray-500">Priority</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatLabel(typedTask.priority)}
                   </dd>
                 </div>
-                {task.completed_at && (
-                  <div>
-                    <dt className="text-gray-400 text-xs uppercase">
-                      Completed
-                    </dt>
-                    <dd className="text-green-400 text-sm mt-0.5">
-                      {formatDateTime(task.completed_at)}
-                    </dd>
-                  </div>
-                )}
-                {task.updated_at && (
-                  <div>
-                    <dt className="text-gray-400 text-xs uppercase">
-                      Last Updated
-                    </dt>
-                    <dd className="text-white text-sm mt-0.5">
-                      {formatDateTime(task.updated_at)}
-                    </dd>
-                  </div>
-                )}
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">Due Date</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatDate(typedTask.due_date)}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">Property</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {property
+                      ? [
+                          property.property_code,
+                          property.title,
+                          property.address_line_1,
+                        ]
+                          .filter(Boolean)
+                          .join(" — ")
+                      : "—"}
+                  </dd>
+                </div>
               </dl>
             </div>
-          </Card>
+          </div>
 
-          {/* People */}
-          <Card>
+          <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                Quick Actions
+              </h2>
+
+              <div className="flex flex-wrap gap-3">
+                {canUseQuickStatusActions && typedTask.status !== "in_progress" ? (
+                  <form action={markTaskInProgress}>
+                    <input type="hidden" name="taskId" value={typedTask.id} />
+                    <button type="submit" className="btn">
+                      Mark In Progress
+                    </button>
+                  </form>
+                ) : null}
+
+                {canUseQuickStatusActions && typedTask.status !== "completed" ? (
+                  <form action={markTaskCompleted}>
+                    <input type="hidden" name="taskId" value={typedTask.id} />
+                    <button type="submit" className="btn">
+                      Mark Completed
+                    </button>
+                  </form>
+                ) : null}
+
+                {canReopenTask ? (
+                  <form action={reopenTask}>
+                    <input type="hidden" name="taskId" value={typedTask.id} />
+                    <button
+                      type="submit"
+                      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                    >
+                      Reopen Task
+                    </button>
+                  </form>
+                ) : null}
+
+                {canShowAssignmentActions && !isMyTask ? (
+                  <form action={assignTaskToMe}>
+                    <input type="hidden" name="taskId" value={typedTask.id} />
+                    <button
+                      type="submit"
+                      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                    >
+                      Assign to Me
+                    </button>
+                  </form>
+                ) : null}
+
+                {canShowAssignmentActions && typedTask.assigned_user_id ? (
+                  <form action={unassignTask}>
+                    <input type="hidden" name="taskId" value={typedTask.id} />
+                    <button
+                      type="submit"
+                      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                    >
+                      Unassign
+                    </button>
+                  </form>
+                ) : null}
+
+                {isCompleted ? (
+                  <div className="text-sm text-gray-500">
+                    This task is completed. Reopen it to continue work.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="p-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                  Reports & Photos
+                </h2>
+
+                {canAddReport ? (
+                  <Link href={`/tasks/${typedTask.id}/report`} className="btn">
+                    + Add Report
+                  </Link>
+                ) : null}
+              </div>
+
+              {typedReports.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No reports yet.
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {typedReports.map((report) => {
+                    const reportAuthor = report.created_by_user_id
+                      ? reportUserMap.get(report.created_by_user_id) || null
+                      : null;
+
+                    const reportImages =
+                      attachmentsByReport.get(report.id) || [];
+
+                    return (
+                      <div
+                        key={report.id}
+                        className="border border-gray-200 rounded-lg p-4 space-y-4"
+                      >
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                              {formatLabel(report.report_type)}
+                            </span>
+
+                            {report.status_at_submission ? (
+                              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                                Status: {formatLabel(report.status_at_submission)}
+                              </span>
+                            ) : null}
+
+                            <span className="text-xs text-gray-500">
+                              {formatDateTime(report.created_at)}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-gray-500">
+                            {reportAuthor
+                              ? getPersonLabel(reportAuthor)
+                              : "Unknown User"}
+                          </div>
+                        </div>
+
+                        {report.notes ? (
+                          <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                            {report.notes}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">
+                            No notes provided.
+                          </p>
+                        )}
+
+                        {reportImages.length > 0 ? (
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {reportImages.map((image) => (
+                              <a
+                                key={image.id}
+                                href={image.signed_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={image.signed_url}
+                                  alt={image.file_name || "Task photo"}
+                                  className="w-full h-32 object-cover rounded border border-gray-200"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="card">
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
                 People
               </h2>
+
               <dl className="space-y-4">
                 <div>
-                  <dt className="text-gray-400 text-xs uppercase">
+                  <dt className="text-xs uppercase text-gray-500">
                     Assigned To
                   </dt>
-                  <dd className="text-white text-sm mt-0.5">
-                    {task.assigned_user ? (
-                      `${task.assigned_user.full_name} (${task.assigned_user.role})`
-                    ) : task.assigned_client ? (
-                      `${task.assigned_client.full_name} — Client`
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {assignedUser ? (
+                      <div>
+                        <div>{getPersonLabel(assignedUser)}</div>
+                        {getRoleLabel(assignedUser) ? (
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {getRoleLabel(assignedUser)}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : (
                       <span className="text-gray-500 italic">Unassigned</span>
                     )}
                   </dd>
                 </div>
+
                 <div>
-                  <dt className="text-gray-400 text-xs uppercase">
-                    Reported By
+                  <dt className="text-xs uppercase text-gray-500">
+                    Created By
                   </dt>
-                  <dd className="text-white text-sm mt-0.5">
-                    {task.reported_user ? (
-                      `${task.reported_user.full_name} (${task.reported_user.role})`
-                    ) : task.reported_client ? (
-                      `${task.reported_client.full_name} — Client`
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {createdByUser ? (
+                      <div>
+                        <div>{getPersonLabel(createdByUser)}</div>
+                        {getRoleLabel(createdByUser) ? (
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {getRoleLabel(createdByUser)}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : (
                       <span className="text-gray-500 italic">Not recorded</span>
                     )}
@@ -353,55 +672,69 @@ export default async function TaskDetailPage({ params }: PageProps) {
                 </div>
               </dl>
             </div>
-          </Card>
+          </div>
 
-          {/* Cost */}
-          {(task.estimated_cost !== null || task.actual_cost !== null) && (
-            <Card>
+          <div className="card">
+            <div className="p-6">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                Timeline
+              </h2>
+
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">Created</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatDateTime(typedTask.created_at)}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Last Updated
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatDateTime(typedTask.updated_at)}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">Due Date</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatDate(typedTask.due_date)}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Completed
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {formatDateTime(typedTask.completed_at)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          {canManageTask ? (
+            <div className="card border border-red-200">
               <div className="p-6">
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                  Cost (EUR)
+                <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wider mb-2">
+                  Danger Zone
                 </h2>
-                <dl className="space-y-3">
-                  {task.estimated_cost !== null && (
-                    <div>
-                      <dt className="text-gray-400 text-xs uppercase">
-                        Estimated
-                      </dt>
-                      <dd className="text-white text-sm mt-0.5">
-                        €{Number(task.estimated_cost).toFixed(2)}
-                      </dd>
-                    </div>
-                  )}
-                  {task.actual_cost !== null && (
-                    <div>
-                      <dt className="text-gray-400 text-xs uppercase">
-                        Actual
-                      </dt>
-                      <dd className="text-green-400 text-sm mt-0.5">
-                        €{Number(task.actual_cost).toFixed(2)}
-                      </dd>
-                    </div>
-                  )}
-                </dl>
+                <p className="text-sm text-gray-600 mb-4">
+                  Permanently delete this task. This action cannot be undone.
+                </p>
+
+                <DeleteTaskButton
+                  taskId={typedTask.id}
+                  deleteAction={deleteTask}
+                />
               </div>
-            </Card>
-          )}
+            </div>
+          ) : null}
         </div>
       </div>
-
-      {/* Danger Zone */}
-      <Card className="border border-red-900/50">
-        <div className="p-6">
-          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">
-            Danger Zone
-          </h2>
-          <p className="text-gray-400 text-sm mb-4">
-            Permanently delete this task. This action cannot be undone.
-          </p>
-          <DeleteTaskButton taskId={task.id} deleteAction={deleteTask} />
-        </div>
-      </Card>
     </div>
   );
 }
