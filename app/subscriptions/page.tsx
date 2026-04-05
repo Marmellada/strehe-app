@@ -1,12 +1,78 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+
+type ClientRelation =
+  | {
+      id: string;
+      full_name: string | null;
+      company_name: string | null;
+    }
+  | {
+      id: string;
+      full_name: string | null;
+      company_name: string | null;
+    }[]
+  | null;
+
+type PropertyRelation =
+  | {
+      id: string;
+      title: string | null;
+      property_code: string | null;
+    }
+  | {
+      id: string;
+      title: string | null;
+      property_code: string | null;
+    }[]
+  | null;
+
+type PackageRelation =
+  | {
+      id: string;
+      name: string | null;
+    }
+  | {
+      id: string;
+      name: string | null;
+    }[]
+  | null;
+
+type ContractRow = {
+  id: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: string | null;
+  monthly_price: number | string | null;
+  client: ClientRelation;
+  property: PropertyRelation;
+  package: PackageRelation;
+};
+
+function getSingleRelation<T>(value: T | T[] | null): T | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] || null;
+  return value;
+}
+
 function formatLabel(value: string | null | undefined) {
   if (!value) return "-";
 
   return value
     .replaceAll("_", " ")
-    .replace(/\b\w/g, (l: string) => l.toUpperCase());
+    .replace(/\b\w/g, (char: string) => char.toUpperCase());
 }
 
 function formatPrice(value: number | string | null | undefined) {
@@ -43,65 +109,37 @@ function formatPeriod(
   return `${start} → ${end}`;
 }
 
-function getStatusBadgeClass(status: string | null | undefined) {
+function getBadgeVariant(status: string | null | undefined) {
   switch ((status || "").toLowerCase()) {
     case "active":
-      return "badge-success";
+      return "default" as const;
     case "paused":
-      return "badge-warning";
+      return "secondary" as const;
     case "cancelled":
-      return "badge-danger";
+      return "destructive" as const;
     default:
-      return "badge-outline";
+      return "outline" as const;
   }
 }
 
-type ContractRow = {
-  id: string;
-  start_date: string | null;
-  end_date: string | null;
-  status: string | null;
-  monthly_price: number | string | null;
-  client:
-    | {
-        id: string;
-        full_name: string | null;
-        company_name: string | null;
-      }
-    | {
-        id: string;
-        full_name: string | null;
-        company_name: string | null;
-      }[]
-    | null;
-  property:
-    | {
-        id: string;
-        title: string | null;
-        property_code: string | null;
-      }
-    | {
-        id: string;
-        title: string | null;
-        property_code: string | null;
-      }[]
-    | null;
-  package:
-    | {
-        id: string;
-        name: string | null;
-      }
-    | {
-        id: string;
-        name: string | null;
-      }[]
-    | null;
-};
+function getClientName(row: ContractRow) {
+  const client = getSingleRelation(row.client);
+  return client?.company_name || client?.full_name || "-";
+}
 
-function getSingleRelation<T>(value: T | T[] | null): T | null {
-  if (!value) return null;
-  if (Array.isArray(value)) return value[0] || null;
-  return value;
+function getPropertyLabel(row: ContractRow) {
+  const property = getSingleRelation(row.property);
+
+  if (!property) return "-";
+
+  return property.property_code
+    ? `${property.property_code} - ${property.title || ""}`
+    : property.title || "-";
+}
+
+function getPackageName(row: ContractRow) {
+  const pkg = getSingleRelation(row.package);
+  return pkg?.name || "-";
 }
 
 export default async function SubscriptionsPage() {
@@ -135,7 +173,7 @@ export default async function SubscriptionsPage() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return <div className="card">Error loading contracts: {error.message}</div>;
+    throw new Error(error.message);
   }
 
   const rows = (contracts || []) as ContractRow[];
@@ -169,144 +207,170 @@ export default async function SubscriptionsPage() {
   );
 
   return (
-    <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">Contracts</h1>
-          <p className="page-subtitle">
-            Manage service agreements for properties and owners
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Contracts"
+        description="Manage service agreements for properties and owners"
+        actions={
+          <Button asChild>
+            <Link href="/subscriptions/create">New Contract</Link>
+          </Button>
+        }
+      />
 
-        <Link href="/subscriptions/create" className="btn btn-primary">
-          + New Contract
-        </Link>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Total Contracts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{summary.total}</div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Active</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{summary.active}</div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Paused</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{summary.paused}</div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Cancelled</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{summary.cancelled}</div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Monthly Revenue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {formatPrice(summary.monthlyRevenue)}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="card">
-          <span className="field-label">Total Contracts</span>
-          <span className="field-value">{summary.total}</span>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Contracts List</CardTitle>
+          <CardDescription>
+            {rows.length} contract{rows.length === 1 ? "" : "s"} found
+          </CardDescription>
+        </CardHeader>
 
-        <div className="card">
-          <span className="field-label">Active</span>
-          <span className="field-value">{summary.active}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Paused</span>
-          <span className="field-value">{summary.paused}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Cancelled</span>
-          <span className="field-value">{summary.cancelled}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Monthly Revenue</span>
-          <span className="field-value">
-            {formatPrice(summary.monthlyRevenue)}
-          </span>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="section-title !mb-0">Contracts List</h2>
-            <p className="page-subtitle mt-1">
-              {rows.length} contract{rows.length === 1 ? "" : "s"} found
-            </p>
-          </div>
-        </div>
-
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Property</th>
-                <th>Plan</th>
-                <th>Status</th>
-                <th>Price</th>
-                <th>Period</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {rows.map((contract) => {
-                const client = getSingleRelation(contract.client);
-                const property = getSingleRelation(contract.property);
-                const plan = getSingleRelation(contract.package);
-
-                const clientName =
-                  client?.company_name || client?.full_name || "-";
-
-                const propertyLabel = property?.property_code
-                  ? `${property.property_code} - ${property.title || ""}`
-                  : property?.title || "-";
-
-                return (
-                  <tr key={contract.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{clientName}</div>
-                    </td>
-
-                    <td>{propertyLabel}</td>
-
-                    <td>
-                      <span style={{ fontWeight: 600 }}>
-                        {plan?.name || "-"}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span
-                        className={`badge ${getStatusBadgeClass(
-                          contract.status
-                        )}`}
-                      >
-                        {formatLabel(contract.status)}
-                      </span>
-                    </td>
-
-                    <td>
-                      {formatPrice(contract.monthly_price)}
-                      {contract.monthly_price !== null &&
-                      contract.monthly_price !== undefined &&
-                      contract.monthly_price !== ""
-                        ? " / mo"
-                        : ""}
-                    </td>
-
-                    <td>
-                      {formatPeriod(contract.start_date, contract.end_date)}
-                    </td>
-
-                    <td>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link
-                          href={`/subscriptions/${contract.id}`}
-                          className="btn btn-ghost"
-                        >
-                          Open
-                        </Link>
-                      </div>
-                    </td>
+        <CardContent>
+          {rows.length === 0 ? (
+            <EmptyState
+              title="No contracts found"
+              description="Create your first contract to link a client, property, and package."
+              action={
+                <Button asChild>
+                  <Link href="/subscriptions/create">New Contract</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Client
+                    </th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Property
+                    </th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Package
+                    </th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Price
+                    </th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Period
+                    </th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
 
-          {rows.length === 0 && (
-            <div className="empty-state">No contracts found.</div>
+                <tbody>
+                  {rows.map((contract) => (
+                    <tr key={contract.id} className="border-b last:border-b-0">
+                      <td className="px-2 py-4 font-medium">
+                        {getClientName(contract)}
+                      </td>
+
+                      <td className="px-2 py-4">{getPropertyLabel(contract)}</td>
+
+                      <td className="px-2 py-4">{getPackageName(contract)}</td>
+
+                      <td className="px-2 py-4">
+                        <Badge variant={getBadgeVariant(contract.status)}>
+                          {formatLabel(contract.status)}
+                        </Badge>
+                      </td>
+
+                      <td className="px-2 py-4">
+                        {formatPrice(contract.monthly_price)}
+                        {contract.monthly_price !== null &&
+                        contract.monthly_price !== undefined &&
+                        contract.monthly_price !== ""
+                          ? " / mo"
+                          : ""}
+                      </td>
+
+                      <td className="px-2 py-4">
+                        {formatPeriod(contract.start_date, contract.end_date)}
+                      </td>
+
+                      <td className="px-2 py-4">
+                        <div className="flex gap-2 flex-wrap">
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/subscriptions/${contract.id}`}>
+                              Open
+                            </Link>
+                          </Button>
+
+                          <Button asChild variant="ghost" size="sm">
+                            <Link
+                              href={`/subscriptions/${contract.id}/pdf`}
+                              target="_blank"
+                            >
+                              PDF
+                            </Link>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
-      </section>
-    </main>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

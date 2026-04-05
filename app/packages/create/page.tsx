@@ -2,6 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatCard } from "@/components/ui/StatCard";
+
 async function createPackage(formData: FormData) {
   "use server";
 
@@ -43,34 +48,26 @@ async function createPackage(formData: FormData) {
 
 export default async function CreatePackagePage() {
   return (
-    <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">New Package</h1>
-          <p className="page-subtitle mt-2">
-            Create a contractual package that can later be assigned to a property
-            through a contract.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="New Package"
+        description="Create a contractual package that can later be assigned to a property through a contract."
+        backHref="/packages"
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/packages">Back to Packages</Link>
+          </Button>
+        }
+      />
 
-        <Link href="/packages" className="btn">
-          Back to Packages
-        </Link>
-      </div>
-
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Package Basics</h2>
-          <p className="page-subtitle mt-1">
-            Define the package first. You will add included services after the
-            package is created.
-          </p>
-        </div>
-
+      <SectionCard
+        title="Package Basics"
+        description="Define the package first. You will add included services after the package is created."
+      >
         <form action={createPackage} className="space-y-6">
-          <div className="grid grid-2 gap-4">
-            <div>
-              <label htmlFor="name" className="field-label">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="name" className="text-sm font-medium">
                 Package Name *
               </label>
               <input
@@ -78,13 +75,13 @@ export default async function CreatePackagePage() {
                 name="name"
                 type="text"
                 required
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 placeholder="e.g. Basic, Standard, Premium"
               />
             </div>
 
-            <div>
-              <label htmlFor="monthly_price" className="field-label">
+            <div className="space-y-2">
+              <label htmlFor="monthly_price" className="text-sm font-medium">
                 Monthly Price
               </label>
               <input
@@ -93,79 +90,56 @@ export default async function CreatePackagePage() {
                 type="number"
                 step="0.01"
                 min="0"
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 placeholder="e.g. 29.00"
               />
             </div>
 
-            <div>
-              <label htmlFor="is_active" className="field-label">
+            <div className="space-y-2">
+              <label htmlFor="is_active" className="text-sm font-medium">
                 Status
               </label>
               <select
                 id="is_active"
                 name="is_active"
                 defaultValue="true"
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
 
-            <div className="col-span-2">
-              <label htmlFor="description" className="field-label">
+            <div className="space-y-2 md:col-span-2">
+              <label htmlFor="description" className="text-sm font-medium">
                 Description
               </label>
               <textarea
                 id="description"
                 name="description"
                 rows={6}
-                className="input"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 placeholder="Describe what this package offers commercially."
               />
             </div>
           </div>
 
           <div className="flex gap-2">
-            <Link href="/packages" className="btn">
-              Cancel
-            </Link>
-            <button type="submit" className="btn btn-primary">
-              Create Package
-            </button>
+            <Button asChild variant="outline">
+              <Link href="/packages">Cancel</Link>
+            </Button>
+            <Button type="submit">Create Package</Button>
           </div>
         </form>
-      </section>
+      </SectionCard>
 
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">What happens next</h2>
+      <SectionCard title="What happens next">
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatCard title="1. Create package" value="Commercial bundle" />
+          <StatCard title="2. Add services" value="Included service quantities" />
+          <StatCard title="3. Use in contracts" value="Assign package to property" />
         </div>
-
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          }}
-        >
-          <div className="card">
-            <div className="field-label">1. Create package</div>
-            <div className="field-value">Commercial bundle</div>
-          </div>
-
-          <div className="card">
-            <div className="field-label">2. Add services</div>
-            <div className="field-value">Included service quantities</div>
-          </div>
-
-          <div className="card">
-            <div className="field-label">3. Use in contracts</div>
-            <div className="field-value">Assign package to property</div>
-          </div>
-        </div>
-      </section>
-    </main>
+      </SectionCard>
+    </div>
   );
 }

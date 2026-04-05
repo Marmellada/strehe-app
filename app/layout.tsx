@@ -7,6 +7,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { ToastProvider } from "@/components/ui/toast";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -47,84 +48,41 @@ export default async function RootLayout({
       )}
     >
       <body className="min-h-full">
-        <div className="layout">
-          <aside
-            className="sidebar"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              minHeight: "100vh",
-            }}
-          >
-            <div className="brand">
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  background: "#fff",
-                  border: "1px solid var(--border)",
-                }}
-              />
-              <strong>STREHË Admin</strong>
-            </div>
-
-            <nav
+        <ToastProvider>
+          <div className="layout">
+            <aside
+              className="sidebar"
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "20px",
-                marginTop: "24px",
+                minHeight: "100vh",
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <Link href="/">Dashboard</Link>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <p
+              <div className="brand">
+                <div
                   style={{
-                    margin: "8px 0 2px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "var(--muted-foreground, #94a3b8)",
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    background: "#fff",
+                    border: "1px solid var(--border)",
                   }}
-                >
-                  Operations
-                </p>
-
-                <Link href="/clients">Clients</Link>
-                <Link href="/properties">Properties</Link>
-
-                {(role === "admin" || role === "office" || role === "field") ? (
-                  <Link href="/keys">Keys</Link>
-                ) : null}
-
-                <Link href="/tasks">Tasks</Link>
-                <Link href="/subscriptions">Contracts</Link>
+                />
+                <strong>STREHË Admin</strong>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <p
-                  style={{
-                    margin: "8px 0 2px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "var(--muted-foreground, #94a3b8)",
-                  }}
-                >
-                  Configuration
-                </p>
+              <nav
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "20px",
+                  marginTop: "24px",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <Link href="/">Dashboard</Link>
+                </div>
 
-                <Link href="/services">Services</Link>
-                <Link href="/packages">Packages</Link>
-              </div>
-
-              {role === "admin" ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <p
                     style={{
@@ -136,27 +94,73 @@ export default async function RootLayout({
                       color: "var(--muted-foreground, #94a3b8)",
                     }}
                   >
-                    System
+                    Operations
                   </p>
 
-                  <Link href="/settings">Settings</Link>
+                  <Link href="/clients">Clients</Link>
+                  <Link href="/properties">Properties</Link>
+
+                  {(role === "admin" || role === "office" || role === "field") ? (
+                    <Link href="/keys">Keys</Link>
+                  ) : null}
+
+                  <Link href="/tasks">Tasks</Link>
+                  <Link href="/subscriptions">Contracts</Link>
+                  <Link href="/billing">Billing</Link>
                 </div>
-              ) : null}
-            </nav>
 
-            <SidebarAuthBox />
-          </aside>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <p
+                    style={{
+                      margin: "8px 0 2px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      color: "var(--muted-foreground, #94a3b8)",
+                    }}
+                  >
+                    Configuration
+                  </p>
 
-          <div className="main">
-            <div className="topbar">
-              <div className="row">
-                <h1 style={{ margin: 0 }}>STREHË Admin</h1>
+                  <Link href="/services">Services</Link>
+                  <Link href="/packages">Packages</Link>
+                </div>
+
+                {role === "admin" ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <p
+                      style={{
+                        margin: "8px 0 2px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        color: "var(--muted-foreground, #94a3b8)",
+                      }}
+                    >
+                      System
+                    </p>
+
+                    <Link href="/settings">Settings</Link>
+                  </div>
+                ) : null}
+              </nav>
+
+              <SidebarAuthBox />
+            </aside>
+
+            <div className="main">
+              <div className="topbar">
+                <div className="row">
+                  <h1 style={{ margin: 0 }}>STREHË Admin</h1>
+                </div>
               </div>
-            </div>
 
-            <div className="content">{children}</div>
+              <div className="content">{children}</div>
+            </div>
           </div>
-        </div>
+        </ToastProvider>
       </body>
     </html>
   );

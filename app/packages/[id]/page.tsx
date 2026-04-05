@@ -2,6 +2,15 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Card, CardContent } from "@/components/ui/Card";
+import { DetailField } from "@/components/ui/DetailField";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatCard } from "@/components/ui/StatCard";
+
 type PackagePageProps = {
   params: Promise<{ id: string }>;
 };
@@ -94,6 +103,19 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   });
+}
+
+function getBadgeVariant(status: string | null | undefined) {
+  switch ((status || "").toLowerCase()) {
+    case "active":
+      return "default" as const;
+    case "paused":
+      return "secondary" as const;
+    case "cancelled":
+      return "destructive" as const;
+    default:
+      return "outline" as const;
+  }
 }
 
 async function deletePackage(formData: FormData) {
@@ -233,9 +255,9 @@ export default async function PackageDetailPage({
 
   const [
     { data: pkg, error },
-    { data: includedServices },
-    { data: availableServices },
-    { data: subscriptions },
+    { data: includedServices, error: includedServicesError },
+    { data: availableServices, error: availableServicesError },
+    { data: subscriptions, error: subscriptionsError },
   ] = await Promise.all([
     supabase
       .from("packages")
@@ -316,6 +338,18 @@ export default async function PackageDetailPage({
     return notFound();
   }
 
+  if (includedServicesError) {
+    throw new Error(includedServicesError.message);
+  }
+
+  if (availableServicesError) {
+    throw new Error(availableServicesError.message);
+  }
+
+  if (subscriptionsError) {
+    throw new Error(subscriptionsError.message);
+  }
+
   const serviceRows = (includedServices || []) as IncludedServiceRow[];
   const serviceOptions = (availableServices || []) as any[];
   const contractRows = (subscriptions || []) as ContractRow[];
@@ -326,97 +360,66 @@ export default async function PackageDetailPage({
   });
 
   return (
-    <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">{pkg.name || "Untitled Package"}</h1>
-          <p className="page-subtitle mt-2">
-            {pkg.is_active ? "Active package" : "Inactive package"}
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={pkg.name || "Untitled Package"}
+        description={pkg.is_active ? "Active package" : "Inactive package"}
+        backHref="/packages"
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={`/packages/${pkg.id}/edit`}>Edit Package</Link>
+            </Button>
 
-        <div className="flex gap-2">
-          <Link href="/packages" className="btn">
-            Back
-          </Link>
-          <Link href={`/packages/${pkg.id}/edit`} className="btn">
-            Edit Package
-          </Link>
+            <form action={deletePackage}>
+              <input type="hidden" name="id" value={pkg.id} />
+              <Button type="submit" variant="destructive">
+                Delete Package
+              </Button>
+            </form>
+          </>
+        }
+      />
 
-          <form action={deletePackage}>
-            <input type="hidden" name="id" value={pkg.id} />
-            <button type="submit" className="btn btn-danger">
-              Delete Package
-            </button>
-          </form>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Monthly Price" value={formatPrice(pkg.monthly_price)} />
+        <StatCard
+          title="Status"
+          value={
+            <Badge variant={pkg.is_active ? "default" : "outline"}>
+              {pkg.is_active ? "Active" : "Inactive"}
+            </Badge>
+          }
+        />
+        <StatCard title="Included Services" value={serviceRows.length} />
+        <StatCard title="Active Contracts" value={activeContracts.length} />
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="card">
-          <span className="field-label">Monthly Price</span>
-          <span className="field-value">{formatPrice(pkg.monthly_price)}</span>
-        </div>
+      <SectionCard
+        title="Package Details"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
+        <DetailField label="Name" value={pkg.name || "—"} />
+        <DetailField label="Monthly Price" value={formatPrice(pkg.monthly_price)} />
+        <DetailField label="Created" value={formatDate(pkg.created_at)} />
+        <DetailField label="Updated" value={formatDate(pkg.updated_at)} />
+        <DetailField
+          label="Description"
+          value={pkg.description || "No description provided."}
+          className="md:col-span-2"
+        />
+      </SectionCard>
 
-        <div className="card">
-          <span className="field-label">Status</span>
-          <span className="field-value">{pkg.is_active ? "Active" : "Inactive"}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Included Services</span>
-          <span className="field-value">{serviceRows.length}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Active Contracts</span>
-          <span className="field-value">{activeContracts.length}</span>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Name</p>
-            <p>{pkg.name || "—"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Monthly Price</p>
-            <p>{formatPrice(pkg.monthly_price)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Created</p>
-            <p>{formatDate(pkg.created_at)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Updated</p>
-            <p>{formatDate(pkg.updated_at)}</p>
-          </div>
-
-          <div className="col-span-2">
-            <p className="field-label">Description</p>
-            <p>{pkg.description || "No description provided."}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Included Services</h2>
-          <p className="page-subtitle mt-1">
-            These are the service quantities included in this contractual package.
-          </p>
-        </div>
-
+      <SectionCard
+        title="Included Services"
+        description="These are the service quantities included in this contractual package."
+      >
         <form action={addPackageService} className="space-y-4">
           <input type="hidden" name="package_id" value={pkg.id} />
 
-          <div className="grid grid-2 gap-4">
-            <div>
-              <label htmlFor="service_id" className="field-label">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="service_id" className="text-sm font-medium">
                 Service
               </label>
               <select
@@ -424,7 +427,7 @@ export default async function PackageDetailPage({
                 name="service_id"
                 defaultValue=""
                 required
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="" disabled>
                   Select service
@@ -437,8 +440,8 @@ export default async function PackageDetailPage({
               </select>
             </div>
 
-            <div>
-              <label htmlFor="included_quantity" className="field-label">
+            <div className="space-y-2">
+              <label htmlFor="included_quantity" className="text-sm font-medium">
                 Included Quantity
               </label>
               <input
@@ -449,32 +452,31 @@ export default async function PackageDetailPage({
                 step="1"
                 defaultValue="1"
                 required
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn-primary">
-              Add Service
-            </button>
-          </div>
+          <Button type="submit">Add Service</Button>
         </form>
 
         <div className="mt-6">
           {serviceRows.length === 0 ? (
-            <p className="field-value-muted">No services added to this package yet.</p>
+            <EmptyState
+              title="No services added"
+              description="Add the first service to define what is included in this package."
+            />
           ) : (
-            <div className="table-container">
-              <table className="table">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
                 <thead>
-                  <tr>
-                    <th>Service</th>
-                    <th>Category</th>
-                    <th>Base Price</th>
-                    <th>Included Qty</th>
-                    <th>Status</th>
-                    <th></th>
+                  <tr className="border-b text-left">
+                    <th className="px-2 py-3 font-medium text-muted-foreground">Service</th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">Category</th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">Base Price</th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">Included Qty</th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground">Status</th>
+                    <th className="px-2 py-3 font-medium text-muted-foreground"></th>
                   </tr>
                 </thead>
 
@@ -483,27 +485,30 @@ export default async function PackageDetailPage({
                     const service = getSingleRelation(row.service);
 
                     return (
-                      <tr key={row.id}>
-                        <td>
-                          <Link href={`/services/${service?.id}`}>
+                      <tr key={row.id} className="border-b last:border-b-0">
+                        <td className="px-2 py-4">
+                          <Link
+                            href={`/services/${service?.id}`}
+                            className="font-medium hover:underline"
+                          >
                             {service?.name || "Unnamed service"}
                           </Link>
                         </td>
-                        <td>{formatLabel(service?.category)}</td>
-                        <td>{formatPrice(service?.base_price)}</td>
-                        <td>{row.included_quantity ?? "—"}</td>
-                        <td>{service?.is_active ? "Active" : "Inactive"}</td>
-                        <td>
+                        <td className="px-2 py-4">{formatLabel(service?.category)}</td>
+                        <td className="px-2 py-4">{formatPrice(service?.base_price)}</td>
+                        <td className="px-2 py-4">{row.included_quantity ?? "—"}</td>
+                        <td className="px-2 py-4">
+                          <Badge variant={service?.is_active ? "default" : "outline"}>
+                            {service?.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-4">
                           <form action={removePackageService}>
                             <input type="hidden" name="id" value={row.id} />
-                            <input
-                              type="hidden"
-                              name="package_id"
-                              value={pkg.id}
-                            />
-                            <button type="submit" className="btn btn-ghost">
+                            <input type="hidden" name="package_id" value={pkg.id} />
+                            <Button type="submit" variant="ghost" size="sm">
                               Remove
-                            </button>
+                            </Button>
                           </form>
                         </td>
                       </tr>
@@ -514,29 +519,28 @@ export default async function PackageDetailPage({
             </div>
           )}
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Contracts Using This Package</h2>
-          <p className="page-subtitle mt-1">
-            Shows which properties are currently or historically linked to this package.
-          </p>
-        </div>
-
+      <SectionCard
+        title="Contracts Using This Package"
+        description="Shows which properties are currently or historically linked to this package."
+      >
         {contractRows.length === 0 ? (
-          <p className="field-value-muted">No contracts found for this package.</p>
+          <EmptyState
+            title="No contracts found"
+            description="This package has not been used in any contract yet."
+          />
         ) : (
-          <div className="table-container">
-            <table className="table">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-sm">
               <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Property</th>
-                  <th>Status</th>
-                  <th>Monthly Price</th>
-                  <th>Period</th>
-                  <th></th>
+                <tr className="border-b text-left">
+                  <th className="px-2 py-3 font-medium text-muted-foreground">Client</th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">Property</th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">Status</th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">Monthly Price</th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">Period</th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground"></th>
                 </tr>
               </thead>
 
@@ -553,18 +557,22 @@ export default async function PackageDetailPage({
                     : property?.title || "—";
 
                   return (
-                    <tr key={row.id}>
-                      <td>{clientName}</td>
-                      <td>{propertyName}</td>
-                      <td>{formatLabel(row.status)}</td>
-                      <td>{formatPrice(row.monthly_price)}</td>
-                      <td>
+                    <tr key={row.id} className="border-b last:border-b-0">
+                      <td className="px-2 py-4">{clientName}</td>
+                      <td className="px-2 py-4">{propertyName}</td>
+                      <td className="px-2 py-4">
+                        <Badge variant={getBadgeVariant(row.status)}>
+                          {formatLabel(row.status)}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4">{formatPrice(row.monthly_price)}</td>
+                      <td className="px-2 py-4">
                         {formatDate(row.start_date)} — {formatDate(row.end_date)}
                       </td>
-                      <td>
-                        <Link href={`/subscriptions/${row.id}`} className="btn btn-ghost">
-                          Open
-                        </Link>
+                      <td className="px-2 py-4">
+                        <Button asChild variant="ghost" size="sm">
+                          <Link href={`/subscriptions/${row.id}`}>Open</Link>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -573,7 +581,7 @@ export default async function PackageDetailPage({
             </table>
           </div>
         )}
-      </section>
-    </main>
+      </SectionCard>
+    </div>
   );
 }

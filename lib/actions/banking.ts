@@ -98,7 +98,11 @@ export async function createBankAccount(formData: FormData): Promise<ActionResul
     let bankId = data.bank_id || null;
 
     if (!bankId) {
-      const bankResult = await getOrCreateBankId(supabase, data.bank_name, data.swift_bic);
+      const bankResult = await getOrCreateBankId(
+  supabase,
+  data.bank_name,
+  data.swift_bic ?? undefined
+);
       if (!bankResult.bankId) {
         return { success: false, error: bankResult.error || 'Failed to resolve bank' };
       }
@@ -194,7 +198,11 @@ export async function updateBankAccount(
     let bankId = data.bank_id || null;
 
     if (!bankId) {
-      const bankResult = await getOrCreateBankId(supabase, data.bank_name, data.swift_bic);
+    const bankResult = await getOrCreateBankId(
+  supabase,
+  data.bank_name,
+  data.swift_bic ?? undefined
+);
       if (!bankResult.bankId) {
         return { success: false, error: bankResult.error || 'Failed to resolve bank' };
       }

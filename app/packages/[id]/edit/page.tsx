@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { SectionCard } from "@/components/ui/SectionCard";
+
 type EditPackagePageProps = {
   params: Promise<{ id: string }>;
 };
@@ -75,34 +79,28 @@ export default async function EditPackagePage({
   }
 
   return (
-    <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">Edit Package</h1>
-          <p className="page-subtitle mt-2">{pkg.name || "—"}</p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Edit Package"
+        description={pkg.name || "—"}
+        backHref={`/packages/${pkg.id}`}
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/packages/${pkg.id}`}>Back to Package</Link>
+          </Button>
+        }
+      />
 
-        <div className="flex gap-2">
-          <Link href={`/packages/${pkg.id}`} className="btn">
-            Back to Package
-          </Link>
-        </div>
-      </div>
-
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Package Details</h2>
-          <p className="page-subtitle mt-1">
-            Update the commercial definition of this contractual package.
-          </p>
-        </div>
-
+      <SectionCard
+        title="Package Details"
+        description="Update the commercial definition of this contractual package."
+      >
         <form action={updatePackage} className="space-y-6">
           <input type="hidden" name="id" value={pkg.id} />
 
-          <div className="grid grid-2 gap-4">
-            <div>
-              <label htmlFor="name" className="field-label">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="name" className="text-sm font-medium">
                 Package Name *
               </label>
               <input
@@ -111,12 +109,12 @@ export default async function EditPackagePage({
                 type="text"
                 defaultValue={pkg.name || ""}
                 required
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
 
-            <div>
-              <label htmlFor="monthly_price" className="field-label">
+            <div className="space-y-2">
+              <label htmlFor="monthly_price" className="text-sm font-medium">
                 Monthly Price
               </label>
               <input
@@ -126,27 +124,27 @@ export default async function EditPackagePage({
                 step="0.01"
                 min="0"
                 defaultValue={pkg.monthly_price ?? ""}
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
 
-            <div>
-              <label htmlFor="is_active" className="field-label">
+            <div className="space-y-2">
+              <label htmlFor="is_active" className="text-sm font-medium">
                 Status
               </label>
               <select
                 id="is_active"
                 name="is_active"
                 defaultValue={pkg.is_active ? "true" : "false"}
-                className="input"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
 
-            <div className="col-span-2">
-              <label htmlFor="description" className="field-label">
+            <div className="space-y-2 md:col-span-2">
+              <label htmlFor="description" className="text-sm font-medium">
                 Description
               </label>
               <textarea
@@ -154,21 +152,19 @@ export default async function EditPackagePage({
                 name="description"
                 rows={6}
                 defaultValue={pkg.description || ""}
-                className="input"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
           </div>
 
           <div className="flex gap-2">
-            <Link href={`/packages/${pkg.id}`} className="btn">
-              Cancel
-            </Link>
-            <button type="submit" className="btn btn-primary">
-              Save Changes
-            </button>
+            <Button asChild variant="outline">
+              <Link href={`/packages/${pkg.id}`}>Cancel</Link>
+            </Button>
+            <Button type="submit">Save Changes</Button>
           </div>
         </form>
-      </section>
-    </main>
+      </SectionCard>
+    </div>
   );
 }

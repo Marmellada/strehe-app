@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setupContractAutomation } from "@/lib/actions/contract-setup";
+
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { SectionCard } from "@/components/ui/SectionCard";
 import CreateSubscriptionForm from "@/app/subscriptions/create/CreateSubscriptionForm";
 
 async function createSubscription(formData: FormData) {
@@ -20,7 +23,7 @@ async function createSubscription(formData: FormData) {
   const notes = String(formData.get("notes") || "").trim();
 
   if (!client_id || !property_id || !package_id || !start_date) {
-    throw new Error("Client, property, plan and start date are required.");
+    throw new Error("Client, property, package, and start date are required.");
   }
 
   const monthly_price = Number(monthly_price_raw);
@@ -28,7 +31,6 @@ async function createSubscription(formData: FormData) {
     throw new Error("Monthly price is required and must be valid.");
   }
 
-  // Server-side validation: property must belong to selected client
   const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select("id, owner_client_id")
@@ -43,7 +45,6 @@ async function createSubscription(formData: FormData) {
     throw new Error("Selected property does not belong to the selected client.");
   }
 
-  // Server-side validation: property must not have blocking contract
   const { data: blockingContracts, error: blockingError } = await supabase
     .from("subscriptions")
     .select("id, status")
@@ -70,16 +71,14 @@ async function createSubscription(formData: FormData) {
       monthly_price,
       notes: notes || null,
     })
-    .select()
+    .select("id")
     .single();
 
-  if (error) {
-    throw new Error(error.message);
+  if (error || !data) {
+    throw new Error(error?.message || "Failed to create contract.");
   }
 
-  await setupContractAutomation(data.id);
-
-  redirect("/subscriptions");
+  redirect(`/subscriptions/${data.id}`);
 }
 
 export default async function CreateSubscriptionPage() {
@@ -103,9 +102,7 @@ export default async function CreateSubscriptionPage() {
         .eq("is_active", true)
         .order("name", { ascending: true }),
 
-      supabase
-        .from("subscriptions")
-        .select("id, property_id, status"),
+      supabase.from("subscriptions").select("id, property_id, status"),
     ]);
 
   if (clientsResult.error) {
@@ -117,13 +114,11 @@ export default async function CreateSubscriptionPage() {
   }
 
   if (packagesResult.error) {
-    throw new Error(`Plans load error: ${packagesResult.error.message}`);
+    throw new Error(`Packages load error: ${packagesResult.error.message}`);
   }
 
   if (subscriptionsResult.error) {
-    throw new Error(
-      `Contracts load error: ${subscriptionsResult.error.message}`
-    );
+    throw new Error(`Contracts load error: ${subscriptionsResult.error.message}`);
   }
 
   const clients = clientsResult.data || [];
@@ -133,26 +128,29 @@ export default async function CreateSubscriptionPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">New Contract</h1>
-          <p className="page-subtitle">
-            Assign a plan to a client and one free property
-          </p>
-        </div>
-
-        <Link href="/subscriptions" className="btn">
-          Back
-        </Link>
-      </div>
-
-      <CreateSubscriptionForm
-        clients={clients}
-        properties={properties}
-        packages={packages}
-        subscriptions={subscriptions}
-        action={createSubscription}
+      <PageHeader
+        title="New Contract"
+        description="Create a contract by linking client, property, and package"
+        backHref="/subscriptions"
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/subscriptions">Back</Link>
+          </Button>
+        }
       />
+
+      <SectionCard
+        title="Contract Setup"
+        description="Create the source contract record that the scheduled generator reads later."
+      >
+        <CreateSubscriptionForm
+          clients={clients}
+          properties={properties}
+          packages={packages}
+          subscriptions={subscriptions}
+          action={createSubscription}
+        />
+      </SectionCard>
     </div>
   );
 }

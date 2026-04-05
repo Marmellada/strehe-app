@@ -54,14 +54,17 @@ export default function ClientLocationFields({
   }, [municipalityId, locationId, filteredLocations]);
 
   return (
-    <div className="grid-2">
-      <label className="field">
-        Municipality
+    <div className="grid md:grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <label htmlFor="municipality_id" className="text-sm font-medium">
+          Municipality
+        </label>
         <select
+          id="municipality_id"
           name="municipality_id"
-          className="input"
           value={municipalityId}
           onChange={(e) => setMunicipalityId(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         >
           <option value="">Select municipality</option>
           {municipalities.map((municipality) => (
@@ -70,16 +73,19 @@ export default function ClientLocationFields({
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
-      <label className="field">
-        Neighborhood / Village
+      <div className="space-y-2">
+        <label htmlFor="location_id" className="text-sm font-medium">
+          Neighborhood / Village
+        </label>
         <select
+          id="location_id"
           name="location_id"
-          className="input"
           value={locationId}
           onChange={(e) => setLocationId(e.target.value)}
           disabled={!municipalityId}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
         >
           <option value="">
             {municipalityId ? "Select location" : "Select municipality first"}
@@ -92,7 +98,7 @@ export default function ClientLocationFields({
             </option>
           ))}
         </select>
-      </label>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,29 @@ import { createClient } from "@/lib/supabase/server";
 import { InvoiceForm } from "@/components/billing/InvoiceForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 
+type ClientOption = {
+  id: string;
+  full_name: string | null;
+  company_name: string | null;
+};
+
+type SubscriptionOption = {
+  id: string;
+  client_id: string;
+  property_id: string;
+  package_id: string;
+  property_title: string;
+  package_name: string;
+  monthly_price: number;
+};
+
+type ServiceOption = {
+  id: string;
+  name: string;
+  category: string | null;
+  base_price: number;
+};
+
 export default async function NewInvoicePage() {
   const supabase = await createClient();
 
@@ -14,33 +37,68 @@ export default async function NewInvoicePage() {
     redirect("/auth/login");
   }
 
-  const [{ data: properties }, { data: clients }, { data: bankAccounts }] =
+  const [{ data: clients }, { data: subscriptionsRaw }, { data: servicesRaw }] =
     await Promise.all([
-      supabase.from("properties").select("id, title").order("title"),
-
       supabase
         .from("clients")
         .select("id, full_name, company_name")
         .order("full_name"),
 
       supabase
-        .from("company_bank_accounts")
-        .select(`
+        .from("subscriptions")
+        .select(
+          `
           id,
-          bank_id,
-          iban,
-          account_name,
-          is_primary,
-          is_active,
-          banks (
+          client_id,
+          property_id,
+          package_id,
+          monthly_price,
+          property:properties!subscriptions_property_fk (
+            id,
+            title
+          ),
+          package:packages!subscriptions_package_fk (
             id,
             name,
-            swift_code
+            monthly_price
           )
-        `)
-        .eq("is_active", true)
+        `
+        )
+        .eq("status", "active")
         .order("created_at", { ascending: false }),
+
+      supabase
+        .from("services")
+        .select("id, name, category, base_price")
+        .eq("is_active", true)
+        .order("name"),
     ]);
+
+  const subscriptionOptions: SubscriptionOption[] = (subscriptionsRaw || []).map(
+    (row: any) => {
+      const property = Array.isArray(row.property) ? row.property[0] : row.property;
+      const pkg = Array.isArray(row.package) ? row.package[0] : row.package;
+
+      return {
+        id: row.id,
+        client_id: row.client_id,
+        property_id: row.property_id,
+        package_id: row.package_id,
+        property_title: property?.title || "Untitled property",
+        package_name: pkg?.name || "Unnamed package",
+        monthly_price: Number(
+          row.monthly_price ?? pkg?.monthly_price ?? 0
+        ),
+      };
+    }
+  );
+
+  const serviceOptions: ServiceOption[] = (servicesRaw || []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    base_price: Number(row.base_price || 0),
+  }));
 
   return (
     <div className="space-y-6">
@@ -50,9 +108,9 @@ export default async function NewInvoicePage() {
       />
 
       <InvoiceForm
-        properties={properties || []}
-        clients={clients || []}
-        bankAccounts={bankAccounts || []}
+        clients={(clients || []) as ClientOption[]}
+        subscriptions={subscriptionOptions}
+        services={serviceOptions}
       />
     </div>
   );

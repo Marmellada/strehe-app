@@ -1,44 +1,101 @@
-// app/billing/[id]/page.tsx
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Edit, Plus, ReceiptText } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { DeleteInvoiceButton } from "@/components/billing/DeleteInvoiceButton";
+import { UpdateInvoiceStatusButton } from "@/components/billing/UpdateInvoiceStatusButton";
 
-import { createClient } from '@/lib/supabase/server';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge'; 
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { ArrowLeft, Edit, Plus } from 'lucide-react';
-import {
-  centsToEur,
-  amountPaidCents,
-  balanceDueCents,
-  type InvoiceStatus,
-  type InvoiceWithRelations,
-} from '@/types/billing';
-import { DeleteInvoiceButton } from '@/components/billing/DeleteInvoiceButton';
-import { UpdateInvoiceStatusButton } from '@/components/billing/UpdateInvoiceStatusButton';
+function centsToEur(cents: number) {
+  return (cents || 0) / 100;
+}
+
+function formatMoney(cents: number) {
+  return `€${centsToEur(cents).toFixed(2)}`;
+}
+
+function formatCreditMoney(cents: number) {
+  return `-€${centsToEur(cents).toFixed(2)}`;
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-GB");
+}
+
+function formatAddress(data: {
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+}) {
+  return [
+    data.address_line_1,
+    data.address_line_2,
+    data.city,
+    data.postal_code,
+    data.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
+type DocumentType = "invoice" | "credit_note";
 
 export default async function InvoiceDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createClient();
 
-  const { data: invoice, error } = await supabase
-    .from('invoices')
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices")
     .select(`
-      *,
-      properties (
-        id,
-        name,
-        address_line_1,
-        address_line_2,
-        city,
-        postal_code,
-        country
-      ),
-      clients (
+      id,
+      invoice_number,
+      client_id,
+      property_id,
+      subscription_id,
+      issue_date,
+      due_date,
+      status,
+      document_type,
+      original_invoice_id,
+      subtotal_cents,
+      vat_rate,
+      vat_amount_cents,
+      total_cents,
+      notes,
+      created_at
+    `)
+    .eq("id", id)
+    .single();
+
+  if (invoiceError || !invoice) {
+    notFound();
+  }
+
+  const [
+    { data: client },
+    { data: property },
+    { data: invoiceItems, error: itemsError },
+    { data: paymentsRaw, error: paymentsError },
+    { data: settings },
+    { data: banksRaw },
+    { data: creditNotesRaw, error: creditNotesError },
+    { data: originalInvoice },
+  ] = await Promise.all([
+    supabase
+      .from("clients")
+      .select(`
         id,
         full_name,
+        company_name,
         email,
         phone,
         address_line_1,
@@ -46,143 +103,269 @@ export default async function InvoiceDetailPage({
         city,
         postal_code,
         country
-      ),
-      invoice_items (
+      `)
+      .eq("id", invoice.client_id)
+      .maybeSingle(),
+
+    invoice.property_id
+      ? supabase
+          .from("properties")
+          .select(`
+            id,
+            title,
+            address_line_1,
+            address_line_2,
+            city,
+            postal_code,
+            country
+          `)
+          .eq("id", invoice.property_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+
+    supabase
+      .from("invoice_items")
+      .select(`
         id,
+        invoice_id,
         description,
         quantity,
         unit_price_cents,
-        vat_rate,
-        total_cents
-      ),
-      payments (
-        id,
-        amount_cents,
-        payment_date,
-        payment_method,
-        reference_number,
-        banks (
-          id,
-          name,
-          account_number
-        )
-      )
-    `)
-    .eq('id', params.id)
-    .single();
+        total_cents,
+        created_at
+      `)
+      .eq("invoice_id", invoice.id)
+      .order("created_at", { ascending: true }),
 
-  if (error || !invoice) {
-    notFound();
+    invoice.document_type === "invoice"
+      ? supabase
+          .from("payments")
+          .select(`
+            id,
+            invoice_id,
+            bank_id,
+            amount_cents,
+            payment_method,
+            payment_date,
+            reference_number,
+            notes,
+            created_at
+          `)
+          .eq("invoice_id", invoice.id)
+          .order("payment_date", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+
+    supabase
+      .from("general_settings")
+      .select(`
+        company_name,
+        company_address,
+        company_city,
+        company_postal_code,
+        company_country,
+        company_email,
+        company_phone,
+        company_vat_number
+      `)
+      .single(),
+
+    supabase
+      .from("banks")
+      .select("id, name, swift_code"),
+
+    invoice.document_type === "invoice"
+      ? supabase
+          .from("invoices")
+          .select(`
+            id,
+            invoice_number,
+            status,
+            issue_date,
+            total_cents
+          `)
+          .eq("document_type", "credit_note")
+          .eq("original_invoice_id", invoice.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+
+    invoice.original_invoice_id
+      ? supabase
+          .from("invoices")
+          .select(`
+            id,
+            invoice_number,
+            status,
+            total_cents
+          `)
+          .eq("id", invoice.original_invoice_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (itemsError) {
+    throw new Error(itemsError.message);
   }
 
-  // Fetch general settings for company address
-  const { data: settings } = await supabase
-    .from('general_settings')
-    .select('company_name, company_address, company_city, company_postal_code, company_country, company_email, company_phone, company_vat_number')
-    .single();
+  if (paymentsError) {
+    throw new Error(paymentsError.message);
+  }
 
-  const typedInvoice = invoice as unknown as InvoiceWithRelations;
-  const amountPaid = amountPaidCents(typedInvoice.payments);
-  const balanceDue = balanceDueCents(typedInvoice, typedInvoice.payments);
+  if (creditNotesError) {
+    throw new Error(creditNotesError.message);
+  }
 
-  // Helper to format address
-  const formatAddress = (data: {
-    address_line_1?: string;
-    address_line_2?: string;
-    city?: string;
-    postal_code?: string;
-    country?: string;
-  }) => {
-    return [
-      data.address_line_1,
-      data.address_line_2,
-      data.city,
-      data.postal_code,
-      data.country
-    ].filter(Boolean).join(', ');
-  };
+  const bankMap = new Map(
+    (banksRaw || []).map((bank: any) => [bank.id, bank])
+  );
 
-  // Determine customer info based on invoice type
-  const customerInfo = typedInvoice.invoice_type === 'client' 
-    ? {
-        name: typedInvoice.clients?.full_name || 'N/A',
-        email: typedInvoice.clients?.email,
-        phone: typedInvoice.clients?.phone,
-        address: typedInvoice.clients ? formatAddress(typedInvoice.clients) : 'N/A'
-      }
-    : {
-        name: typedInvoice.properties?.name || 'N/A',
-        email: 'N/A',
-        phone: 'N/A',
-        address: typedInvoice.properties ? formatAddress(typedInvoice.properties) : 'N/A'
-      };
+  const payments =
+    (paymentsRaw || []).map((payment: any) => ({
+      ...payment,
+      bank: payment.bank_id ? bankMap.get(payment.bank_id) || null : null,
+    })) || [];
 
-  // Company info from settings
-  const companyAddress = settings ? [
-    settings.company_address,
-    settings.company_city,
-    settings.company_postal_code,
-    settings.company_country
-  ].filter(Boolean).join(', ') : 'Not configured';
+  const creditNotes = (creditNotesRaw || []) as Array<{
+    id: string;
+    invoice_number: string | null;
+    status: InvoiceStatus;
+    issue_date: string;
+    total_cents: number;
+  }>;
+
+  const amountPaid =
+    payments.reduce(
+      (sum: number, payment: { amount_cents: number | null }) =>
+        sum + (payment.amount_cents || 0),
+      0
+    ) || 0;
+
+  const issuedCreditNotesTotal =
+    creditNotes.reduce(
+      (sum: number, creditNote) =>
+        creditNote.status === "issued" ? sum + (creditNote.total_cents || 0) : sum,
+      0
+    ) || 0;
+
+  const balanceDue =
+    invoice.document_type === "invoice"
+      ? Math.max(0, (invoice.total_cents || 0) - amountPaid - issuedCreditNotesTotal)
+      : 0;
+
+  const clientName = client?.company_name || client?.full_name || "N/A";
+  const clientAddress = client ? formatAddress(client) : "N/A";
+
+  const propertyLabel = property?.title || "—";
+  const propertyAddress = property ? formatAddress(property) : "—";
+
+  const companyAddress = settings
+    ? [
+        settings.company_address,
+        settings.company_city,
+        settings.company_postal_code,
+        settings.company_country,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "Not configured";
+
+  const status = invoice.status as InvoiceStatus;
+  const documentType = invoice.document_type as DocumentType;
+
+  const documentTitle =
+    invoice.invoice_number ||
+    (status === "draft"
+      ? documentType === "credit_note"
+        ? "Draft Credit Note"
+        : "Draft Invoice"
+      : documentType === "credit_note"
+        ? "Credit Note"
+        : "Invoice");
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
           <Link href="/billing">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
+
           <div>
-            <h1 className="text-3xl font-bold">{typedInvoice.invoice_number}</h1>
-            <p className="text-muted-foreground mt-1">
-              {typedInvoice.invoice_type === 'client' ? 'Client Invoice' : 'Property Invoice'}
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">{documentTitle}</h1>
+              <Badge variant="secondary" className="capitalize">
+                {status}
+              </Badge>
+              <Badge
+                variant={documentType === "credit_note" ? "destructive" : "secondary"}
+              >
+                {documentType === "credit_note" ? "credit note" : "invoice"}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {documentType === "credit_note"
+                ? "Credit note linked to an original invoice"
+                : `Client invoice${property ? " linked to a property" : ""}`}
             </p>
           </div>
-          <StatusBadge status={typedInvoice.status} />
         </div>
+
         <div className="flex items-center gap-2">
-          {typedInvoice.status === 'draft' && (
+          {documentType === "invoice" && status === "draft" && (
             <>
-              <Link href={`/billing/${typedInvoice.id}/edit`}>
+              <Link href={`/billing/${invoice.id}/edit`}>
                 <Button variant="outline">
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
               </Link>
-              <DeleteInvoiceButton invoiceId={typedInvoice.id} />
+              <DeleteInvoiceButton invoiceId={invoice.id} />
             </>
           )}
-          {typedInvoice.status !== 'paid' && typedInvoice.status !== 'cancelled' && (
-            <Link href={`/billing/${typedInvoice.id}/payment`}>
+
+          {documentType === "credit_note" && status === "draft" && (
+            <DeleteInvoiceButton invoiceId={invoice.id} />
+          )}
+
+          {documentType === "invoice" && status === "issued" && balanceDue > 0 && (
+            <Link href={`/billing/${invoice.id}/payment`}>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
                 Record Payment
               </Button>
             </Link>
           )}
+
+          {documentType === "invoice" && (status === "issued" || status === "paid") && (
+            <Link href={`/billing/${invoice.id}/credit-note/new`}>
+              <Button variant="outline">
+                <ReceiptText className="mr-2 h-4 w-4" />
+                Create Credit Note
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* Status Management */}
-      {typedInvoice.status === 'draft' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-900 mb-3">
-            This invoice is in draft status. Mark it as sent when ready.
+      {status === "draft" && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="mb-3 text-sm text-blue-900">
+            This {documentType === "credit_note" ? "credit note" : "invoice"} is in draft status.
+            Issue it when it is ready.
           </p>
-          <UpdateInvoiceStatusButton invoiceId={typedInvoice.id} newStatus="sent" />
+          <UpdateInvoiceStatusButton
+            invoiceId={invoice.id}
+            newStatus="issued"
+          />
         </div>
       )}
 
-      {/* Invoice Info Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* From (Company) */}
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="font-semibold text-lg">From</h2>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="rounded-lg border p-6 space-y-4">
+          <h2 className="text-lg font-semibold">From</h2>
           <div className="space-y-2 text-sm">
-            <p className="font-medium">{settings?.company_name || 'Company Name'}</p>
+            <p className="font-medium">{settings?.company_name || "Company Name"}</p>
             <p className="text-muted-foreground">{companyAddress}</p>
             {settings?.company_email && (
               <p className="text-muted-foreground">{settings.company_email}</p>
@@ -191,170 +374,318 @@ export default async function InvoiceDetailPage({
               <p className="text-muted-foreground">{settings.company_phone}</p>
             )}
             {settings?.company_vat_number && (
-              <p className="text-muted-foreground">VAT: {settings.company_vat_number}</p>
+              <p className="text-muted-foreground">
+                VAT: {settings.company_vat_number}
+              </p>
             )}
           </div>
         </div>
 
-        {/* To (Customer) */}
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="font-semibold text-lg">
-            Bill To ({typedInvoice.invoice_type === 'client' ? 'Client' : 'Property'})
-          </h2>
+        <div className="rounded-lg border p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Bill To</h2>
           <div className="space-y-2 text-sm">
-            <p className="font-medium">{customerInfo.name}</p>
-            <p className="text-muted-foreground">{customerInfo.address}</p>
-            {customerInfo.email !== 'N/A' && (
-              <p className="text-muted-foreground">{customerInfo.email}</p>
+            <p className="font-medium">{clientName}</p>
+            <p className="text-muted-foreground">{clientAddress || "N/A"}</p>
+            {client?.email && (
+              <p className="text-muted-foreground">{client.email}</p>
             )}
-            {customerInfo.phone !== 'N/A' && customerInfo.phone && (
-              <p className="text-muted-foreground">{customerInfo.phone}</p>
+            {client?.phone && (
+              <p className="text-muted-foreground">{client.phone}</p>
             )}
           </div>
         </div>
 
-        {/* Dates */}
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="font-semibold text-lg">Dates</h2>
+        <div className="rounded-lg border p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Document Details</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">Issue Date</p>
-              <p className="font-medium">
-                {new Date(typedInvoice.issue_date).toLocaleDateString()}
-              </p>
+              <p className="text-muted-foreground">Number</p>
+              <p className="font-medium">{invoice.invoice_number || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Date</p>
+              <p className="font-medium">{formatDate(invoice.issue_date)}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Due Date</p>
+              <p className="font-medium">{formatDate(invoice.due_date)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Status</p>
+              <p className="font-medium capitalize">{status}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Type</p>
               <p className="font-medium">
-                {new Date(typedInvoice.due_date).toLocaleDateString()}
+                {documentType === "credit_note" ? "Credit Note" : "Invoice"}
               </p>
+            </div>
+            {documentType === "credit_note" && originalInvoice && (
+              <div>
+                <p className="text-muted-foreground">Original Invoice</p>
+                <Link href={`/billing/${originalInvoice.id}`} className="font-medium underline">
+                  {originalInvoice.invoice_number || "Open invoice"}
+                </Link>
+              </div>
+            )}
+            <div className="col-span-2">
+              <p className="text-muted-foreground">Property</p>
+              <p className="font-medium">{propertyLabel}</p>
+              {property && (
+                <p className="text-muted-foreground">{propertyAddress}</p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Financial Summary */}
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="font-semibold text-lg">Financial Summary</h2>
+        <div className="rounded-lg border p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Financial Summary</h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>€{centsToEur(typedInvoice.subtotal_cents).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">VAT ({typedInvoice.vat_rate}%)</span>
-              <span>€{centsToEur(typedInvoice.vat_amount_cents).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-base pt-2 border-t">
-              <span>Total</span>
-              <span>€{centsToEur(typedInvoice.total_cents).toFixed(2)}</span>
-            </div>
-            {amountPaid > 0 && (
-              <div className="flex justify-between text-green-600 pt-2">
-                <span>Amount Paid</span>
-                <span>€{centsToEur(amountPaid).toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-semibold text-base pt-2 border-t">
-              <span>Balance Due</span>
-              <span className={balanceDue > 0 ? 'text-red-600' : 'text-green-600'}>
-                €{centsToEur(balanceDue).toFixed(2)}
+              <span>
+                {documentType === "credit_note"
+                  ? formatCreditMoney(invoice.subtotal_cents)
+                  : formatMoney(invoice.subtotal_cents)}
               </span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                VAT ({invoice.vat_rate}%)
+              </span>
+              <span>
+                {documentType === "credit_note"
+                  ? formatCreditMoney(invoice.vat_amount_cents)
+                  : formatMoney(invoice.vat_amount_cents)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t pt-2 text-base font-semibold">
+              <span>{documentType === "credit_note" ? "Credit Total" : "Total"}</span>
+              <span>
+                {documentType === "credit_note"
+                  ? formatCreditMoney(invoice.total_cents)
+                  : formatMoney(invoice.total_cents)}
+              </span>
+            </div>
+
+            {documentType === "invoice" && (
+              <>
+                <div className="flex justify-between pt-2 text-green-700">
+                  <span>Paid</span>
+                  <span>{formatMoney(amountPaid)}</span>
+                </div>
+                <div className="flex justify-between text-red-700">
+                  <span>Credit Notes</span>
+                  <span>
+                    {issuedCreditNotesTotal > 0
+                      ? formatCreditMoney(issuedCreditNotesTotal)
+                      : "€0.00"}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t pt-2 text-base font-semibold">
+                  <span>Balance Due</span>
+                  <span className={balanceDue > 0 ? "text-red-600" : "text-green-700"}>
+                    {formatMoney(balanceDue)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Line Items */}
-      <div className="border rounded-lg p-6 space-y-4">
-        <h2 className="font-semibold text-lg">Line Items</h2>
+      <div className="rounded-lg border p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Line Items</h2>
+
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-muted/50">
+            <thead className="bg-muted/40">
               <tr>
-                <th className="text-left p-3 font-medium">Description</th>
-                <th className="text-right p-3 font-medium">Quantity</th>
-                <th className="text-right p-3 font-medium">Unit Price</th>
-                <th className="text-right p-3 font-medium">VAT</th>
-                <th className="text-right p-3 font-medium">Total</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">
+                  Description
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium">
+                  Quantity
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium">
+                  Unit Price
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium">
+                  Line Total
+                </th>
               </tr>
             </thead>
             <tbody>
-              {typedInvoice.invoice_items.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="p-3">{item.description}</td>
-                  <td className="p-3 text-right">{item.quantity}</td>
-                  <td className="p-3 text-right">
-                    €{centsToEur(item.unit_price_cents).toFixed(2)}
-                  </td>
-                  <td className="p-3 text-right">{item.vat_rate}%</td>
-                  <td className="p-3 text-right font-medium">
-                    €{centsToEur(item.total_cents).toFixed(2)}
+              {(invoiceItems || []).length ? (
+                (invoiceItems || []).map((item: any) => (
+                  <tr key={item.id} className="border-t">
+                    <td className="px-4 py-3">{item.description}</td>
+                    <td className="px-4 py-3 text-right">{item.quantity}</td>
+                    <td className="px-4 py-3 text-right">
+                      {documentType === "credit_note"
+                        ? formatCreditMoney(item.unit_price_cents)
+                        : formatMoney(item.unit_price_cents)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      {documentType === "credit_note"
+                        ? formatCreditMoney(item.total_cents)
+                        : formatMoney(item.total_cents)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-muted-foreground"
+                  >
+                    No line items found.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Payment History */}
-      {typedInvoice.payments.length > 0 && (
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="font-semibold text-lg">Payment History</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-3 font-medium">Date</th>
-                  <th className="text-left p-3 font-medium">Method</th>
-                  <th className="text-left p-3 font-medium">Bank</th>
-                  <th className="text-left p-3 font-medium">Reference</th>
-                  <th className="text-right p-3 font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {typedInvoice.payments.map((payment) => (
-                  <tr key={payment.id} className="border-t">
-                    <td className="p-3">
-                      {new Date(payment.payment_date).toLocaleDateString()}
-                    </td>
-                    <td className="p-3 capitalize">{payment.payment_method.replace('_', ' ')}</td>
-                    <td className="p-3">{payment.banks?.name || 'N/A'}</td>
-                    <td className="p-3 font-mono text-sm">
-                      {payment.reference_number || '—'}
-                    </td>
-                    <td className="p-3 text-right font-medium text-green-600">
-                      €{centsToEur(payment.amount_cents).toFixed(2)}
-                    </td>
+      {documentType === "invoice" && (
+        <>
+          <div className="rounded-lg border p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Credit Notes</h2>
+              {(status === "issued" || status === "paid") && (
+                <Link href={`/billing/${invoice.id}/credit-note/new`}>
+                  <Button variant="outline">
+                    <ReceiptText className="mr-2 h-4 w-4" />
+                    Create Credit Note
+                  </Button>
+                </Link>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Number</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {creditNotes.length ? (
+                    creditNotes.map((creditNote) => (
+                      <tr key={creditNote.id} className="border-t">
+                        <td className="px-4 py-3">
+                          {creditNote.status === "draft"
+                            ? "—"
+                            : creditNote.invoice_number || "—"}
+                        </td>
+                        <td className="px-4 py-3 capitalize">{creditNote.status}</td>
+                        <td className="px-4 py-3">{formatDate(creditNote.issue_date)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-red-700">
+                          {creditNote.status === "issued"
+                            ? formatCreditMoney(creditNote.total_cents)
+                            : `(${formatCreditMoney(creditNote.total_cents)})`}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/billing/${creditNote.id}`}>Open</Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-muted-foreground"
+                      >
+                        No credit notes created yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          <div className="rounded-lg border p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Payments</h2>
+              {status === "issued" && balanceDue > 0 && (
+                <Link href={`/billing/${invoice.id}/payment`}>
+                  <Button variant="outline">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Record Payment
+                  </Button>
+                </Link>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Method</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Reference</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Bank</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.length ? (
+                    payments.map((payment: any) => (
+                      <tr key={payment.id} className="border-t">
+                        <td className="px-4 py-3">{formatDate(payment.payment_date)}</td>
+                        <td className="px-4 py-3 capitalize">
+                          {String(payment.payment_method).replace("_", " ")}
+                        </td>
+                        <td className="px-4 py-3">
+                          {payment.reference_number || "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {payment.bank?.name
+                            ? `${payment.bank.name}${
+                                payment.bank.swift_code
+                                  ? ` (${payment.bank.swift_code})`
+                                  : ""
+                              }`
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-green-700">
+                          {formatMoney(payment.amount_cents)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-muted-foreground"
+                      >
+                        No payments recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Notes */}
-      {typedInvoice.notes && (
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="font-semibold text-lg">Notes</h2>
+      {invoice.notes && (
+        <div className="rounded-lg border p-6 space-y-2">
+          <h2 className="text-lg font-semibold">Notes</h2>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {typedInvoice.notes}
+            {invoice.notes}
           </p>
         </div>
       )}
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const variants: Record<InvoiceStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    draft: 'secondary',
-    sent: 'outline',
-    paid: 'default',
-    overdue: 'destructive',
-    cancelled: 'secondary',
-  };
-
-  return <Badge variant={variants[status]}>{status.toUpperCase()}</Badge>;
 }

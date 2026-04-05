@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import ClientLocationFields from "../ClientLocationFields";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { Input } from "@/components/ui/Input";
+
 type Municipality = {
   id: string;
   name: string;
@@ -56,17 +62,15 @@ export default function NewClientForm({
   const title = isEdit
     ? "Edit Client"
     : clientType === "business"
-    ? "Add Business Client"
-    : "Add Individual Client";
+    ? "New Business Client"
+    : "New Individual Client";
 
   const subtitle = isEdit
     ? "Update client details"
-    : clientType === "business"
-    ? "Create a company profile"
-    : "Create a personal client profile";
+    : "Create a new client";
 
-  const showIndividualFields = clientType === "individual";
-  const showBusinessFields = clientType === "business";
+  const showIndividual = clientType === "individual";
+  const showBusiness = clientType === "business";
 
   const helperText = useMemo(() => {
     return clientType === "business"
@@ -75,173 +79,197 @@ export default function NewClientForm({
   }, [clientType]);
 
   return (
-    <main className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="page-title">{title}</h1>
-          <p className="page-subtitle mt-2">{subtitle}</p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={title}
+        description={subtitle}
+        backHref={isEdit ? `/clients/${clientId}` : "/clients"}
+      />
 
-        <Link
-          href={isEdit ? `/clients/${clientId}` : "/clients"}
-          className="btn btn-ghost"
-        >
-          Cancel
-        </Link>
-      </div>
+      <form action={action} className="space-y-6 max-w-3xl">
+        <SectionCard title="General">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="client_type" className="text-sm font-medium">
+                Client Type
+              </label>
+              <select
+                id="client_type"
+                name="client_type"
+                value={clientType}
+                onChange={(e) => setClientType(e.target.value)}
+                required
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
+              </select>
+            </div>
 
-      <form
-        action={action}
-        className="card"
-        style={{ display: "grid", gap: 16, maxWidth: 860 }}
-      >
-        <div className="grid-2">
-          <label className="field">
-            Client Type
-            <select
-              name="client_type"
-              className="input"
-              value={clientType}
-              onChange={(e) => setClientType(e.target.value)}
-              required
-            >
-              <option value="individual">Individual</option>
-              <option value="business">Business</option>
-            </select>
-          </label>
-
-          <label className="field">
-            Status
-            <select
-              name="status"
-              className="input"
-              defaultValue={initialData?.status || "active"}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="card" style={{ padding: 12 }}>
-          <div className="section-title" style={{ marginBottom: 0 }}>
-            {helperText}
+            <div className="space-y-2">
+              <label htmlFor="status" className="text-sm font-medium">
+                Status
+              </label>
+              <select
+                id="status"
+                name="status"
+                defaultValue={initialData?.status || "active"}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        {showIndividualFields && (
-          <label className="field">
-            Full Name
-            <input
-              name="full_name"
-              className="input"
-              defaultValue={initialData?.full_name || ""}
-              required={showIndividualFields}
-            />
-          </label>
-        )}
+          <Card size="sm">
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{helperText}</p>
+            </CardContent>
+          </Card>
+        </SectionCard>
 
-        {showBusinessFields && (
-          <>
-            <label className="field">
-              Company Name
-              <input
-                name="company_name"
-                className="input"
-                defaultValue={initialData?.company_name || ""}
-                required={showBusinessFields}
+        <SectionCard title="Client Details">
+          {showIndividual && (
+            <div className="space-y-2">
+              <label htmlFor="full_name" className="text-sm font-medium">
+                Full Name
+              </label>
+              <Input
+                id="full_name"
+                name="full_name"
+                defaultValue={initialData?.full_name || ""}
+                required={showIndividual}
               />
-            </label>
+            </div>
+          )}
 
-            <label className="field">
-              Contact Person
-              <input
-                name="contact_person"
-                className="input"
-                defaultValue={initialData?.contact_person || ""}
+          {showBusiness && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="company_name" className="text-sm font-medium">
+                  Company Name
+                </label>
+                <Input
+                  id="company_name"
+                  name="company_name"
+                  defaultValue={initialData?.company_name || ""}
+                  required={showBusiness}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="contact_person" className="text-sm font-medium">
+                  Contact Person
+                </label>
+                <Input
+                  id="contact_person"
+                  name="contact_person"
+                  defaultValue={initialData?.contact_person || ""}
+                />
+              </div>
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Contact">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="phone" className="text-sm font-medium">
+                Phone
+              </label>
+              <Input
+                id="phone"
+                name="phone"
+                defaultValue={initialData?.phone || ""}
               />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium">
+                Email
+              </label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={initialData?.email || ""}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Address">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="address_line_1" className="text-sm font-medium">
+                Address Line 1
+              </label>
+              <Input
+                id="address_line_1"
+                name="address_line_1"
+                defaultValue={initialData?.address_line_1 || ""}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="address_line_2" className="text-sm font-medium">
+                Address Line 2
+              </label>
+              <Input
+                id="address_line_2"
+                name="address_line_2"
+                defaultValue={initialData?.address_line_2 || ""}
+              />
+            </div>
+
+            <ClientLocationFields
+              municipalities={municipalities}
+              locations={locations}
+              defaultMunicipalityId={initialData?.municipality_id || ""}
+              defaultLocationId={initialData?.location_id || ""}
+            />
+
+            <div className="space-y-2">
+              <label htmlFor="country" className="text-sm font-medium">
+                Country
+              </label>
+              <Input
+                id="country"
+                name="country"
+                defaultValue={initialData?.country || "Kosovo"}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Notes">
+          <div className="space-y-2">
+            <label htmlFor="notes" className="text-sm font-medium">
+              Notes
             </label>
-          </>
-        )}
-
-        <div className="grid-2">
-          <label className="field">
-            Phone
-            <input
-              name="phone"
-              className="input"
-              defaultValue={initialData?.phone || ""}
+            <textarea
+              id="notes"
+              name="notes"
+              rows={4}
+              defaultValue={initialData?.notes || ""}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
-          </label>
+          </div>
+        </SectionCard>
 
-          <label className="field">
-            Email
-            <input
-              name="email"
-              type="email"
-              className="input"
-              defaultValue={initialData?.email || ""}
-            />
-          </label>
-        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" asChild>
+            <Link href={isEdit ? `/clients/${clientId}` : "/clients"}>
+              Cancel
+            </Link>
+          </Button>
 
-        <label className="field">
-          Address Line 1
-          <input
-            name="address_line_1"
-            className="input"
-            defaultValue={initialData?.address_line_1 || ""}
-          />
-        </label>
-
-        <label className="field">
-          Address Line 2
-          <input
-            name="address_line_2"
-            className="input"
-            defaultValue={initialData?.address_line_2 || ""}
-          />
-        </label>
-
-        <ClientLocationFields
-          municipalities={municipalities}
-          locations={locations}
-          defaultMunicipalityId={initialData?.municipality_id || ""}
-          defaultLocationId={initialData?.location_id || ""}
-        />
-
-        <label className="field">
-          Country
-          <input
-            name="country"
-            className="input"
-            defaultValue={initialData?.country || "Kosovo"}
-          />
-        </label>
-
-        <label className="field">
-          Notes
-          <textarea
-            name="notes"
-            className="input"
-            rows={4}
-            defaultValue={initialData?.notes || ""}
-          />
-        </label>
-
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Link
-            href={isEdit ? `/clients/${clientId}` : "/clients"}
-            className="btn btn-ghost"
-          >
-            Cancel
-          </Link>
-
-          <button type="submit" className="btn btn-primary">
-            {isEdit ? "Update Client" : "Save Client"}
-          </button>
+          <Button type="submit">
+            {isEdit ? "Update Client" : "Create Client"}
+          </Button>
         </div>
       </form>
-    </main>
+    </div>
   );
 }

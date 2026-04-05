@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/Button";
+import { DetailField } from "@/components/ui/DetailField";
+import { Card, CardContent } from "@/components/ui/Card";
+
 type ClientRow = {
   id: string;
   full_name: string | null;
@@ -82,6 +86,14 @@ export default function CreateSubscriptionForm({
     return packages.find((pkg) => pkg.id === selectedPackageId) || null;
   }, [packages, selectedPackageId]);
 
+  const selectedClient = useMemo(() => {
+    return clients.find((client) => client.id === selectedClientId) || null;
+  }, [clients, selectedClientId]);
+
+  const selectedProperty = useMemo(() => {
+    return properties.find((property) => property.id === selectedPropertyId) || null;
+  }, [properties, selectedPropertyId]);
+
   useEffect(() => {
     setSelectedPropertyId("");
   }, [selectedClientId]);
@@ -96,176 +108,212 @@ export default function CreateSubscriptionForm({
   }, [selectedPackage]);
 
   return (
-    <form action={action} className="card space-y-6">
-      <div className="grid grid-2 gap-4">
-        <div>
-          <label htmlFor="client_id" className="field-label">
-            Client *
-          </label>
-          <select
-            id="client_id"
-            name="client_id"
-            required
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="input"
-          >
-            <option value="" disabled>
-              Select client
-            </option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.company_name || c.full_name || "-"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="property_id" className="field-label">
-            Property *
-          </label>
-          <select
-            id="property_id"
-            name="property_id"
-            required
-            value={selectedPropertyId}
-            onChange={(e) => setSelectedPropertyId(e.target.value)}
-            className="input"
-            disabled={!selectedClientId || availableProperties.length === 0}
-          >
-            <option value="" disabled>
-              {!selectedClientId
-                ? "Select client first"
-                : availableProperties.length === 0
-                ? "No free properties available"
-                : "Select property"}
-            </option>
-            {availableProperties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.property_code
-                  ? `${p.property_code} - ${p.title || ""}`
-                  : p.title || "-"}
-              </option>
-            ))}
-          </select>
-
-          {selectedClientId && availableProperties.length === 0 ? (
-            <p className="page-subtitle mt-2">
-              This client has no free properties available for a new contract.
-            </p>
-          ) : null}
-        </div>
-
-        <div>
-          <label htmlFor="package_id" className="field-label">
-            Plan *
-          </label>
-          <select
-            id="package_id"
-            name="package_id"
-            required
-            value={selectedPackageId}
-            onChange={(e) => setSelectedPackageId(e.target.value)}
-            className="input"
-          >
-            <option value="" disabled>
-              Select plan
-            </option>
-            {packages.map((pkg) => (
-              <option key={pkg.id} value={pkg.id}>
-                {pkg.name} ({pkg.monthly_price ? `€${pkg.monthly_price}` : "-"})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="monthly_price" className="field-label">
-            Monthly Price
-          </label>
-          <input
-            id="monthly_price"
-            name="monthly_price"
-            type="number"
-            step="0.01"
-            min="0"
-            className="input"
-            value={monthlyPrice}
-            readOnly
-          />
-          <p className="page-subtitle mt-2">
-            Price is taken automatically from the selected plan.
+    <form action={action} className="space-y-6">
+      <Card size="sm">
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Creating a contract does not create tasks immediately. The contract
+            is saved as the source record, and the scheduled generator reads it later.
           </p>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="client_id" className="text-sm font-medium">
+              Client *
+            </label>
+            <select
+              id="client_id"
+              name="client_id"
+              required
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                Select client
+              </option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.company_name || client.full_name || "-"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="property_id" className="text-sm font-medium">
+              Property *
+            </label>
+            <select
+              id="property_id"
+              name="property_id"
+              required
+              value={selectedPropertyId}
+              onChange={(e) => setSelectedPropertyId(e.target.value)}
+              disabled={!selectedClientId || availableProperties.length === 0}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+            >
+              <option value="" disabled>
+                {!selectedClientId
+                  ? "Select client first"
+                  : availableProperties.length === 0
+                    ? "No free properties available"
+                    : "Select property"}
+              </option>
+              {availableProperties.map((property) => (
+                <option key={property.id} value={property.id}>
+                  {property.property_code
+                    ? `${property.property_code} - ${property.title || ""}`
+                    : property.title || "-"}
+                </option>
+              ))}
+            </select>
+            {selectedClientId && availableProperties.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                This client has no free properties available for a new contract.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="package_id" className="text-sm font-medium">
+              Package *
+            </label>
+            <select
+              id="package_id"
+              name="package_id"
+              required
+              value={selectedPackageId}
+              onChange={(e) => setSelectedPackageId(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                Select package
+              </option>
+              {packages.map((pkg) => (
+                <option key={pkg.id} value={pkg.id}>
+                  {pkg.name}{" "}
+                  {pkg.monthly_price !== null && pkg.monthly_price !== undefined
+                    ? `(€${pkg.monthly_price})`
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="monthly_price" className="text-sm font-medium">
+              Monthly Price *
+            </label>
+            <input
+              id="monthly_price"
+              name="monthly_price"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              value={monthlyPrice}
+              readOnly
+              className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm"
+            />
+            <p className="text-sm text-muted-foreground">
+              Pre-filled from the selected package.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="start_date" className="text-sm font-medium">
+              Start Date *
+            </label>
+            <input
+              id="start_date"
+              name="start_date"
+              type="date"
+              required
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="end_date" className="text-sm font-medium">
+              End Date
+            </label>
+            <input
+              id="end_date"
+              name="end_date"
+              type="date"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="status" className="text-sm font-medium">
+              Status
+            </label>
+            <select
+              id="status"
+              name="status"
+              defaultValue="active"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <label htmlFor="notes" className="text-sm font-medium">
+              Notes
+            </label>
+            <textarea
+              id="notes"
+              name="notes"
+              rows={4}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
         </div>
 
-        <div>
-          <label htmlFor="start_date" className="field-label">
-            Start Date *
-          </label>
-          <input
-            id="start_date"
-            name="start_date"
-            type="date"
-            required
-            className="input"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="end_date" className="field-label">
-            End Date
-          </label>
-          <input
-            id="end_date"
-            name="end_date"
-            type="date"
-            className="input"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="status" className="field-label">
-            Status
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue="active"
-            className="input"
-          >
-            <option value="active">Active</option>
-            <option value="paused">Paused</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-
-        <div className="col-span-2">
-          <label htmlFor="notes" className="field-label">
-            Notes
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={4}
-            className="input"
-          />
-        </div>
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="text-sm font-semibold">Contract Preview</div>
+            <DetailField
+              label="Client"
+              value={selectedClient?.company_name || selectedClient?.full_name || "-"}
+            />
+            <DetailField
+              label="Property"
+              value={
+                selectedProperty
+                  ? selectedProperty.property_code
+                    ? `${selectedProperty.property_code} - ${selectedProperty.title || ""}`
+                    : selectedProperty.title || "-"
+                  : "-"
+              }
+            />
+            <DetailField label="Package" value={selectedPackage?.name || "-"} />
+            <DetailField
+              label="Monthly Price"
+              value={monthlyPrice ? `€${monthlyPrice}` : "-"}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex gap-2">
-        <Link href="/subscriptions" className="btn">
-          Cancel
-        </Link>
-        <button
+        <Button asChild variant="outline">
+          <Link href="/subscriptions">Cancel</Link>
+        </Button>
+        <Button
           type="submit"
-          className="btn btn-primary"
-          disabled={
-            !selectedClientId || !selectedPropertyId || !selectedPackageId
-          }
+          disabled={!selectedClientId || !selectedPropertyId || !selectedPackageId}
         >
           Create Contract
-        </button>
+        </Button>
       </div>
     </form>
   );

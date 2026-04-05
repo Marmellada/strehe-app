@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Card, CardContent } from "@/components/ui/Card";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatCard } from "@/components/ui/StatCard";
+
 function formatLabel(value: string | null | undefined) {
   if (!value) return "-";
 
@@ -21,75 +29,124 @@ function formatPrice(value: number | string | null | undefined) {
 
 export default async function ServicesPage() {
   const supabase = await createClient();
-  
+
   const { data: services, error } = await supabase
     .from("services")
-    .select(`
+    .select(
+      `
       id,
       name,
       category,
       base_price,
       default_priority,
       is_active
-    `)
+    `
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
-    return <div>Error loading services</div>;
+    throw new Error(error.message);
   }
+
+  const rows = services || [];
+
+  const totals = rows.reduce(
+    (acc, service) => {
+      acc.total += 1;
+
+      if (service.is_active) {
+        acc.active += 1;
+      } else {
+        acc.inactive += 1;
+      }
+
+      const price = Number(service.base_price || 0);
+      if (!Number.isNaN(price)) {
+        acc.totalBasePrice += price;
+      }
+
+      return acc;
+    },
+    {
+      total: 0,
+      active: 0,
+      inactive: 0,
+      totalBasePrice: 0,
+    }
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">Services</h1>
-          <p className="page-subtitle">Manage your service catalog</p>
-        </div>
+      <PageHeader
+        title="Services"
+        description="Manage your reusable service catalog"
+        actions={
+          <Button asChild>
+            <Link href="/services/create">New Service</Link>
+          </Button>
+        }
+      />
 
-        <Link href="/services/create" className="btn btn-primary">
-          + New Service
-        </Link>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Total Services" value={totals.total} />
+        <StatCard title="Active" value={totals.active} />
+        <StatCard title="Inactive" value={totals.inactive} />
+        <StatCard title="Total Base Price" value={formatPrice(totals.totalBasePrice)} />
       </div>
 
-      <div className="card">
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Base Price</th>
-                <th>Default Priority</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {services?.map((service: any) => (
-                <tr key={service.id}>
-                  <td>
-                    <Link href={`/services/${service.id}`}>
+      <SectionCard
+        title="Services List"
+        description="Reusable catalog items for packages now and billing later."
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="No services found"
+            description="Create your first service to start building packages."
+            action={
+              <Button asChild>
+                <Link href="/services/create">New Service</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2">
+            {rows.map((service) => (
+              <Card key={service.id}>
+                <CardContent className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/services/${service.id}`}
+                      className="font-medium hover:underline"
+                    >
                       {service.name || "-"}
                     </Link>
-                  </td>
 
-                  <td>{formatLabel(service.category)}</td>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <span>{formatLabel(service.category)}</span>
+                      <span>•</span>
+                      <span>{formatLabel(service.default_priority)} priority</span>
+                    </div>
+                  </div>
 
-                  <td>{formatPrice(service.base_price)}</td>
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm font-medium">
+                      {formatPrice(service.base_price)}
+                    </div>
 
-                  <td>{formatLabel(service.default_priority)}</td>
+                    <Badge variant={service.is_active ? "default" : "outline"}>
+                      {service.is_active ? "Active" : "Inactive"}
+                    </Badge>
 
-                  <td>{service.is_active ? "Active" : "Inactive"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {services?.length === 0 && (
-            <div className="empty-state">No services found.</div>
-          )}
-        </div>
-      </div>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/services/${service.id}`}>Open</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

@@ -1,10 +1,19 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/Card";
+import { DetailField } from "@/components/ui/DetailField";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatCard } from "@/components/ui/StatCard";
 
 async function deleteService(formData: FormData) {
   "use server";
 
+  const supabase = await createClient();
   const id = String(formData.get("id") || "").trim();
 
   if (!id) {
@@ -57,11 +66,13 @@ type ServicePageProps = {
 export default async function ServiceDetailPage({
   params,
 }: ServicePageProps) {
+  const supabase = await createClient();
   const { id } = await params;
 
   const { data: service, error } = await supabase
     .from("services")
-    .select(`
+    .select(
+      `
       id,
       name,
       description,
@@ -73,7 +84,8 @@ export default async function ServiceDetailPage({
       is_active,
       created_at,
       updated_at
-    `)
+    `
+    )
     .eq("id", id)
     .single();
 
@@ -83,102 +95,109 @@ export default async function ServiceDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">{service.name || "Untitled Service"}</h1>
-          <p className="page-subtitle">{formatLabel(service.category)}</p>
+      <PageHeader
+        title={service.name || "Untitled Service"}
+        description={formatLabel(service.category)}
+        backHref="/services"
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={`/services/${service.id}/edit`}>Edit Service</Link>
+            </Button>
+
+            <form action={deleteService}>
+              <input type="hidden" name="id" value={service.id} />
+              <Button type="submit" variant="destructive">
+                Delete Service
+              </Button>
+            </form>
+          </>
+        }
+      />
+
+      <Card size="sm">
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Services are reusable catalog items. They define pricing and default
+            task behavior, and can be used in packages now and in billing later.
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Category" value={formatLabel(service.category)} />
+        <StatCard title="Base Price" value={formatPrice(service.base_price)} />
+        <StatCard
+          title="Default Priority"
+          value={formatLabel(service.default_priority)}
+        />
+        <StatCard
+          title="Status"
+          value={
+            <Badge variant={service.is_active ? "default" : "outline"}>
+              {service.is_active ? "Active" : "Inactive"}
+            </Badge>
+          }
+        />
+      </div>
+
+      <SectionCard
+        title="Service Details"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
+        <DetailField label="Name" value={service.name || "-"} />
+        <DetailField label="Category" value={formatLabel(service.category)} />
+        <DetailField label="Base Price" value={formatPrice(service.base_price)} />
+        <DetailField
+          label="Default Priority"
+          value={formatLabel(service.default_priority)}
+        />
+        <DetailField
+          label="Status"
+          value={service.is_active ? "Active" : "Inactive"}
+        />
+      </SectionCard>
+
+      <SectionCard
+        title="Task Template"
+        description="These defaults are used when recurring or manual task records are created from this service."
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
+        <DetailField
+          label="Default Task Title"
+          value={service.default_title || "No default title set."}
+          className="md:col-span-2"
+        />
+        <DetailField
+          label="Default Task Description"
+          value={service.default_description || "No default description set."}
+          className="md:col-span-2"
+        />
+        <DetailField
+          label="Default Priority"
+          value={formatLabel(service.default_priority)}
+        />
+      </SectionCard>
+
+      <SectionCard title="Description">
+        <div className="text-sm">
+          {service.description || "No description provided."}
         </div>
+      </SectionCard>
 
-        <div className="flex gap-2">
-          <Link href={`/services/${service.id}/edit`} className="btn">
-            Edit Service
-          </Link>
-
-          <form action={deleteService}>
-            <input type="hidden" name="id" value={service.id} />
-            <button type="submit" className="btn btn-danger">
-              Delete Service
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Name</p>
-            <p>{service.name || "-"}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Category</p>
-            <p>{formatLabel(service.category)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Base Price</p>
-            <p>{formatPrice(service.base_price)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Default Priority</p>
-            <p>{formatLabel(service.default_priority)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Status</p>
-            <p>{service.is_active ? "Active" : "Inactive"}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">Task Template</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div className="col-span-2">
-            <p className="field-label">Default Task Title</p>
-            <p>{service.default_title || "No default title set."}</p>
-          </div>
-
-          <div className="col-span-2">
-            <p className="field-label">Default Task Description</p>
-            <p>{service.default_description || "No default description set."}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Default Priority</p>
-            <p>{formatLabel(service.default_priority)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">Description</h2>
-        <p>{service.description || "No description provided."}</p>
-      </div>
-
-      <div className="card">
-        <h2 className="section-title mb-4">System Info</h2>
-
-        <div className="grid grid-2 gap-4">
-          <div>
-            <p className="field-label">Created At</p>
-            <p>{formatDateTime(service.created_at)}</p>
-          </div>
-
-          <div>
-            <p className="field-label">Updated At</p>
-            <p>{formatDateTime(service.updated_at)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <Link href="/services" className="text-sm underline">
-          ← Back to services
-        </Link>
-      </div>
+      <SectionCard
+        title="System Info"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
+        <DetailField
+          label="Created At"
+          value={formatDateTime(service.created_at)}
+        />
+        <DetailField
+          label="Updated At"
+          value={formatDateTime(service.updated_at)}
+        />
+      </SectionCard>
     </div>
   );
 }

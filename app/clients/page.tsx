@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Card, CardContent } from "@/components/ui/Card";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatCard } from "@/components/ui/StatCard";
+
 type RelatedName = { name: string | null } | { name: string | null }[] | null;
 
 type ClientRow = {
@@ -16,324 +24,129 @@ type ClientRow = {
   locations: RelatedName;
 };
 
-function getClientDisplayName(client: ClientRow) {
-  if (client.client_type === "business") {
-    return client.company_name || "Unnamed business";
-  }
-
-  return client.full_name || "Unnamed individual";
+function getClientName(c: ClientRow) {
+  return c.client_type === "business"
+    ? c.company_name || "Unnamed business"
+    : c.full_name || "Unnamed client";
 }
 
-function getRelatedName(value: RelatedName) {
+function getSingle(value: RelatedName) {
   if (!value) return "";
   if (Array.isArray(value)) return value[0]?.name || "";
   return value.name || "";
 }
 
-export default async function ClientsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    search?: string;
-    client_type?: string;
-    status?: string;
-  }>;
-}) {
+export default async function ClientsPage() {
   const supabase = await createClient();
-  const params = await searchParams;
-
-  const search = params.search || "";
-  const clientType = params.client_type || "";
-  const status = params.status || "";
-
-  let clientsQuery = supabase.from("clients").select(`
-      id,
-      client_type,
-      full_name,
-      company_name,
-      contact_person,
-      phone,
-      email,
-      status,
-      municipalities(name),
-      locations(name)
-    `);
-
-  if (clientType) {
-    clientsQuery = clientsQuery.eq("client_type", clientType);
-  }
-
-  if (status) {
-    clientsQuery = clientsQuery.eq("status", status);
-  }
-
-  if (search) {
-    clientsQuery = clientsQuery.or(
-      `full_name.ilike.%${search}%,company_name.ilike.%${search}%,contact_person.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`
-    );
-  }
 
   const [
-    clientsResult,
-    totalClientsResult,
-    activeClientsResult,
-    individualClientsResult,
-    businessClientsResult,
+    { data: clients },
+    { count: total },
+    { count: active },
+    { count: individuals },
+    { count: businesses },
   ] = await Promise.all([
-    clientsQuery.order("id", { ascending: false }),
+    supabase
+      .from("clients")
+      .select(
+        `
+        id,
+        client_type,
+        full_name,
+        company_name,
+        contact_person,
+        phone,
+        email,
+        status,
+        municipalities(name),
+        locations(name)
+      `
+      )
+      .order("id", { ascending: false }),
+
     supabase.from("clients").select("*", { count: "exact", head: true }),
-    supabase
-      .from("clients")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "active"),
-    supabase
-      .from("clients")
-      .select("*", { count: "exact", head: true })
-      .eq("client_type", "individual"),
-    supabase
-      .from("clients")
-      .select("*", { count: "exact", head: true })
-      .eq("client_type", "business"),
+    supabase.from("clients").select("*", { count: "exact", head: true }).eq("status", "active"),
+    supabase.from("clients").select("*", { count: "exact", head: true }).eq("client_type", "individual"),
+    supabase.from("clients").select("*", { count: "exact", head: true }).eq("client_type", "business"),
   ]);
 
-  if (clientsResult.error) {
-    return (
-      <div className="card">
-        Error loading clients: {clientsResult.error.message}
-      </div>
-    );
-  }
-
-  const clients = (clientsResult.data || []) as ClientRow[];
+  const rows = clients || [];
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>Clients</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
-            Manage individuals and business clients
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Clients"
+        description="Manage individuals and business clients"
+        actions={
+          <Button asChild>
+            <Link href="/clients/new">New Client</Link>
+          </Button>
+        }
+      />
 
-        <Link href="/clients/new" className="btn btn-primary">
-          + New Client
-        </Link>
-      </section>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Total" value={total || 0} />
+        <StatCard title="Active" value={active || 0} />
+        <StatCard title="Individuals" value={individuals || 0} />
+        <StatCard title="Businesses" value={businesses || 0} />
+      </div>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Total Clients</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {totalClientsResult.count ?? 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Active</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {activeClientsResult.count ?? 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Individuals</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {individualClientsResult.count ?? 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Businesses</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {businessClientsResult.count ?? 0}
-          </div>
-        </div>
-      </section>
-
-      <section className="card">
-        <form
-          method="GET"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr auto",
-            gap: 12,
-            alignItems: "end",
-          }}
-        >
-          <label className="field">
-            Search
-            <input
-              type="text"
-              name="search"
-              className="input"
-              defaultValue={search}
-              placeholder="Search by name, company, phone, email..."
-            />
-          </label>
-
-          <label className="field">
-            Type
-            <select
-              name="client_type"
-              className="input"
-              defaultValue={clientType}
-            >
-              <option value="">All</option>
-              <option value="individual">Individual</option>
-              <option value="business">Business</option>
-            </select>
-          </label>
-
-          <label className="field">
-            Status
-            <select name="status" className="input" defaultValue={status}>
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </label>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" className="btn btn-primary">
-              Apply
-            </button>
-            <Link href="/clients" className="btn btn-ghost">
-              Clear
-            </Link>
-          </div>
-        </form>
-      </section>
-
-      <section className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {clients.length === 0 ? (
-          <div style={{ padding: 24 }}>
-            <h3 style={{ marginTop: 0 }}>No clients found</h3>
-            <p style={{ opacity: 0.75 }}>
-              Try changing the filters or create your first client.
-            </p>
-            <Link href="/clients/new" className="btn btn-primary">
-              + New Client
-            </Link>
-          </div>
+      <SectionCard title="Clients">
+        {rows.length === 0 ? (
+          <EmptyState
+            title="No clients"
+            action={
+              <Button asChild>
+                <Link href="/clients/new">Create Client</Link>
+              </Button>
+            }
+          />
         ) : (
-          <div>
-            {clients.map((client, index) => {
-              const displayName = getClientDisplayName(client);
-              const locationName = getRelatedName(client.locations);
-              const municipalityName = getRelatedName(client.municipalities);
-              const locationLine = [locationName, municipalityName]
+          <div className="space-y-2">
+            {rows.map((c) => {
+              const location = [getSingle(c.locations), getSingle(c.municipalities)]
                 .filter(Boolean)
                 .join(", ");
 
               return (
-                <div
-                  key={client.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.6fr 1fr auto",
-                    gap: 12,
-                    padding: 16,
-                    borderTop: index === 0 ? "none" : "1px solid var(--border)",
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 16,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {displayName}
+                <Card key={c.id}>
+                  <CardContent className="flex justify-between items-center">
+                    <div>
+                      <Link href={`/clients/${c.id}`}>
+                        <p className="font-medium">{getClientName(c)}</p>
+                      </Link>
+
+                      <p className="text-xs text-muted-foreground">
+                        {c.phone || ""} {c.phone && c.email ? "•" : ""} {c.email || ""}
+                      </p>
+
+                      {location && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {location}
+                        </p>
+                      )}
                     </div>
 
-                    <div style={{ fontSize: 13, opacity: 0.75 }}>
-                      {client.contact_person && client.client_type === "business"
-                        ? `Contact: ${client.contact_person}`
-                        : ""}
-                      {client.contact_person &&
-                      client.client_type === "business" &&
-                      (client.phone || client.email)
-                        ? " • "
-                        : ""}
-                      {client.phone || ""}
-                      {client.phone && client.email ? " • " : ""}
-                      {client.email || ""}
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">
+                        {c.client_type === "business" ? "Business" : "Individual"}
+                      </Badge>
+
+                      <Badge variant={c.status === "active" ? "default" : "outline"}>
+                        {c.status || "unknown"}
+                      </Badge>
+
+                      <Button asChild size="sm" variant="ghost">
+                        <Link href={`/clients/${c.id}`}>Open</Link>
+                      </Button>
                     </div>
-
-                    {locationLine ? (
-                      <div style={{ fontSize: 13, opacity: 0.65, marginTop: 4 }}>
-                        {locationLine}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        fontSize: 12,
-                        border: "1px solid var(--border)",
-                        background: "var(--panel)",
-                      }}
-                    >
-                      {client.client_type === "business"
-                        ? "Business"
-                        : "Individual"}
-                    </span>
-
-                    <span
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        fontSize: 12,
-                        border: "1px solid var(--border)",
-                        background:
-                          client.status === "active"
-                            ? "rgba(34,197,94,0.12)"
-                            : "rgba(239,68,68,0.12)",
-                      }}
-                    >
-                      {client.status === "active" ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 8, justifyContent: "end" }}>
-                    <Link href={`/clients/${client.id}`} className="btn btn-ghost">
-                      View
-                    </Link>
-                    <Link
-                      href={`/clients/${client.id}/edit`}
-                      className="btn btn-primary"
-                    >
-                      Edit
-                    </Link>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
         )}
-      </section>
-    </main>
+      </SectionCard>
+    </div>
   );
 }
