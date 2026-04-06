@@ -17,6 +17,25 @@ interface CreditNoteFormProps {
   initialItems: LineItemInput[];
 }
 
+function normalizeInitialItems(items: LineItemInput[]): LineItemInput[] {
+  if (!items.length) {
+    return [
+      {
+        description: "",
+        quantity: 1,
+        unit_price: 0,
+        vat_rate: 18,
+        temp_id: "credit-note-item-0",
+      },
+    ];
+  }
+
+  return items.map((item, index) => ({
+    ...item,
+    temp_id: item.temp_id || `credit-note-item-${index}`,
+  }));
+}
+
 export function CreditNoteForm({
   originalInvoiceId,
   originalInvoiceNumber,
@@ -27,19 +46,7 @@ export function CreditNoteForm({
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<LineItemInput[]>(
-    initialItems.length
-      ? initialItems
-      : [
-          {
-            description: "",
-            quantity: 1,
-            unit_price: 0,
-            vat_rate: 18,
-            temp_id: "initial",
-          },
-        ]
-  );
+  const [items, setItems] = useState<LineItemInput[]>(normalizeInitialItems(initialItems));
 
   const { subtotal, totalVat, total } = computeInvoiceTotals(items);
 
@@ -97,7 +104,15 @@ export function CreditNoteForm({
         />
       </div>
 
-      <LineItemsEditor items={items} onChange={setItems} errors={errors} />
+      <LineItemsEditor
+        items={items}
+        onChange={setItems}
+        errors={errors}
+        clientId=""
+        propertyId="none"
+        subscriptions={[]}
+        services={[]}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Edit, Plus, ReceiptText } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Plus, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -312,6 +312,13 @@ export default async function InvoiceDetailPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/billing/${invoice.id}/pdf`} target="_blank">
+              <FileText className="mr-2 h-4 w-4" />
+              Open PDF
+            </Link>
+          </Button>
+
           {documentType === "invoice" && status === "draft" && (
             <>
               <Link href={`/billing/${invoice.id}/edit`}>

@@ -41,8 +41,6 @@ type ServiceOption = {
   base_price: number;
 };
 
-type BillingSourceType = "package" | "service";
-
 type InvoiceFormInitialValues = {
   invoice_id?: string;
   client_id: string;
@@ -72,6 +70,27 @@ function addDays(dateString: string, days: number) {
   return formatDateInput(date);
 }
 
+function createInitialItem(): LineItemInput {
+  return {
+    description: "",
+    quantity: 1,
+    unit_price: 0,
+    vat_rate: 18,
+    temp_id: "initial-item-0",
+  };
+}
+
+function normalizeInitialItems(items?: LineItemInput[]): LineItemInput[] {
+  if (!items?.length) {
+    return [createInitialItem()];
+  }
+
+  return items.map((item, index) => ({
+    ...item,
+    temp_id: item.temp_id || `initial-item-${index}`,
+  }));
+}
+
 export function InvoiceForm({
   clients,
   subscriptions,
@@ -89,39 +108,12 @@ export function InvoiceForm({
   const initialDueDate =
     initialValues?.due_date || addDays(formatDateInput(new Date()), 14);
   const initialNotes = initialValues?.notes || "";
-  const initialItems =
-    initialValues?.items?.length
-      ? initialValues.items
-      : [
-          {
-            description: "",
-            quantity: 1,
-            unit_price: 0,
-            vat_rate: 18,
-            temp_id: "initial",
-          },
-        ];
-
-  const initialSourceType: BillingSourceType =
-    initialValues?.subscription_id ? "package" : "service";
-
-  const initialSelectedSubscriptionId = initialValues?.subscription_id || "";
-  const initialSelectedServiceId = "";
-  const initialMonths =
-    initialValues?.subscription_id && initialValues.items?.[0]?.quantity
-      ? Math.max(1, Number(initialValues.items[0].quantity) || 1)
-      : 1;
+  const initialItems = normalizeInitialItems(initialValues?.items);
 
   const [clientId, setClientId] = useState(initialClientId);
   const [propertyId, setPropertyId] = useState(initialPropertyId);
   const [issueDate, setIssueDate] = useState(initialIssueDate);
   const [dueDate, setDueDate] = useState(initialDueDate);
-  const [sourceType, setSourceType] = useState<BillingSourceType>(initialSourceType);
-  const [selectedSubscriptionId, setSelectedSubscriptionId] = useState(
-    initialSelectedSubscriptionId
-  );
-  const [selectedServiceId, setSelectedServiceId] = useState(initialSelectedServiceId);
-  const [months, setMonths] = useState(initialMonths);
   const [notes, setNotes] = useState(initialNotes);
   const [items, setItems] = useState<LineItemInput[]>(initialItems);
 
@@ -134,18 +126,7 @@ export function InvoiceForm({
     if (mode === "edit" && initialValues) return;
 
     setPropertyId("none");
-    setSelectedSubscriptionId("");
-    setSelectedServiceId("");
-    setMonths(1);
-    setItems([
-      {
-        description: "",
-        quantity: 1,
-        unit_price: 0,
-        vat_rate: 18,
-        temp_id: "initial",
-      },
-    ]);
+    setItems([createInitialItem()]);
   }, [clientId, mode, initialValues]);
 
   const clientSubscriptions = useMemo(() => {
@@ -167,62 +148,6 @@ export function InvoiceForm({
     return Array.from(unique.values());
   }, [clientSubscriptions]);
 
-  const filteredSubscriptions = useMemo(() => {
-    if (propertyId === "none") return clientSubscriptions;
-    return clientSubscriptions.filter((sub) => sub.property_id === propertyId);
-  }, [clientSubscriptions, propertyId]);
-
-  useEffect(() => {
-    if (sourceType !== "package") return;
-    if (!selectedSubscriptionId) return;
-
-    const selected = filteredSubscriptions.find(
-      (sub) => sub.id === selectedSubscriptionId
-    );
-
-    if (!selected) return;
-
-    setPropertyId(selected.property_id);
-
-    setItems((prev) => {
-      const extra = prev.slice(1);
-      return [
-        {
-          description: `${selected.package_name} - ${months} month${
-            months > 1 ? "s" : ""
-          }`,
-          quantity: months,
-          unit_price: selected.monthly_price,
-          vat_rate: 18,
-          temp_id: prev[0]?.temp_id || "initial",
-        },
-        ...extra,
-      ];
-    });
-  }, [selectedSubscriptionId, months, filteredSubscriptions, sourceType]);
-
-  useEffect(() => {
-    if (sourceType !== "service") return;
-    if (!selectedServiceId) return;
-
-    const selected = services.find((service) => service.id === selectedServiceId);
-    if (!selected) return;
-
-    setItems((prev) => {
-      const extra = prev.slice(1);
-      return [
-        {
-          description: selected.name,
-          quantity: 1,
-          unit_price: selected.base_price,
-          vat_rate: 18,
-          temp_id: prev[0]?.temp_id || "initial",
-        },
-        ...extra,
-      ];
-    });
-  }, [selectedServiceId, services, sourceType]);
-
   const { subtotal, totalVat, total } = computeInvoiceTotals(items);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -236,20 +161,20 @@ export function InvoiceForm({
       return;
     }
 
-    if (sourceType === "package" && !selectedSubscriptionId) {
-      setErrors({ _form: ["Please select a package/subscription to bill"] });
+    if (propertyId === "none") {
+      setErrors({
+        _form: ["Please select one active property for this invoice"],
+      });
       setIsLoading(false);
       return;
     }
 
-    if (sourceType === "service") {
-      if (propertyId === "none") {
-        setErrors({
-          _form: ["Please select one active property for this service invoice"],
-        });
-        setIsLoading(false);
-        return;
-      }
+    if (!items.length) {
+      setErrors({
+        _form: ["At least one line item is required"],
+      });
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -257,8 +182,7 @@ export function InvoiceForm({
         invoice_type: "standard" as const,
         client_id: clientId,
         property_id: propertyId === "none" ? null : propertyId,
-        subscription_id:
-          sourceType === "package" ? selectedSubscriptionId || null : null,
+        subscription_id: null,
         issue_date: issueDate,
         due_date: dueDate,
         notes: notes || null,
@@ -360,7 +284,7 @@ export function InvoiceForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="issue-date">Invoice Date *</Label>
           <Input
@@ -386,81 +310,17 @@ export function InvoiceForm({
             </p>
           )}
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="source-type">Billing Source *</Label>
-          <Select
-            value={sourceType}
-            onValueChange={(value) => setSourceType(value as BillingSourceType)}
-          >
-            <SelectTrigger id="source-type">
-              <SelectValue placeholder="Select billing source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="package">Package</SelectItem>
-              <SelectItem value="service">Service</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
-      {sourceType === "package" ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="subscription">Package / Active Subscription *</Label>
-            <Select
-              value={selectedSubscriptionId}
-              onValueChange={setSelectedSubscriptionId}
-              disabled={!clientId}
-            >
-              <SelectTrigger id="subscription">
-                <SelectValue placeholder="Select package to bill" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredSubscriptions.map((sub) => (
-                  <SelectItem key={sub.id} value={sub.id}>
-                    {sub.package_name} — {sub.property_title} (€{sub.monthly_price.toFixed(2)}/mo)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="months">Months *</Label>
-            <Input
-              id="months"
-              type="number"
-              min="1"
-              step="1"
-              value={months}
-              onChange={(e) => setMonths(Math.max(1, Number(e.target.value) || 1))}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <Label htmlFor="service">Service *</Label>
-          <Select
-            value={selectedServiceId}
-            onValueChange={setSelectedServiceId}
-            disabled={!clientId}
-          >
-            <SelectTrigger id="service">
-              <SelectValue placeholder="Select service to bill" />
-            </SelectTrigger>
-            <SelectContent>
-              {services.map((service) => (
-                <SelectItem key={service.id} value={service.id}>
-                  {service.name} — €{service.base_price.toFixed(2)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      <LineItemsEditor items={items} onChange={setItems} errors={errors} />
+      <LineItemsEditor
+        items={items}
+        onChange={setItems}
+        errors={errors}
+        clientId={clientId}
+        propertyId={propertyId}
+        subscriptions={subscriptions}
+        services={services}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>
