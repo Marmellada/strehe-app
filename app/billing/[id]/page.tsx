@@ -252,7 +252,7 @@ export default async function InvoiceDetailPage({
       : 0;
 
   const clientName = client?.company_name || client?.full_name || "N/A";
-  const clientAddress = client ? formatAddress(client) : "N/A";
+  const clientAddrress = client ? formatAddress(client) : "N/A";
 
   const propertyLabel = property?.title || "—";
   const propertyAddress = property ? formatAddress(property) : "—";
@@ -392,7 +392,7 @@ export default async function InvoiceDetailPage({
           <h2 className="text-lg font-semibold">Bill To</h2>
           <div className="space-y-2 text-sm">
             <p className="font-medium">{clientName}</p>
-            <p className="text-muted-foreground">{clientAddress || "N/A"}</p>
+            <p className="text-muted-foreground">{clientAddrress || "N/A"}</p>
             {client?.email && (
               <p className="text-muted-foreground">{client.email}</p>
             )}

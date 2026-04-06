@@ -122,6 +122,7 @@ export function formatPercent(value: number): string {
 
 export function formatDate(value?: string | null): string {
   if (!value) return "—";
+
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
 
@@ -148,7 +149,7 @@ export function companyAddress(company: CompanyPdfData): string {
   ]);
 }
 
-export function clientAddress(client: ClientPdfData): string {
+export function clientAddrress(client: ClientPdfData): string {
   return compactAddress([
     client.address_line_1,
     client.address_line_2,
@@ -159,6 +160,7 @@ export function clientAddress(client: ClientPdfData): string {
 
 export function propertyAddress(property?: PropertyPdfData | null): string {
   if (!property) return "";
+
   return compactAddress([
     property.address_line_1,
     property.address_line_2,
@@ -170,6 +172,7 @@ export function propertyAddress(property?: PropertyPdfData | null): string {
 export async function loadPdfAssets(pdfDoc: PDFDocument) {
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
   return { fontRegular, fontBold };
 }
 
@@ -200,11 +203,11 @@ export async function embedLogoFromUrl(
   const lower = url.toLowerCase();
 
   if (lower.endsWith(".png")) {
-    return pdfDoc.embedPng(bytes);
+    return await pdfDoc.embedPng(bytes);
   }
 
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-    return pdfDoc.embedJpg(bytes);
+    return await pdfDoc.embedJpg(bytes);
   }
 
   try {
@@ -224,24 +227,58 @@ export function splitText(
   fontSize: number,
   maxWidth: number
 ): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
+  const safeText = String(text || "");
+  const paragraphs = safeText.split("\n");
+  const result: string[] = [];
 
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    const width = font.widthOfTextAtSize(candidate, fontSize);
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
 
-    if (width <= maxWidth) {
-      current = candidate;
-    } else {
-      if (current) lines.push(current);
-      current = word;
+    if (words.length === 0) {
+      result.push("");
+      continue;
+    }
+
+    let current = "";
+
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      const width = font.widthOfTextAtSize(candidate, fontSize);
+
+      if (width <= maxWidth) {
+        current = candidate;
+        continue;
+      }
+
+      if (current) {
+        result.push(current);
+      }
+
+      if (font.widthOfTextAtSize(word, fontSize) <= maxWidth) {
+        current = word;
+        continue;
+      }
+
+      let chunk = "";
+      for (const char of word) {
+        const candidateChunk = chunk + char;
+        if (font.widthOfTextAtSize(candidateChunk, fontSize) <= maxWidth) {
+          chunk = candidateChunk;
+        } else {
+          if (chunk) result.push(chunk);
+          chunk = char;
+        }
+      }
+
+      current = chunk;
+    }
+
+    if (current) {
+      result.push(current);
     }
   }
 
-  if (current) lines.push(current);
-  return lines.length ? lines : [""];
+  return result.length ? result : [""];
 }
 
 export function drawTextBlock(params: {
@@ -272,8 +309,15 @@ export function drawTextBlock(params: {
 
   for (const paragraph of paragraphs) {
     const lines = splitText(paragraph || "", font, fontSize, maxWidth);
+
     for (const line of lines) {
-      page.drawText(line, { x, y: cursorY, size: fontSize, font, color });
+      page.drawText(line, {
+        x,
+        y: cursorY,
+        size: fontSize,
+        font,
+        color,
+      });
       cursorY -= lineHeight;
     }
   }
