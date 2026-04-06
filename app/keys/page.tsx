@@ -1,6 +1,19 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Label } from "@/components/ui/Label";
+import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 
 type SearchParams = Promise<{
   status?: string;
@@ -72,21 +85,10 @@ function formatDate(value: string | null) {
   }
 }
 
-function getStatusBadgeClass(status: string | null) {
-  switch (status) {
-    case "available":
-      return "badge-success";
-    case "assigned":
-      return "badge-warning";
-    case "lost":
-      return "badge-danger";
-    case "damaged":
-      return "badge-warning";
-    case "retired":
-      return "badge-outline";
-    default:
-      return "badge-outline";
-  }
+function getKeyTypeVariant(
+  _keyType: string | null | undefined
+): "neutral" {
+  return "neutral";
 }
 
 function buildKeysPageHref({
@@ -186,7 +188,21 @@ export default async function KeysPage({
   ]);
 
   if (error) {
-    return <div className="card">Error loading keys: {error.message}</div>;
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Keys"
+          description="Operational overview of all keys across properties."
+        />
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Error loading keys: {error.message}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const propertyOptions = (properties || []) as PropertyOption[];
@@ -229,283 +245,305 @@ export default async function KeysPage({
   ];
 
   return (
-    <main className="space-y-6">
-      <div>
-        <h1 className="page-title">Keys</h1>
-        <p className="page-subtitle mt-2">
-          Operational overview of all keys across properties.
-        </p>
-        <p className="page-subtitle mt-1">
-          Signed in as: <strong>{appUser.role}</strong>
-        </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Keys"
+        description="Operational overview of all keys across properties."
+      />
+
+      <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        Signed in as:{" "}
+        <span className="font-medium text-foreground">{appUser.role}</span>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <div className="card">
-          <span className="field-label">All Keys</span>
-          <span className="field-value">{counts.total}</span>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              All Keys
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {counts.total}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <span className="field-label">Available</span>
-          <span className="field-value">{counts.available}</span>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Available
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {counts.available}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <span className="field-label">Assigned</span>
-          <span className="field-value">{counts.assigned}</span>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Assigned
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {counts.assigned}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <span className="field-label">Lost</span>
-          <span className="field-value">{counts.lost}</span>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Lost
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {counts.lost}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <span className="field-label">Damaged</span>
-          <span className="field-value">{counts.damaged}</span>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Damaged
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {counts.damaged}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <span className="field-label">Retired</span>
-          <span className="field-value">{counts.retired}</span>
-        </div>
-      </section>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Retired
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {counts.retired}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Quick Status Filters</h2>
-          <p className="page-subtitle mt-1">
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Status Filters</CardTitle>
+          <CardDescription>
             Jump between lifecycle states quickly.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {statusLinks.map((item) => {
-            const active = status === item.value;
-
-            return (
-              <Link
-                key={item.label}
-                href={buildKeysPageHref({
-                  status: item.value,
-                  property_id,
-                  search,
-                })}
-                className={active ? "btn btn-primary" : "btn btn-ghost"}
-              >
-                {item.label} ({item.count})
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Filters</h2>
-          <p className="page-subtitle mt-1">
-            Narrow the list by property, status, or keyword.
-          </p>
-        </div>
-
-        <form
-          method="get"
-          style={{
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            alignItems: "end",
-          }}
-        >
-          <label className="field">
-            Status
-            <select name="status" defaultValue={status} className="input">
-              <option value="">All statuses</option>
-              <option value="available">Available</option>
-              <option value="assigned">Assigned</option>
-              <option value="lost">Lost</option>
-              <option value="damaged">Damaged</option>
-              <option value="retired">Retired</option>
-            </select>
-          </label>
-
-          <label className="field">
-            Property
-            <select
-              name="property_id"
-              defaultValue={property_id}
-              className="input"
-            >
-              <option value="">All properties</option>
-              {propertyOptions.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.title || "Untitled Property"}
-                  {property.property_code
-                    ? ` (${property.property_code})`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
-            Search
-            <input
-              name="search"
-              className="input"
-              defaultValue={search}
-              placeholder="Name, code, holder, storage..."
-            />
-          </label>
-
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button type="submit" className="btn btn-primary">
-              Apply Filters
-            </button>
-
-            <Link href="/keys" className="btn btn-ghost">
-              Reset
-            </Link>
-          </div>
-        </form>
-      </section>
-
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Keys List</h2>
-          <p className="page-subtitle mt-1">
-            {keys.length} key{keys.length === 1 ? "" : "s"} found.
-          </p>
-        </div>
-
-        {keys.length === 0 ? (
-          <p className="field-value-muted">
-            No keys found for the current filters.
-          </p>
-        ) : (
-          <div style={{ display: "grid", gap: 16 }}>
-            {keys.map((key) => {
-              const property = getSingleRelation(key.properties);
-              const holderUser = getSingleRelation(key.holder_user);
-
-              const holderDisplay =
-                holderUser?.full_name ?? key.holder_name ?? "In storage";
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {statusLinks.map((item) => {
+              const active = status === item.value;
 
               return (
-                <div
-                  key={key.id}
-                  className="related-item"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) auto",
-                    gap: 20,
-                    alignItems: "start",
-                    padding: 20,
-                  }}
+                <Link
+                  key={item.label}
+                  href={buildKeysPageHref({
+                    status: item.value,
+                    property_id,
+                    search,
+                  })}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <div
-                        className="related-item-title"
-                        style={{ margin: 0 }}
-                      >
-                        {key.name || "Unnamed Key"}
-                      </div>
-
-                      <span
-                        className={`badge ${getStatusBadgeClass(key.status)}`}
-                      >
-                        {key.status || "Unknown"}
-                      </span>
-
-                      {key.key_type ? (
-                        <span className="badge badge-outline">
-                          {key.key_type}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        gridTemplateColumns:
-                          "repeat(auto-fit, minmax(220px, 1fr))",
-                      }}
-                    >
-                      <div>
-                        <div className="field-label">Tag</div>
-                        <div className="field-value">
-                          {key.key_code || "-"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Holder</div>
-                        <div className="field-value">{holderDisplay}</div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Storage</div>
-                        <div className="field-value">
-                          {key.storage_location || "-"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Last Checked Out</div>
-                        <div className="field-value">
-                          {formatDate(key.last_checked_out_at)}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Property</div>
-                        <div className="field-value">
-                          {property?.title || "-"}
-                          {property?.property_code
-                            ? ` (${property.property_code})`
-                            : ""}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="field-label">Address</div>
-                        <div className="field-value">
-                          {property?.address_line_1 || "-"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      justifyContent: "flex-end",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <Link href={`/keys/${key.id}`} className="btn btn-ghost">
-                      Open
-                    </Link>
-                  </div>
-                </div>
+                  <Button variant={active ? "default" : "outline"} size="sm">
+                    {item.label} ({item.count})
+                  </Button>
+                </Link>
               );
             })}
           </div>
-        )}
-      </section>
-    </main>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>
+            Narrow the list by property, status, or keyword.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+            method="get"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <select
+                id="status"
+                name="status"
+                defaultValue={status}
+                className="input"
+              >
+                <option value="">All statuses</option>
+                <option value="available">Available</option>
+                <option value="assigned">Assigned</option>
+                <option value="lost">Lost</option>
+                <option value="damaged">Damaged</option>
+                <option value="retired">Retired</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="property_id">Property</Label>
+              <select
+                id="property_id"
+                name="property_id"
+                defaultValue={property_id}
+                className="input"
+              >
+                <option value="">All properties</option>
+                {propertyOptions.map((property) => (
+                  <option key={property.id} value={property.id}>
+                    {property.title || "Untitled Property"}
+                    {property.property_code
+                      ? ` (${property.property_code})`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="search">Search</Label>
+              <input
+                id="search"
+                name="search"
+                className="input"
+                defaultValue={search}
+                placeholder="Name, code, holder, storage..."
+              />
+            </div>
+
+            <div className="flex items-end gap-3">
+              <Button type="submit">Apply Filters</Button>
+
+              <Link href="/keys">
+                <Button variant="outline">Reset</Button>
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Keys List</CardTitle>
+          <CardDescription>
+            {keys.length} key{keys.length === 1 ? "" : "s"} found.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {keys.length === 0 ? (
+            <EmptyState
+              title="No keys found"
+              description="No keys match the current filters."
+            />
+          ) : (
+            <div className="space-y-3">
+              {keys.map((key) => {
+                const property = getSingleRelation(key.properties);
+                const holderUser = getSingleRelation(key.holder_user);
+
+                const holderDisplay =
+                  holderUser?.full_name ?? key.holder_name ?? "In storage";
+
+                return (
+                  <div
+                    key={key.id}
+                    className="rounded-2xl border bg-card p-5 transition-colors hover:bg-muted/20"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 space-y-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-base font-semibold text-foreground">
+                            {key.name || "Unnamed Key"}
+                          </div>
+
+                          <Badge variant={getStatusVariant(key.status)}>
+                            {formatStatusLabel(key.status)}
+                          </Badge>
+
+                          {key.key_type ? (
+                            <Badge variant={getKeyTypeVariant(key.key_type)}>
+                              {formatStatusLabel(key.key_type)}
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Tag
+                            </div>
+                            <div className="mt-1 text-sm text-foreground">
+                              {key.key_code || "-"}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Holder
+                            </div>
+                            <div className="mt-1 text-sm text-foreground">
+                              {holderDisplay}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Storage
+                            </div>
+                            <div className="mt-1 text-sm text-foreground">
+                              {key.storage_location || "-"}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Last Checked Out
+                            </div>
+                            <div className="mt-1 text-sm text-foreground">
+                              {formatDate(key.last_checked_out_at)}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Property
+                            </div>
+                            <div className="mt-1 text-sm text-foreground">
+                              {property?.title || "-"}
+                              {property?.property_code
+                                ? ` (${property.property_code})`
+                                : ""}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Address
+                            </div>
+                            <div className="mt-1 text-sm text-foreground">
+                              {property?.address_line_1 || "-"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <Link href={`/keys/${key.id}`}>
+                          <Button variant="outline">Open</Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -133,9 +133,9 @@ export default async function ServicesPage() {
                       {formatPrice(service.base_price)}
                     </div>
 
-                    <Badge variant={service.is_active ? "default" : "outline"}>
-                      {service.is_active ? "Active" : "Inactive"}
-                    </Badge>
+                    <Badge variant={service.is_active ? "success" : "neutral"}>
+  {service.is_active ? "Active" : "Inactive"}
+</Badge>
 
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/services/${service.id}`}>Open</Link>

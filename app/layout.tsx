@@ -79,11 +79,15 @@ export default async function RootLayout({
                   marginTop: "24px",
                 }}
               >
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+                >
                   <Link href="/">Dashboard</Link>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+                >
                   <p
                     style={{
                       margin: "8px 0 2px",
@@ -107,9 +111,15 @@ export default async function RootLayout({
                   <Link href="/tasks">Tasks</Link>
                   <Link href="/subscriptions">Contracts</Link>
                   <Link href="/billing">Billing</Link>
+
+                  {(role === "admin" || role === "office") ? (
+                    <Link href="/workers">Staff</Link>
+                  ) : null}
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+                >
                   <p
                     style={{
                       margin: "8px 0 2px",
@@ -128,7 +138,13 @@ export default async function RootLayout({
                 </div>
 
                 {role === "admin" ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                    }}
+                  >
                     <p
                       style={{
                         margin: "8px 0 2px",

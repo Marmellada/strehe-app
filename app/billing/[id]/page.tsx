@@ -4,8 +4,10 @@ import { ArrowLeft, Edit, FileText, Plus, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DeleteInvoiceButton } from "@/components/billing/DeleteInvoiceButton";
 import { UpdateInvoiceStatusButton } from "@/components/billing/UpdateInvoiceStatusButton";
+import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 
 function centsToEur(cents: number) {
   return (cents || 0) / 100;
@@ -44,6 +46,26 @@ function formatAddress(data: {
 
 type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 type DocumentType = "invoice" | "credit_note";
+
+function getDocumentTypeBadgeVariant(documentType: DocumentType) {
+  return documentType === "credit_note" ? "danger" : "info";
+}
+
+function sectionCardClasses() {
+  return "space-y-4 rounded-2xl border bg-card p-6";
+}
+
+function tableHeaderCellClasses() {
+  return "px-4 py-3 text-left text-sm font-medium text-muted-foreground";
+}
+
+function tableHeaderCellRightClasses() {
+  return "px-4 py-3 text-right text-sm font-medium text-muted-foreground";
+}
+
+function tableRowClasses() {
+  return "border-t transition-colors hover:bg-muted/20";
+}
 
 export default async function InvoiceDetailPage({
   params,
@@ -214,9 +236,7 @@ export default async function InvoiceDetailPage({
     throw new Error(creditNotesError.message);
   }
 
-  const bankMap = new Map(
-    (banksRaw || []).map((bank: any) => [bank.id, bank])
-  );
+  const bankMap = new Map((banksRaw || []).map((bank: any) => [bank.id, bank]));
 
   const payments =
     (paymentsRaw || []).map((payment: any) => ({
@@ -242,17 +262,22 @@ export default async function InvoiceDetailPage({
   const issuedCreditNotesTotal =
     creditNotes.reduce(
       (sum: number, creditNote) =>
-        creditNote.status === "issued" ? sum + (creditNote.total_cents || 0) : sum,
+        creditNote.status === "issued"
+          ? sum + (creditNote.total_cents || 0)
+          : sum,
       0
     ) || 0;
 
   const balanceDue =
     invoice.document_type === "invoice"
-      ? Math.max(0, (invoice.total_cents || 0) - amountPaid - issuedCreditNotesTotal)
+      ? Math.max(
+          0,
+          (invoice.total_cents || 0) - amountPaid - issuedCreditNotesTotal
+        )
       : 0;
 
   const clientName = client?.company_name || client?.full_name || "N/A";
-  const clientAddrress = client ? formatAddress(client) : "N/A";
+  const clientAddress = client ? formatAddress(client) : "N/A";
 
   const propertyLabel = property?.title || "—";
   const propertyAddress = property ? formatAddress(property) : "—";
@@ -283,83 +308,82 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Link href="/billing">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">{documentTitle}</h1>
-              <Badge variant="secondary" className="capitalize">
-                {status}
-              </Badge>
-              <Badge
-                variant={documentType === "credit_note" ? "destructive" : "secondary"}
-              >
-                {documentType === "credit_note" ? "credit note" : "invoice"}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {documentType === "credit_note"
-                ? "Credit note linked to an original invoice"
-                : `Client invoice${property ? " linked to a property" : ""}`}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href={`/billing/${invoice.id}/pdf`} target="_blank">
-              <FileText className="mr-2 h-4 w-4" />
-              Open PDF
-            </Link>
-          </Button>
-
-          {documentType === "invoice" && status === "draft" && (
-            <>
-              <Link href={`/billing/${invoice.id}/edit`}>
-                <Button variant="outline">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
+      <PageHeader
+        title={documentTitle}
+        description={
+          documentType === "credit_note"
+            ? "Credit note linked to an original invoice."
+            : `Client invoice${property ? " linked to a property" : ""}.`
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/billing">
+                <ArrowLeft className="h-4 w-4" />
               </Link>
+            </Button>
+
+            <Button asChild variant="outline">
+              <Link href={`/billing/${invoice.id}/pdf`} target="_blank">
+                <FileText className="mr-2 h-4 w-4" />
+                Open PDF
+              </Link>
+            </Button>
+
+            {documentType === "invoice" && status === "draft" && (
+              <>
+                <Button asChild variant="outline">
+                  <Link href={`/billing/${invoice.id}/edit`}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </Link>
+                </Button>
+                <DeleteInvoiceButton invoiceId={invoice.id} />
+              </>
+            )}
+
+            {documentType === "credit_note" && status === "draft" && (
               <DeleteInvoiceButton invoiceId={invoice.id} />
-            </>
-          )}
+            )}
 
-          {documentType === "credit_note" && status === "draft" && (
-            <DeleteInvoiceButton invoiceId={invoice.id} />
-          )}
+            {documentType === "invoice" &&
+              status === "issued" &&
+              balanceDue > 0 && (
+                <Button asChild>
+                  <Link href={`/billing/${invoice.id}/payment`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Record Payment
+                  </Link>
+                </Button>
+              )}
 
-          {documentType === "invoice" && status === "issued" && balanceDue > 0 && (
-            <Link href={`/billing/${invoice.id}/payment`}>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Record Payment
-              </Button>
-            </Link>
-          )}
+            {documentType === "invoice" &&
+              (status === "issued" || status === "paid") && (
+                <Button asChild variant="outline">
+                  <Link href={`/billing/${invoice.id}/credit-note/new`}>
+                    <ReceiptText className="mr-2 h-4 w-4" />
+                    Create Credit Note
+                  </Link>
+                </Button>
+              )}
+          </div>
+        }
+      />
 
-          {documentType === "invoice" && (status === "issued" || status === "paid") && (
-            <Link href={`/billing/${invoice.id}/credit-note/new`}>
-              <Button variant="outline">
-                <ReceiptText className="mr-2 h-4 w-4" />
-                Create Credit Note
-              </Button>
-            </Link>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={getStatusVariant(status)}>
+          {formatStatusLabel(status)}
+        </Badge>
+        <Badge variant={getDocumentTypeBadgeVariant(documentType)}>
+          {documentType === "credit_note" ? "Credit Note" : "Invoice"}
+        </Badge>
       </div>
 
       {status === "draft" && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
           <p className="mb-3 text-sm text-blue-900">
-            This {documentType === "credit_note" ? "credit note" : "invoice"} is in draft status.
-            Issue it when it is ready.
+            This {documentType === "credit_note" ? "credit note" : "invoice"} is
+            in draft status. Issue it when it is ready.
           </p>
           <UpdateInvoiceStatusButton
             invoiceId={invoice.id}
@@ -369,10 +393,12 @@ export default async function InvoiceDetailPage({
       )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="rounded-lg border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">From</h2>
+        <div className={sectionCardClasses()}>
+          <h2 className="text-lg font-semibold text-foreground">From</h2>
           <div className="space-y-2 text-sm">
-            <p className="font-medium">{settings?.company_name || "Company Name"}</p>
+            <p className="font-medium text-foreground">
+              {settings?.company_name || "Company Name"}
+            </p>
             <p className="text-muted-foreground">{companyAddress}</p>
             {settings?.company_email && (
               <p className="text-muted-foreground">{settings.company_email}</p>
@@ -388,11 +414,11 @@ export default async function InvoiceDetailPage({
           </div>
         </div>
 
-        <div className="rounded-lg border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Bill To</h2>
+        <div className={sectionCardClasses()}>
+          <h2 className="text-lg font-semibold text-foreground">Bill To</h2>
           <div className="space-y-2 text-sm">
-            <p className="font-medium">{clientName}</p>
-            <p className="text-muted-foreground">{clientAddrress || "N/A"}</p>
+            <p className="font-medium text-foreground">{clientName}</p>
+            <p className="text-muted-foreground">{clientAddress || "N/A"}</p>
             {client?.email && (
               <p className="text-muted-foreground">{client.email}</p>
             )}
@@ -402,42 +428,55 @@ export default async function InvoiceDetailPage({
           </div>
         </div>
 
-        <div className="rounded-lg border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Document Details</h2>
+        <div className={sectionCardClasses()}>
+          <h2 className="text-lg font-semibold text-foreground">
+            Document Details
+          </h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Number</p>
-              <p className="font-medium">{invoice.invoice_number || "—"}</p>
+              <p className="font-medium text-foreground">
+                {invoice.invoice_number || "—"}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Date</p>
-              <p className="font-medium">{formatDate(invoice.issue_date)}</p>
+              <p className="font-medium text-foreground">
+                {formatDate(invoice.issue_date)}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Due Date</p>
-              <p className="font-medium">{formatDate(invoice.due_date)}</p>
+              <p className="font-medium text-foreground">
+                {formatDate(invoice.due_date)}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Status</p>
-              <p className="font-medium capitalize">{status}</p>
+              <p className="font-medium text-foreground">
+                {formatStatusLabel(status)}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Type</p>
-              <p className="font-medium">
+              <p className="font-medium text-foreground">
                 {documentType === "credit_note" ? "Credit Note" : "Invoice"}
               </p>
             </div>
             {documentType === "credit_note" && originalInvoice && (
               <div>
                 <p className="text-muted-foreground">Original Invoice</p>
-                <Link href={`/billing/${originalInvoice.id}`} className="font-medium underline">
+                <Link
+                  href={`/billing/${originalInvoice.id}`}
+                  className="font-medium text-foreground underline"
+                >
                   {originalInvoice.invoice_number || "Open invoice"}
                 </Link>
               </div>
             )}
             <div className="col-span-2">
               <p className="text-muted-foreground">Property</p>
-              <p className="font-medium">{propertyLabel}</p>
+              <p className="font-medium text-foreground">{propertyLabel}</p>
               {property && (
                 <p className="text-muted-foreground">{propertyAddress}</p>
               )}
@@ -445,12 +484,14 @@ export default async function InvoiceDetailPage({
           </div>
         </div>
 
-        <div className="rounded-lg border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Financial Summary</h2>
+        <div className={sectionCardClasses()}>
+          <h2 className="text-lg font-semibold text-foreground">
+            Financial Summary
+          </h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>
+              <span className="text-foreground">
                 {documentType === "credit_note"
                   ? formatCreditMoney(invoice.subtotal_cents)
                   : formatMoney(invoice.subtotal_cents)}
@@ -460,15 +501,17 @@ export default async function InvoiceDetailPage({
               <span className="text-muted-foreground">
                 VAT ({invoice.vat_rate}%)
               </span>
-              <span>
+              <span className="text-foreground">
                 {documentType === "credit_note"
                   ? formatCreditMoney(invoice.vat_amount_cents)
                   : formatMoney(invoice.vat_amount_cents)}
               </span>
             </div>
             <div className="flex justify-between border-t pt-2 text-base font-semibold">
-              <span>{documentType === "credit_note" ? "Credit Total" : "Total"}</span>
-              <span>
+              <span className="text-foreground">
+                {documentType === "credit_note" ? "Credit Total" : "Total"}
+              </span>
+              <span className="text-foreground">
                 {documentType === "credit_note"
                   ? formatCreditMoney(invoice.total_cents)
                   : formatMoney(invoice.total_cents)}
@@ -477,21 +520,23 @@ export default async function InvoiceDetailPage({
 
             {documentType === "invoice" && (
               <>
-                <div className="flex justify-between pt-2 text-green-700">
-                  <span>Paid</span>
-                  <span>{formatMoney(amountPaid)}</span>
+                <div className="flex justify-between pt-2">
+                  <span className="text-muted-foreground">Paid</span>
+                  <span className="font-medium text-foreground">
+                    {formatMoney(amountPaid)}
+                  </span>
                 </div>
-                <div className="flex justify-between text-red-700">
-                  <span>Credit Notes</span>
-                  <span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Credit Notes</span>
+                  <span className="font-medium text-foreground">
                     {issuedCreditNotesTotal > 0
                       ? formatCreditMoney(issuedCreditNotesTotal)
                       : "€0.00"}
                   </span>
                 </div>
                 <div className="flex justify-between border-t pt-2 text-base font-semibold">
-                  <span>Balance Due</span>
-                  <span className={balanceDue > 0 ? "text-red-600" : "text-green-700"}>
+                  <span className="text-foreground">Balance Due</span>
+                  <span className="text-foreground">
                     {formatMoney(balanceDue)}
                   </span>
                 </div>
@@ -501,39 +546,35 @@ export default async function InvoiceDetailPage({
         </div>
       </div>
 
-      <div className="rounded-lg border p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Line Items</h2>
+      <div className={sectionCardClasses()}>
+        <h2 className="text-lg font-semibold text-foreground">Line Items</h2>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium">
-                  Description
-                </th>
-                <th className="px-4 py-3 text-right text-sm font-medium">
-                  Quantity
-                </th>
-                <th className="px-4 py-3 text-right text-sm font-medium">
-                  Unit Price
-                </th>
-                <th className="px-4 py-3 text-right text-sm font-medium">
-                  Line Total
-                </th>
+                <th className={tableHeaderCellClasses()}>Description</th>
+                <th className={tableHeaderCellRightClasses()}>Quantity</th>
+                <th className={tableHeaderCellRightClasses()}>Unit Price</th>
+                <th className={tableHeaderCellRightClasses()}>Line Total</th>
               </tr>
             </thead>
             <tbody>
               {(invoiceItems || []).length ? (
                 (invoiceItems || []).map((item: any) => (
-                  <tr key={item.id} className="border-t">
-                    <td className="px-4 py-3">{item.description}</td>
-                    <td className="px-4 py-3 text-right">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right">
+                  <tr key={item.id} className={tableRowClasses()}>
+                    <td className="px-4 py-3 text-foreground">
+                      {item.description}
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
+                      {item.quantity}
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
                       {documentType === "credit_note"
                         ? formatCreditMoney(item.unit_price_cents)
                         : formatMoney(item.unit_price_cents)}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
+                    <td className="px-4 py-3 text-right font-medium text-foreground">
                       {documentType === "credit_note"
                         ? formatCreditMoney(item.total_cents)
                         : formatMoney(item.total_cents)}
@@ -557,42 +598,50 @@ export default async function InvoiceDetailPage({
 
       {documentType === "invoice" && (
         <>
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className={sectionCardClasses()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Credit Notes</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                Credit Notes
+              </h2>
               {(status === "issued" || status === "paid") && (
-                <Link href={`/billing/${invoice.id}/credit-note/new`}>
-                  <Button variant="outline">
+                <Button asChild variant="outline">
+                  <Link href={`/billing/${invoice.id}/credit-note/new`}>
                     <ReceiptText className="mr-2 h-4 w-4" />
                     Create Credit Note
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               )}
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead className="bg-muted/40">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Number</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium">Action</th>
+                    <th className={tableHeaderCellClasses()}>Number</th>
+                    <th className={tableHeaderCellClasses()}>Status</th>
+                    <th className={tableHeaderCellClasses()}>Date</th>
+                    <th className={tableHeaderCellRightClasses()}>Amount</th>
+                    <th className={tableHeaderCellRightClasses()}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {creditNotes.length ? (
                     creditNotes.map((creditNote) => (
-                      <tr key={creditNote.id} className="border-t">
-                        <td className="px-4 py-3">
+                      <tr key={creditNote.id} className={tableRowClasses()}>
+                        <td className="px-4 py-3 text-foreground">
                           {creditNote.status === "draft"
                             ? "—"
                             : creditNote.invoice_number || "—"}
                         </td>
-                        <td className="px-4 py-3 capitalize">{creditNote.status}</td>
-                        <td className="px-4 py-3">{formatDate(creditNote.issue_date)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-red-700">
+                        <td className="px-4 py-3">
+                          <Badge variant={getStatusVariant(creditNote.status)}>
+                            {formatStatusLabel(creditNote.status)}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatDate(creditNote.issue_date)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-foreground">
                           {creditNote.status === "issued"
                             ? formatCreditMoney(creditNote.total_cents)
                             : `(${formatCreditMoney(creditNote.total_cents)})`}
@@ -619,42 +668,46 @@ export default async function InvoiceDetailPage({
             </div>
           </div>
 
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className={sectionCardClasses()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Payments</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                Payments
+              </h2>
               {status === "issued" && balanceDue > 0 && (
-                <Link href={`/billing/${invoice.id}/payment`}>
-                  <Button variant="outline">
+                <Button asChild variant="outline">
+                  <Link href={`/billing/${invoice.id}/payment`}>
                     <Plus className="mr-2 h-4 w-4" />
                     Record Payment
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               )}
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead className="bg-muted/40">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Method</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Reference</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Bank</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
+                    <th className={tableHeaderCellClasses()}>Date</th>
+                    <th className={tableHeaderCellClasses()}>Method</th>
+                    <th className={tableHeaderCellClasses()}>Reference</th>
+                    <th className={tableHeaderCellClasses()}>Bank</th>
+                    <th className={tableHeaderCellRightClasses()}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payments.length ? (
                     payments.map((payment: any) => (
-                      <tr key={payment.id} className="border-t">
-                        <td className="px-4 py-3">{formatDate(payment.payment_date)}</td>
-                        <td className="px-4 py-3 capitalize">
+                      <tr key={payment.id} className={tableRowClasses()}>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatDate(payment.payment_date)}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground capitalize">
                           {String(payment.payment_method).replace("_", " ")}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-muted-foreground">
                           {payment.reference_number || "—"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-muted-foreground">
                           {payment.bank?.name
                             ? `${payment.bank.name}${
                                 payment.bank.swift_code
@@ -663,7 +716,7 @@ export default async function InvoiceDetailPage({
                               }`
                             : "—"}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-green-700">
+                        <td className="px-4 py-3 text-right font-medium text-foreground">
                           {formatMoney(payment.amount_cents)}
                         </td>
                       </tr>
@@ -686,9 +739,9 @@ export default async function InvoiceDetailPage({
       )}
 
       {invoice.notes && (
-        <div className="rounded-lg border p-6 space-y-2">
-          <h2 className="text-lg font-semibold">Notes</h2>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+        <div className={sectionCardClasses()}>
+          <h2 className="text-lg font-semibold text-foreground">Notes</h2>
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
             {invoice.notes}
           </p>
         </div>

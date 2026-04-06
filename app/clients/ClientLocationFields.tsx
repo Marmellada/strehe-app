@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Label } from "@/components/ui/Label";
 
 type Municipality = {
   id: string;
@@ -54,17 +55,15 @@ export default function ClientLocationFields({
   }, [municipalityId, locationId, filteredLocations]);
 
   return (
-    <div className="grid md:grid-cols-2 gap-4">
+    <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
-        <label htmlFor="municipality_id" className="text-sm font-medium">
-          Municipality
-        </label>
+        <Label htmlFor="municipality_id">Municipality</Label>
         <select
           id="municipality_id"
           name="municipality_id"
           value={municipalityId}
           onChange={(e) => setMunicipalityId(e.target.value)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="input"
         >
           <option value="">Select municipality</option>
           {municipalities.map((municipality) => (
@@ -76,16 +75,14 @@ export default function ClientLocationFields({
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="location_id" className="text-sm font-medium">
-          Neighborhood / Village
-        </label>
+        <Label htmlFor="location_id">Neighborhood / Village</Label>
         <select
           id="location_id"
           name="location_id"
           value={locationId}
           onChange={(e) => setLocationId(e.target.value)}
           disabled={!municipalityId}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+          className="input"
         >
           <option value="">
             {municipalityId ? "Select location" : "Select municipality first"}

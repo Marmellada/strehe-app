@@ -92,12 +92,13 @@ export default async function PackagesPage() {
         {!packages || packages.length === 0 ? (
           <EmptyState
             title="No packages"
-            action={
-              <Button asChild>
-                <Link href="/packages/create">Create Package</Link>
-              </Button>
-            }
-          />
+            description="Create your first package to start assigning services to properties."
+             action={
+    <Button asChild>
+      <Link href="/packages/create">Create Package</Link>
+    </Button>
+  }
+/>
         ) : (
           <div className="space-y-2">
             {packages.map((pkg) => {
@@ -126,8 +127,8 @@ export default async function PackagesPage() {
                       <p>{formatPrice(pkg.monthly_price)}</p>
 
                       <Badge
-                        variant={pkg.is_active ? "default" : "outline"}
-                      >
+  variant={pkg.is_active ? "success" : "neutral"}
+>
                         {pkg.is_active ? "Active" : "Inactive"}
                       </Badge>
 

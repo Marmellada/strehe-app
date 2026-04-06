@@ -128,16 +128,16 @@ export default async function CreateSubscriptionPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="New Contract"
-        description="Create a contract by linking client, property, and package"
-        backHref="/subscriptions"
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/subscriptions">Back</Link>
-          </Button>
-        }
-      />
+      <div className="space-y-4">
+  <Button asChild variant="ghost">
+    <Link href="/subscriptions">← Back</Link>
+  </Button>
+
+  <PageHeader
+    title="New Contract"
+    description="Create a contract by linking client, property, and package"
+  />
+</div>
 
       <SectionCard
         title="Contract Setup"

@@ -1,5 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Label } from "@/components/ui/Label";
+import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 
 type RelatedName = { name: string | null } | { name: string | null }[] | null;
 
@@ -93,16 +100,36 @@ export default async function PropertiesPage({
 
   if (propertiesResult.error) {
     return (
-      <div className="card">
-        Error loading properties: {propertiesResult.error.message}
+      <div className="space-y-6">
+        <PageHeader
+          title="Properties"
+          description="Manage all registered properties."
+        />
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Error loading properties: {propertiesResult.error.message}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (municipalitiesResult.error) {
     return (
-      <div className="card">
-        Error loading municipalities: {municipalitiesResult.error.message}
+      <div className="space-y-6">
+        <PageHeader
+          title="Properties"
+          description="Manage all registered properties."
+        />
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Error loading municipalities: {municipalitiesResult.error.message}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -111,82 +138,80 @@ export default async function PropertiesPage({
   const municipalities = (municipalitiesResult.data || []) as Municipality[];
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>Properties</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
-            Manage all registered properties
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Properties"
+        description="Manage all registered properties."
+        actions={
+          <Link href="/properties/new">
+            <Button>New Property</Button>
+          </Link>
+        }
+      />
 
-        <Link href="/properties/new" className="btn btn-primary">
-          + New Property
-        </Link>
-      </section>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Total Properties
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {totalPropertiesResult.count ?? 0}
+            </div>
+          </CardContent>
+        </Card>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Total Properties</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {totalPropertiesResult.count ?? 0}
-          </div>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Active
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {activePropertiesResult.count ?? 0}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Active</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {activePropertiesResult.count ?? 0}
-          </div>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Vacant
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {vacantPropertiesResult.count ?? 0}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Vacant</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {vacantPropertiesResult.count ?? 0}
-          </div>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Inactive
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {inactivePropertiesResult.count ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Inactive</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {inactivePropertiesResult.count ?? 0}
-          </div>
-        </div>
-      </section>
-
-      <section className="card">
-        <form
-          method="GET"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr auto",
-            gap: 12,
-            alignItems: "end",
-          }}
-        >
-          <label className="field">
-            Search
+      <div className="rounded-2xl border bg-card p-5">
+        <form method="GET" className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="search">Search</Label>
             <input
+              id="search"
               name="search"
               placeholder="Search title, code, or address..."
               defaultValue={search}
               className="input"
             />
-          </label>
+          </div>
 
-          <label className="field">
-            Municipality
+          <div className="space-y-2">
+            <Label htmlFor="municipality_id">Municipality</Label>
             <select
+              id="municipality_id"
               name="municipality_id"
               defaultValue={municipalityId}
               className="input"
@@ -198,144 +223,135 @@ export default async function PropertiesPage({
                 </option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label className="field">
-            Status
-            <select name="status" defaultValue={status} className="input">
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <select
+              id="status"
+              name="status"
+              defaultValue={status}
+              className="input"
+            >
               <option value="">All statuses</option>
               <option value="active">Active</option>
               <option value="vacant">Vacant</option>
               <option value="inactive">Inactive</option>
             </select>
-          </label>
+          </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" className="btn btn-primary">
-              Apply
-            </button>
-
-            <Link href="/properties" className="btn btn-ghost">
-              Clear
+          <div className="flex items-end gap-3 md:col-span-4">
+            <Button type="submit">Apply</Button>
+            <Link href="/properties">
+              <Button variant="outline">Clear</Button>
             </Link>
           </div>
         </form>
-      </section>
+      </div>
 
-      <section className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="overflow-hidden rounded-2xl border bg-card">
         {properties.length === 0 ? (
-          <div style={{ padding: 24 }}>
-            <h3 style={{ marginTop: 0 }}>No properties found</h3>
-            <p style={{ opacity: 0.75 }}>
-              Try changing the filters or create your first property.
-            </p>
-            <Link href="/properties/new" className="btn btn-primary">
-              + New Property
-            </Link>
+          <div className="p-6">
+            <EmptyState
+              title="No properties found"
+              description="Try changing the filters or create your first property."
+              action={
+                <Link href="/properties/new">
+                  <Button>New Property</Button>
+                </Link>
+              }
+            />
           </div>
         ) : (
-          <div>
-            {properties.map((property, index) => {
-              const municipalityName = getRelatedName(property.municipalities);
-              const locationName = getRelatedName(property.locations);
-              const locationLine = [locationName, municipalityName]
-                .filter(Boolean)
-                .join(", ");
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left">
+                <tr className="border-b">
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Property
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Location
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
 
-              return (
-                <div
-                  key={property.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.7fr 1fr auto",
-                    gap: 12,
-                    padding: 16,
-                    borderTop: index === 0 ? "none" : "1px solid var(--border)",
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 16,
-                        marginBottom: 4,
-                      }}
+              <tbody>
+                {properties.map((property) => {
+                  const municipalityName = getRelatedName(
+                    property.municipalities
+                  );
+                  const locationName = getRelatedName(property.locations);
+                  const locationLine = [locationName, municipalityName]
+                    .filter(Boolean)
+                    .join(", ");
+
+                  return (
+                    <tr
+                      key={property.id}
+                      className="border-b last:border-none transition-colors hover:bg-muted/30"
                     >
-                      {property.title || "Untitled property"}
-                    </div>
+                      <td className="px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground">
+                            {property.title || "Untitled property"}
+                          </div>
 
-                    <div style={{ fontSize: 13, opacity: 0.75 }}>
-                      {property.property_code || "No code"}
-                      {property.address_line_1 ? ` • ${property.address_line_1}` : ""}
-                    </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {property.property_code || "No code"}
+                            {property.address_line_1
+                              ? ` • ${property.address_line_1}`
+                              : ""}
+                          </div>
+                        </div>
+                      </td>
 
-                    {locationLine ? (
-                      <div style={{ fontSize: 13, opacity: 0.65, marginTop: 4 }}>
-                        {locationLine}
-                      </div>
-                    ) : null}
-                  </div>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {locationLine || "—"}
+                      </td>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        fontSize: 12,
-                        border: "1px solid var(--border)",
-                        background: "var(--panel)",
-                      }}
-                    >
-                      {property.property_type || "Property"}
-                    </span>
+                      <td className="px-4 py-3">
+                        <Badge variant="neutral">
+                          {formatStatusLabel(property.property_type) || "Property"}
+                        </Badge>
+                      </td>
 
-                    <span
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        fontSize: 12,
-                        border: "1px solid var(--border)",
-                        background:
-                          property.status === "active"
-                            ? "rgba(34,197,94,0.12)"
-                            : property.status === "vacant"
-                              ? "rgba(245,158,11,0.12)"
-                              : "rgba(239,68,68,0.12)",
-                      }}
-                    >
-                      {property.status || "Unknown"}
-                    </span>
-                  </div>
+                      <td className="px-4 py-3">
+                        <Badge variant={getStatusVariant(property.status)}>
+                          {formatStatusLabel(property.status)}
+                        </Badge>
+                      </td>
 
-                  <div style={{ display: "flex", gap: 8, justifyContent: "end" }}>
-                    <Link
-                      href={`/properties/${property.id}`}
-                      className="btn btn-ghost"
-                    >
-                      View
-                    </Link>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Link href={`/properties/${property.id}`}>
+                            <Button variant="outline" size="sm">
+                              View
+                            </Button>
+                          </Link>
 
-                    <Link
-                      href={`/properties/${property.id}/edit`}
-                      className="btn btn-primary"
-                    >
-                      Edit
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
+                          <Link href={`/properties/${property.id}/edit`}>
+                            <Button size="sm">Edit</Button>
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

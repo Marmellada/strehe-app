@@ -1,5 +1,7 @@
 * { box-sizing: border-box; }
+
 html { -webkit-text-size-adjust: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -7,10 +9,22 @@ body {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", sans-serif;
   line-height: 1.55;
 }
-a { color: var(--link); text-decoration: none; }
-h1,h2,h3 { margin: .2rem 0 .6rem; }
 
-.container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+h1, h2, h3 {
+  margin: .2rem 0 .6rem;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -19,7 +33,12 @@ h1,h2,h3 { margin: .2rem 0 .6rem; }
   padding: 16px;
 }
 
-.layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
 .sidebar {
   background: var(--surface);
   border-right: 1px solid var(--border);
@@ -29,13 +48,39 @@ h1,h2,h3 { margin: .2rem 0 .6rem; }
   align-self: start;
   height: 100vh;
 }
-.sidebar .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.sidebar nav { display: grid; gap: 6px; margin-top: 8px; }
-.sidebar a { color: var(--text); padding: 8px 10px; border-radius: var(--radius-md); }
-.sidebar a:hover { background: rgba(0,0,0,.04); }
-.theme-dark .sidebar a:hover { background: rgba(255,255,255,.06); }
 
-.main { display: grid; grid-template-rows: auto 1fr; }
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sidebar nav {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sidebar a {
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+}
+
+.sidebar a:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+.theme-dark .sidebar a:hover {
+  background: rgba(255, 255, 255, .06);
+}
+
+.main {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -44,69 +89,261 @@ h1,h2,h3 { margin: .2rem 0 .6rem; }
   border-bottom: 1px solid var(--border);
   padding: 12px 16px;
 }
-.topbar .row { display: flex; align-items: center; justify-content: space-between; }
-.content { padding: 16px; }
 
-.input, select, textarea {
+.topbar .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.content {
+  padding: 16px;
+}
+
+/* =========================
+   Form controls
+   ========================= */
+
+.input,
+select,
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="date"],
+input[type="search"] {
   width: 100%;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+  caret-color: var(--text);
 }
-.input:focus, select:focus, textarea:focus {
+
+.input::placeholder,
+textarea::placeholder,
+input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.input:focus,
+select:focus,
+textarea:focus,
+input:focus {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.field { display: grid; gap: 6px; }
+
+.input:disabled,
+select:disabled,
+textarea:disabled,
+input:disabled {
+  opacity: .7;
+  cursor: not-allowed;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 88%, var(--border) 12%);
+}
+
+.input[readonly],
+textarea[readonly],
+input[readonly] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 92%, var(--border) 8%);
+}
+
+select {
+  appearance: auto;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Fix browser autofill causing unreadable text/background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0px 1000px var(--surface) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+/* =========================
+   Buttons
+   ========================= */
 
 .btn {
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
   border-radius: var(--radius-md);
-  border:1px solid transparent;
-  cursor:pointer;
-  font-weight:600;
+  border: 1px solid transparent;
+  background: var(--brand-blue);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
 }
-.btn:focus { outline: var(--focus-ring); outline-offset: 2px; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn-primary { background: var(--brand-blue); color:#fff; }
-.btn-primary:hover { filter: brightness(.95); }
-.btn-primary:active { transform: translateY(1px); }
-.btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
-.btn-ghost:hover { background: rgba(0,0,0,.04); }
-.theme-dark .btn-ghost:hover { background: rgba(255,255,255,.06); }
-.btn-danger { background: var(--brand-danger); color:#fff; }
 
-.list { display:grid; gap:12px; }
+.btn:hover {
+  filter: brightness(.95);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, .04);
+  filter: none;
+}
+
+.theme-dark .btn-secondary:hover {
+  background: rgba(255, 255, 255, .06);
+}
+
+.btn-danger {
+  background: var(--brand-danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(.95);
+}
+
+/* Backward compatibility with older button classes */
+.btn-primary {
+  background: var(--brand-blue);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  filter: brightness(.95);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-ghost:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+.theme-dark .btn-ghost:hover {
+  background: rgba(255, 255, 255, .06);
+}
+
+/* =========================
+   Lists / cards
+   ========================= */
+
+.list {
+  display: grid;
+  gap: 12px;
+}
+
 .list-item {
-  display:grid;
-  gap:4px;
+  display: grid;
+  gap: 4px;
   padding: 14px;
   border-radius: var(--radius-lg);
-  border:1px solid var(--border);
+  border: 1px solid var(--border);
   background: var(--surface);
 }
-.list-item .meta { color: var(--muted); }
+
+.list-item .meta {
+  color: var(--muted);
+}
+
+/* =========================
+   Badges
+   ========================= */
 
 .badge {
-  display:inline-block;
-  padding:2px 8px;
-  border-radius:9999px;
-  font-size:.85rem;
-  border:1px solid var(--border);
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: .85rem;
+  border: 1px solid var(--border);
 }
-.badge.ok { background: rgba(94,156,73,.12); color:#2F6A23; border-color: rgba(94,156,73,.3); }
-.badge.mute { background: rgba(0,0,0,.05); color: var(--muted); }
-.badge.warn { background: rgba(196,138,46,.12); color:#7A4F14; border-color: rgba(196,138,46,.3); }
 
-.grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.badge.ok {
+  background: rgba(94, 156, 73, .12);
+  color: #2F6A23;
+  border-color: rgba(94, 156, 73, .3);
+}
+
+.badge.mute {
+  background: rgba(0, 0, 0, .05);
+  color: var(--muted);
+}
+
+.badge.warn {
+  background: rgba(196, 138, 46, .12);
+  color: #7A4F14;
+  border-color: rgba(196, 138, 46, .3);
+}
+
+/* =========================
+   Helpers
+   ========================= */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
 
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
-  .sidebar { position: relative; height: auto; }
-  .grid-2 { grid-template-columns: 1fr; }
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: relative;
+    height: auto;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
 }

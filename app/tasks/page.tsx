@@ -2,6 +2,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import TasksRememberFilters from "@/components/tasks/TasksRememberFilters";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
+import { Label } from "@/components/ui/Label";
 
 const PAGE_SIZE = 20;
 
@@ -62,40 +68,23 @@ function formatLabel(value: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function getStatusClasses(status: string | null) {
-  switch (status) {
-    case "open":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200";
-    case "in_progress":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200";
-    case "blocked":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-red-50 text-red-700 border border-red-200";
-    case "completed":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 border border-green-200";
-    default:
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
-  }
-}
-
-function getPriorityClasses(priority: string | null) {
+function getPriorityVariant(priority: string | null) {
   switch (priority) {
     case "urgent":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-red-50 text-red-700 border border-red-200";
+      return "danger";
     case "high":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200";
+      return "warning";
     case "medium":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200";
+      return "info";
     case "low":
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
+      return "neutral";
     default:
-      return "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
+      return "neutral";
   }
 }
 
-function getSourceClasses(isAutoTask: boolean) {
-  return isAutoTask
-    ? "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200"
-    : "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200";
+function getSourceVariant(isAutoTask: boolean) {
+  return isAutoTask ? "info" : "neutral";
 }
 
 function buildQueryString(
@@ -128,22 +117,18 @@ function getKpiCardClasses(
   tone: "default" | "danger" = "default"
 ) {
   if (active && tone === "danger") {
-    return "card p-4 ring-2 ring-red-500 border-red-300 bg-red-50/50";
+    return "rounded-2xl border p-4 transition ring-2";
   }
 
   if (active) {
-    return "card p-4 ring-2 ring-blue-500 border-blue-300 bg-blue-50/40";
+    return "rounded-2xl border border-blue-300 bg-blue-50/40 p-4 ring-2 ring-blue-500 transition";
   }
 
-  return "card p-4 hover:border-gray-300 transition";
+  return "rounded-2xl border bg-card p-4 transition hover:border-muted-foreground/30 hover:bg-muted/20";
 }
 
 function getSavedViewClasses(active: boolean) {
-  if (active) {
-    return "btn";
-  }
-
-  return "btn btn-secondary";
+  return active ? "btn" : "btn btn-secondary";
 }
 
 export default async function TasksPage({
@@ -230,8 +215,8 @@ export default async function TasksPage({
   if (error) {
     return (
       <div className="p-8">
-        <h1 className="text-red-500 font-bold mb-2">Tasks Error</h1>
-        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+        <h1 className="mb-2 text-lg font-semibold text-red-600">Tasks Error</h1>
+        <pre className="overflow-auto rounded-xl border bg-muted p-4 text-sm text-foreground">
           {JSON.stringify(error, null, 2)}
         </pre>
       </div>
@@ -291,8 +276,10 @@ export default async function TasksPage({
   if (assigneeResult.error) {
     return (
       <div className="p-8">
-        <h1 className="text-red-500 font-bold mb-2">Assignee Load Error</h1>
-        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+        <h1 className="mb-2 text-lg font-semibold text-red-600">
+          Assignee Load Error
+        </h1>
+        <pre className="overflow-auto rounded-xl border bg-muted p-4 text-sm text-foreground">
           {JSON.stringify(assigneeResult.error, null, 2)}
         </pre>
       </div>
@@ -302,8 +289,10 @@ export default async function TasksPage({
   if (propertyResult.error) {
     return (
       <div className="p-8">
-        <h1 className="text-red-500 font-bold mb-2">Property Load Error</h1>
-        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+        <h1 className="mb-2 text-lg font-semibold text-red-600">
+          Property Load Error
+        </h1>
+        <pre className="overflow-auto rounded-xl border bg-muted p-4 text-sm text-foreground">
           {JSON.stringify(propertyResult.error, null, 2)}
         </pre>
       </div>
@@ -313,8 +302,10 @@ export default async function TasksPage({
   if (allUsersResult.error) {
     return (
       <div className="p-8">
-        <h1 className="text-red-500 font-bold mb-2">Users Load Error</h1>
-        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+        <h1 className="mb-2 text-lg font-semibold text-red-600">
+          Users Load Error
+        </h1>
+        <pre className="overflow-auto rounded-xl border bg-muted p-4 text-sm text-foreground">
           {JSON.stringify(allUsersResult.error, null, 2)}
         </pre>
       </div>
@@ -324,8 +315,10 @@ export default async function TasksPage({
   if (allPropertiesResult.error) {
     return (
       <div className="p-8">
-        <h1 className="text-red-500 font-bold mb-2">Properties Load Error</h1>
-        <pre className="text-sm bg-gray-900 text-white p-4 rounded overflow-auto">
+        <h1 className="mb-2 text-lg font-semibold text-red-600">
+          Properties Load Error
+        </h1>
+        <pre className="overflow-auto rounded-xl border bg-muted p-4 text-sm text-foreground">
           {JSON.stringify(allPropertiesResult.error, null, 2)}
         </pre>
       </div>
@@ -431,10 +424,7 @@ export default async function TasksPage({
   });
 
   const operationsHref = "/tasks?status=open&due=overdue";
-  const myWorkHref =
-    appUser.role === "admin" || appUser.role === "office"
-      ? "/tasks?assigned=me"
-      : "/tasks?assigned=me";
+  const myWorkHref = "/tasks?assigned=me";
   const backlogHref = "/tasks?status=open&assigned=unassigned&source=manual";
 
   const operationsActive =
@@ -449,26 +439,24 @@ export default async function TasksPage({
     <div className="space-y-6">
       <TasksRememberFilters />
 
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="page-title">Tasks</h1>
-          <p className="page-subtitle">
-            Operations dashboard for manual and subscription work
-          </p>
-          <p className="page-subtitle mt-1">
-            Signed in as: <strong>{appUser.role}</strong>
-          </p>
-        </div>
+      <PageHeader
+        title="Tasks"
+        description="Operations dashboard for manual and subscription work."
+        actions={
+          canCreate ? (
+            <Link href="/tasks/create">
+              <Button>New Task</Button>
+            </Link>
+          ) : null
+        }
+      />
 
-        {canCreate ? (
-          <Link href="/tasks/create" className="btn">
-            + New Task
-          </Link>
-        ) : null}
+      <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        Signed in as: <span className="font-medium text-foreground">{appUser.role}</span>
       </div>
 
       <div className="space-y-2">
-        <div className="text-xs uppercase tracking-wide text-gray-500">
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Saved Views
         </div>
 
@@ -514,15 +502,15 @@ export default async function TasksPage({
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Link
           href={openHref}
           className={getKpiCardClasses(params.status === "open")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Open
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {openCount}
           </div>
         </Link>
@@ -531,10 +519,10 @@ export default async function TasksPage({
           href={inProgressHref}
           className={getKpiCardClasses(params.status === "in_progress")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             In Progress
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {inProgressCount}
           </div>
         </Link>
@@ -543,10 +531,10 @@ export default async function TasksPage({
           href={blockedHref}
           className={getKpiCardClasses(params.status === "blocked")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Blocked
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {blockedCount}
           </div>
         </Link>
@@ -555,10 +543,10 @@ export default async function TasksPage({
           href={completedHref}
           className={getKpiCardClasses(params.status === "completed")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Completed
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {completedCount}
           </div>
         </Link>
@@ -567,10 +555,10 @@ export default async function TasksPage({
           href={overdueHref}
           className={getKpiCardClasses(params.due === "overdue", "danger")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Overdue
           </div>
-          <div className="mt-2 text-2xl font-semibold text-red-600">
+          <div className="mt-2 text-2xl font-semibold" style={{ color: "var(--brand-danger)" }}>
             {overdueCount}
           </div>
         </Link>
@@ -579,10 +567,10 @@ export default async function TasksPage({
           href={unassignedHref}
           className={getKpiCardClasses(params.assigned === "unassigned")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Unassigned
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {unassignedCount}
           </div>
         </Link>
@@ -591,10 +579,10 @@ export default async function TasksPage({
           href={manualHref}
           className={getKpiCardClasses(params.source === "manual")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Manual
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {manualCount}
           </div>
         </Link>
@@ -603,21 +591,21 @@ export default async function TasksPage({
           href={subscriptionHref}
           className={getKpiCardClasses(params.source === "subscription")}
         >
-          <div className="text-xs uppercase tracking-wide text-gray-500">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Subscription
           </div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900">
+          <div className="mt-2 text-2xl font-semibold text-foreground">
             {subscriptionCount}
           </div>
         </Link>
       </div>
 
-      <div className="card p-4">
-        <form className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
+      <div className="rounded-2xl border bg-card p-4">
+        <form className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-7">
           <div className="xl:col-span-2">
             <label
               htmlFor="search"
-              className="block text-sm font-medium text-gray-300 mb-1.5"
+              className="mb-1.5"
             >
               Search
             </label>
@@ -633,7 +621,7 @@ export default async function TasksPage({
           <div>
             <label
               htmlFor="status"
-              className="block text-sm font-medium text-gray-300 mb-1.5"
+              className="mb-1.5"
             >
               Status
             </label>
@@ -654,7 +642,7 @@ export default async function TasksPage({
           <div>
             <label
               htmlFor="priority"
-              className="block text-sm font-medium text-gray-300 mb-1.5"
+              className="mb-1.5"
             >
               Priority
             </label>
@@ -675,7 +663,7 @@ export default async function TasksPage({
           <div>
             <label
               htmlFor="due"
-              className="block text-sm font-medium text-gray-300 mb-1.5"
+              className="mb-1.5"
             >
               Due
             </label>
@@ -695,7 +683,7 @@ export default async function TasksPage({
           <div>
             <label
               htmlFor="source"
-              className="block text-sm font-medium text-gray-300 mb-1.5"
+              className="mb-1.5"
             >
               Source
             </label>
@@ -714,7 +702,7 @@ export default async function TasksPage({
           <div>
             <label
               htmlFor="property"
-              className="block text-sm font-medium text-gray-300 mb-1.5"
+              className="mb-1.5"
             >
               Property
             </label>
@@ -739,7 +727,7 @@ export default async function TasksPage({
             <div>
               <label
                 htmlFor="assignee_id"
-                className="block text-sm font-medium text-gray-300 mb-1.5"
+                className="mb-1.5"
               >
                 Assignee
               </label>
@@ -761,7 +749,7 @@ export default async function TasksPage({
             <div>
               <label
                 htmlFor="assigned"
-                className="block text-sm font-medium text-gray-300 mb-1.5"
+                className="mb-1.5"
               >
                 Assigned
               </label>
@@ -780,109 +768,143 @@ export default async function TasksPage({
 
           <input type="hidden" name="page" value="1" />
 
-          <div className="xl:col-span-7 flex items-end gap-3">
-            <button type="submit" className="btn">
+          <div className="flex items-end gap-3 xl:col-span-7">
+            <button type="submit">
               Apply Filters
             </button>
-            <Link href="/tasks" className="btn btn-secondary">
-              Reset
-            </Link>
+            <Link href="/tasks">
+  <Button variant="outline">Reset</Button>
+</Link>
           </div>
         </form>
       </div>
 
-      <div className="card">
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Property</th>
-                <th>Source</th>
-                <th>Assigned</th>
-                <th>Status</th>
-                <th>Priority</th>
-                <th>Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {typedTasks.map((task) => {
-                const isMyTask = task.assigned_user_id === authUser.id;
-                const isAutoTask = Boolean(task.subscription_id);
-                const isOverdue =
-                  Boolean(task.due_date) &&
-                  task.due_date! < today &&
-                  task.status !== "completed";
+      <div className="overflow-hidden rounded-2xl border bg-card">
+        {typedTasks.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              title="No tasks found"
+              description="Try adjusting your filters or create a new task to get started."
+              action={
+                canCreate ? (
+                  <Link href="/tasks/create">
+                    <Button>New Task</Button>
+                  </Link>
+                ) : undefined
+              }
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left">
+                <tr className="border-b">
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Title
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Property
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Source
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Assigned
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Priority
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Due
+                  </th>
+                </tr>
+              </thead>
 
-                const assignedTo = task.assigned_user_id
-                  ? assigneeMap.get(task.assigned_user_id) || "Unknown User"
-                  : "Unassigned";
+              <tbody>
+                {typedTasks.map((task) => {
+                  const isMyTask = task.assigned_user_id === authUser.id;
+                  const isAutoTask = Boolean(task.subscription_id);
+                  const isOverdue =
+                    Boolean(task.due_date) &&
+                    task.due_date! < today &&
+                    task.status !== "completed";
 
-                const propertyLabel = task.property_id
-                  ? propertyMap.get(task.property_id) || "Unknown Property"
-                  : "-";
+                  const assignedTo = task.assigned_user_id
+                    ? assigneeMap.get(task.assigned_user_id) || "Unknown User"
+                    : "Unassigned";
 
-                return (
-                  <tr
-                    key={task.id}
-                    className={isOverdue ? "bg-red-50/40" : ""}
-                  >
-                    <td>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <Link href={`/tasks/${task.id}`}>
-                          {task.title || "-"}
-                        </Link>
+                  const propertyLabel = task.property_id
+                    ? propertyMap.get(task.property_id) || "Unknown Property"
+                    : "-";
 
-                        {isMyTask ? (
-                          <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                            My Task
-                          </span>
-                        ) : null}
+                  return (
+                    <tr
+                      key={task.id}
+                      className={`border-b transition-colors hover:bg-muted/30 last:border-none ${
+                        isOverdue ? "bg-red-50/30" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/tasks/${task.id}`}
+                            className="font-medium text-foreground hover:underline"
+                          >
+                            {task.title || "-"}
+                          </Link>
 
-                        {isOverdue ? (
-                          <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                            Overdue
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
+                          {isMyTask ? (
+                            <Badge variant="info">My Task</Badge>
+                          ) : null}
 
-                    <td>{propertyLabel}</td>
+                          {isOverdue ? (
+                            <Badge variant="danger">Overdue</Badge>
+                          ) : null}
+                        </div>
+                      </td>
 
-                    <td>
-                      <span className={getSourceClasses(isAutoTask)}>
-                        {isAutoTask ? "Subscription" : "Manual"}
-                      </span>
-                    </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {propertyLabel}
+                      </td>
 
-                    <td>{assignedTo}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={getSourceVariant(isAutoTask)}>
+                          {isAutoTask ? "Subscription" : "Manual"}
+                        </Badge>
+                      </td>
 
-                    <td>
-                      <span className={getStatusClasses(task.status)}>
-                        {formatLabel(task.status)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {assignedTo}
+                      </td>
 
-                    <td>
-                      <span className={getPriorityClasses(task.priority)}>
-                        {formatLabel(task.priority)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={getStatusVariant(task.status)}>
+                          {formatStatusLabel(task.status)}
+                        </Badge>
+                      </td>
 
-                    <td>{formatDate(task.due_date)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td className="px-4 py-3">
+                        <Badge variant={getPriorityVariant(task.priority)}>
+                          {formatLabel(task.priority)}
+                        </Badge>
+                      </td>
 
-          {typedTasks.length === 0 ? (
-            <div className="empty-state">No tasks found.</div>
-          ) : null}
-        </div>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {formatDate(task.due_date)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        <div className="flex items-center justify-between gap-4 border-t border-gray-200 px-4 py-4">
-          <div className="text-sm text-gray-500">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t px-4 py-4">
+          <div className="text-sm text-muted-foreground">
             Showing <strong>{total === 0 ? 0 : from + 1}</strong> to{" "}
             <strong>{Math.min(to + 1, total)}</strong> of{" "}
             <strong>{total}</strong> tasks
@@ -899,12 +921,12 @@ export default async function TasksPage({
                 Prev
               </Link>
             ) : (
-              <span className="btn btn-secondary opacity-50 pointer-events-none">
+              <span className="pointer-events-none btn btn-secondary opacity-50">
                 Prev
               </span>
             )}
 
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               Page {currentPage} / {totalPages}
             </span>
 
@@ -918,7 +940,7 @@ export default async function TasksPage({
                 Next
               </Link>
             ) : (
-              <span className="btn btn-secondary opacity-50 pointer-events-none">
+              <span className="pointer-events-none btn btn-secondary opacity-50">
                 Next
               </span>
             )}

@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/require-role";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+
 export default async function SettingsPage() {
   const { appUser } = await requireRole(["admin"]);
 
@@ -28,35 +38,35 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">System Settings</h1>
-          <p className="page-subtitle mt-2">
-            Configure company settings, banking, and user access.
-          </p>
-          <p className="page-subtitle mt-1">
-            Signed in as: <strong>{appUser.role}</strong>
-          </p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="System Settings"
+        description="Configure company settings, banking, and user access."
+      />
+
+      <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        Signed in as:{" "}
+        <span className="font-medium text-foreground">
+          {appUser.role}
+        </span>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
         {cards.map((card) => (
-          <article key={card.href} className="card p-6 flex flex-col gap-4">
-            <div>
-              <h2 className="section-title !mb-1">{card.title}</h2>
-              <p className="page-subtitle">{card.description}</p>
-            </div>
+          <Card key={card.href} className="flex flex-col">
+            <CardHeader>
+              <CardTitle>{card.title}</CardTitle>
+              <CardDescription>{card.description}</CardDescription>
+            </CardHeader>
 
-            <div className="mt-auto">
-              <Link href={card.href} className="btn btn-primary">
-                {card.cta}
-              </Link>
-            </div>
-          </article>
+            <CardContent className="mt-auto">
+              <Button asChild>
+                <Link href={card.href}>{card.cta}</Link>
+              </Button>
+            </CardContent>
+          </Card>
         ))}
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

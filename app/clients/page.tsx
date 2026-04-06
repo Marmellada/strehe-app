@@ -93,14 +93,15 @@ export default async function ClientsPage() {
 
       <SectionCard title="Clients">
         {rows.length === 0 ? (
-          <EmptyState
-            title="No clients"
-            action={
-              <Button asChild>
-                <Link href="/clients/new">Create Client</Link>
-              </Button>
-            }
-          />
+         <EmptyState
+  title="No clients"
+  description="Create your first client to start managing owners, businesses, and related records."
+  action={
+    <Button asChild>
+      <Link href="/clients/new">Create Client</Link>
+    </Button>
+  }
+/>
         ) : (
           <div className="space-y-2">
             {rows.map((c) => {
@@ -128,11 +129,11 @@ export default async function ClientsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">
+                      <Badge variant="neutral">
                         {c.client_type === "business" ? "Business" : "Individual"}
                       </Badge>
 
-                      <Badge variant={c.status === "active" ? "default" : "outline"}>
+                      <Badge variant={c.status === "active" ? "success" : "neutral"}>
                         {c.status || "unknown"}
                       </Badge>
 

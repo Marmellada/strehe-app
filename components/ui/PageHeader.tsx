@@ -1,53 +1,45 @@
-import React from "react"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-interface PageHeaderProps {
-  title: string
-  description?: string
-  icon?: React.ReactNode
-  action?: React.ReactNode
-  actions?: React.ReactNode
-  backHref?: string
-}
+type PageHeaderProps = {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  actions?: React.ReactNode;
+  className?: string;
+};
 
-export function PageHeader({ title, description, icon, action, actions, backHref }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  subtitle,
+  description,
+  actions,
+  className,
+}: PageHeaderProps) {
+  const supportingText = subtitle ?? description;
+
   return (
-    <div className="flex items-start justify-between mb-6">
-      <div className="flex items-start gap-3">
-        {/* Back button */}
-        {backHref && (
-          <Link
-            href={backHref}
-            className="mt-0.5 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        )}
+    <div
+      className={cn(
+        "mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+        className
+      )}
+    >
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h1>
 
-        {/* Icon */}
-        {icon && (
-          <div className="mt-0.5 text-blue-600">
-            {icon}
-          </div>
-        )}
-
-        {/* Text */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-          {description && (
-            <p className="mt-1 text-sm text-gray-500">{description}</p>
-          )}
-        </div>
+        {supportingText ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {supportingText}
+          </p>
+        ) : null}
       </div>
 
-      {/* Actions - supports both prop names */}
-      {(action || actions) && (
-        <div className="flex items-center gap-3">
-          {action}
-          {actions}
-        </div>
-      )}
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+      ) : null}
     </div>
-  )
+  );
 }

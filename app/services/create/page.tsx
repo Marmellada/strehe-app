@@ -56,16 +56,16 @@ async function createService(formData: FormData) {
 export default async function CreateServicePage() {
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="New Service"
-        description="Create a reusable service catalog item"
-        backHref="/services"
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/services">Back</Link>
-          </Button>
-        }
-      />
+      <div className="space-y-4">
+  <Button asChild variant="ghost">
+    <Link href="/services">← Back</Link>
+  </Button>
+
+  <PageHeader
+    title="New Service"
+    description="Create a reusable service catalog item"
+  />
+</div>
 
       <SectionCard
         title="Service Setup"

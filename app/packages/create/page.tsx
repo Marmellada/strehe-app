@@ -49,16 +49,17 @@ async function createPackage(formData: FormData) {
 export default async function CreatePackagePage() {
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="New Package"
-        description="Create a contractual package that can later be assigned to a property through a contract."
-        backHref="/packages"
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/packages">Back to Packages</Link>
-          </Button>
-        }
-      />
+      
+      <div className="space-y-4">
+  <Button asChild variant="ghost">
+    <Link href="/packages">← Back</Link>
+  </Button>
+
+  <PageHeader
+    title="New Package"
+    description="Create a contractual package that can later be assigned to a property through a contract."
+  />
+</div>
 
       <SectionCard
         title="Package Basics"

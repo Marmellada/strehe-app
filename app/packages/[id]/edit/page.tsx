@@ -80,17 +80,17 @@ export default async function EditPackagePage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Edit Package"
-        description={pkg.name || "—"}
-        backHref={`/packages/${pkg.id}`}
-        actions={
-          <Button asChild variant="outline">
-            <Link href={`/packages/${pkg.id}`}>Back to Package</Link>
-          </Button>
-        }
-      />
+      
+<div className="space-y-4">
+  <Button asChild variant="ghost">
+    <Link href="/packages/${pkg.id}">← Back</Link>
+  </Button>
 
+  <PageHeader
+    title="Edit Package"
+    description="—"
+  />
+</div>
       <SectionCard
         title="Package Details"
         description="Update the commercial definition of this contractual package."

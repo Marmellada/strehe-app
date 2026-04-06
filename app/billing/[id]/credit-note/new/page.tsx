@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
 import { CreditNoteForm } from "@/components/billing/CreditNoteForm";
 
 export default async function NewCreditNotePage({
@@ -59,10 +61,15 @@ export default async function NewCreditNotePage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Button asChild variant="ghost">
+          <Link href={`/billing/${id}`}>← Back to Invoice</Link>
+        </Button>
+      </div>
+
       <PageHeader
         title="New Credit Note"
         description={`Create a credit note for ${invoice.invoice_number}`}
-        backHref={`/billing/${id}`}
       />
 
       <CreditNoteForm

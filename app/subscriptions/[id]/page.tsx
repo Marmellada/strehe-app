@@ -112,7 +112,9 @@ function getSingleRelation<T>(value: T | T[] | null): T | null {
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "-";
-  return value.replaceAll("_", " ").replace(/\b\w/g, (char: string) => char.toUpperCase());
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char: string) => char.toUpperCase());
 }
 
 function formatPrice(value: number | string | null | undefined) {
@@ -145,13 +147,13 @@ function formatDateTime(value: string | null | undefined) {
 function getBadgeVariant(status: string | null | undefined) {
   switch ((status || "").toLowerCase()) {
     case "active":
-      return "default" as const;
+      return "success" as const;
     case "paused":
-      return "secondary" as const;
+      return "info" as const;
     case "cancelled":
-      return "destructive" as const;
+      return "danger" as const;
     default:
-      return "outline" as const;
+      return "neutral" as const;
   }
 }
 
@@ -261,24 +263,37 @@ export default async function SubscriptionDetailPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Button asChild variant="ghost">
+          <Link href="/subscriptions">← Back</Link>
+        </Button>
+      </div>
+
       <PageHeader
         title="Contract"
         description={clientName}
-        backHref="/subscriptions"
         actions={
           <>
             <Button asChild variant="outline">
-              <Link href={`/subscriptions/${subscription.id}/edit`}>Edit Contract</Link>
+              <Link href={`/subscriptions/${subscription.id}/edit`}>
+                Edit Contract
+              </Link>
             </Button>
 
-            <Button asChild variant="secondary">
-              <Link href={`/subscriptions/${subscription.id}/pdf`} target="_blank">
+            <Button asChild variant="outline">
+              <Link
+                href={`/subscriptions/${subscription.id}/pdf`}
+                target="_blank"
+              >
                 Open PDF
               </Link>
             </Button>
 
             <Button asChild>
-              <Link href={`/subscriptions/${subscription.id}/pdf?download=1`} target="_blank">
+              <Link
+                href={`/subscriptions/${subscription.id}/pdf?download=1`}
+                target="_blank"
+              >
                 Download PDF
               </Link>
             </Button>
@@ -312,25 +327,55 @@ export default async function SubscriptionDetailPage({
             </Badge>
           }
         />
-        <StatCard title="Contract Price" value={formatPrice(subscription.monthly_price)} />
-        <StatCard title="Package Price" value={formatPrice(pkg?.monthly_price)} />
-        <StatCard title="Start Date" value={formatDate(subscription.start_date)} />
+        <StatCard
+          title="Contract Price"
+          value={formatPrice(subscription.monthly_price)}
+        />
+        <StatCard
+          title="Package Price"
+          value={formatPrice(pkg?.monthly_price)}
+        />
+        <StatCard
+          title="Start Date"
+          value={formatDate(subscription.start_date)}
+        />
         <StatCard title="Included Services" value={serviceRows.length} />
       </div>
 
-      <SectionCard title="Contract Details" contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <SectionCard
+        title="Contract Details"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
         <DetailField label="Client" value={clientName} />
         <DetailField label="Property" value={propertyLabel} />
         <DetailField label="Package" value={pkg?.name || "-"} />
         <DetailField label="Status" value={formatLabel(subscription.status)} />
-        <DetailField label="Monthly Price" value={formatPrice(subscription.monthly_price)} />
-        <DetailField label="Package Default Price" value={formatPrice(pkg?.monthly_price)} />
-        <DetailField label="Start Date" value={formatDate(subscription.start_date)} />
-        <DetailField label="End Date" value={formatDate(subscription.end_date)} />
+        <DetailField
+          label="Monthly Price"
+          value={formatPrice(subscription.monthly_price)}
+        />
+        <DetailField
+          label="Package Default Price"
+          value={formatPrice(pkg?.monthly_price)}
+        />
+        <DetailField
+          label="Start Date"
+          value={formatDate(subscription.start_date)}
+        />
+        <DetailField
+          label="End Date"
+          value={formatDate(subscription.end_date)}
+        />
       </SectionCard>
 
-      <SectionCard title="Property Details" contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DetailField label="Property Code" value={property?.property_code || "-"} />
+      <SectionCard
+        title="Property Details"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
+        <DetailField
+          label="Property Code"
+          value={property?.property_code || "-"}
+        />
         <DetailField label="Title" value={property?.title || "-"} />
         <DetailField
           label="Address"
@@ -339,9 +384,15 @@ export default async function SubscriptionDetailPage({
         />
       </SectionCard>
 
-      <SectionCard title="Package Details" contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <SectionCard
+        title="Package Details"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
         <DetailField label="Package Name" value={pkg?.name || "-"} />
-        <DetailField label="Package Price" value={formatPrice(pkg?.monthly_price)} />
+        <DetailField
+          label="Package Price"
+          value={formatPrice(pkg?.monthly_price)}
+        />
         <DetailField
           label="Package Description"
           value={pkg?.description || "No description provided."}
@@ -363,13 +414,27 @@ export default async function SubscriptionDetailPage({
             <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b text-left">
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Service</th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Category</th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Qty / Month</th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Base Price</th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Default Task Title</th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Default Priority</th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">Status</th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Service
+                  </th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Category
+                  </th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Qty / Month
+                  </th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Base Price
+                  </th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Default Task Title
+                  </th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Default Priority
+                  </th>
+                  <th className="px-2 py-3 font-medium text-muted-foreground">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -379,13 +444,23 @@ export default async function SubscriptionDetailPage({
                   return (
                     <tr key={row.id} className="border-b last:border-b-0">
                       <td className="px-2 py-4">{service?.name || "-"}</td>
-                      <td className="px-2 py-4">{formatLabel(service?.category)}</td>
-                      <td className="px-2 py-4">{row.included_quantity ?? "-"}</td>
-                      <td className="px-2 py-4">{formatPrice(service?.base_price)}</td>
-                      <td className="px-2 py-4">{service?.default_title || "-"}</td>
-                      <td className="px-2 py-4">{formatLabel(service?.default_priority)}</td>
                       <td className="px-2 py-4">
-                        <Badge variant={service?.is_active ? "default" : "outline"}>
+                        {formatLabel(service?.category)}
+                      </td>
+                      <td className="px-2 py-4">{row.included_quantity ?? "-"}</td>
+                      <td className="px-2 py-4">
+                        {formatPrice(service?.base_price)}
+                      </td>
+                      <td className="px-2 py-4">
+                        {service?.default_title || "-"}
+                      </td>
+                      <td className="px-2 py-4">
+                        {formatLabel(service?.default_priority)}
+                      </td>
+                      <td className="px-2 py-4">
+                        <Badge
+                          variant={service?.is_active ? "success" : "neutral"}
+                        >
                           {service?.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </td>
@@ -399,12 +474,23 @@ export default async function SubscriptionDetailPage({
       </SectionCard>
 
       <SectionCard title="Notes">
-        <div className="text-sm">{subscription.notes || "No notes provided."}</div>
+        <div className="text-sm">
+          {subscription.notes || "No notes provided."}
+        </div>
       </SectionCard>
 
-      <SectionCard title="System Info" contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DetailField label="Created At" value={formatDateTime(subscription.created_at)} />
-        <DetailField label="Updated At" value={formatDateTime(subscription.updated_at)} />
+      <SectionCard
+        title="System Info"
+        contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
+      >
+        <DetailField
+          label="Created At"
+          value={formatDateTime(subscription.created_at)}
+        />
+        <DetailField
+          label="Updated At"
+          value={formatDateTime(subscription.updated_at)}
+        />
       </SectionCard>
     </div>
   );

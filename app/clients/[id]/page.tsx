@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { DetailField } from "@/components/ui/DetailField";
 import { Card, CardContent } from "@/components/ui/Card";
+import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 
 async function deleteClient(id: string) {
   "use server";
@@ -63,10 +64,13 @@ export default async function ClientDetailPage({
     <div className="space-y-6">
       <PageHeader
         title={name || "Client"}
-        description={client.client_type}
-        backHref="/clients"
+        description={formatStatusLabel(client.client_type)}
         actions={
           <>
+            <Button asChild variant="outline">
+              <Link href="/clients">Back</Link>
+            </Button>
+
             <Button asChild variant="outline">
               <Link href={`/clients/${id}/edit`}>Edit</Link>
             </Button>
@@ -83,14 +87,15 @@ export default async function ClientDetailPage({
       <Card size="sm">
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Clients represent owners or individuals connected to properties and contracts.
+            Clients represent owners or individuals connected to properties and
+            contracts.
           </p>
         </CardContent>
       </Card>
 
       <SectionCard
         title="Contact"
-        contentClassName="grid md:grid-cols-2 gap-4"
+        contentClassName="grid gap-4 md:grid-cols-2"
       >
         <DetailField label="Phone" value={client.phone || "-"} />
         <DetailField label="Email" value={client.email || "-"} />
@@ -100,7 +105,7 @@ export default async function ClientDetailPage({
 
       <SectionCard
         title="Address"
-        contentClassName="grid md:grid-cols-2 gap-4"
+        contentClassName="grid gap-4 md:grid-cols-2"
       >
         <DetailField label="Address 1" value={client.address_line_1 || "-"} />
         <DetailField label="Address 2" value={client.address_line_2 || "-"} />
@@ -108,19 +113,16 @@ export default async function ClientDetailPage({
       </SectionCard>
 
       <SectionCard title="Notes">
-        <div className="text-sm">{client.notes || "-"}</div>
+        <div className="text-sm text-muted-foreground">{client.notes || "-"}</div>
       </SectionCard>
 
-      <SectionCard
-        title="Meta"
-        contentClassName="flex gap-2"
-      >
-        <Badge variant="outline">
-          {client.client_type}
+      <SectionCard title="Meta" contentClassName="flex flex-wrap gap-2">
+        <Badge variant="neutral">
+          {formatStatusLabel(client.client_type)}
         </Badge>
 
-        <Badge variant={client.status === "active" ? "default" : "outline"}>
-          {client.status}
+        <Badge variant={getStatusVariant(client.status)}>
+          {formatStatusLabel(client.status)}
         </Badge>
       </SectionCard>
     </div>

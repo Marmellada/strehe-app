@@ -59,7 +59,7 @@ export default async function PaymentPage({
         <PageHeader
           title="Record Payment"
           description={`Invoice ${invoice.invoice_number || "Draft Invoice"}`}
-          backHref={`/billing/${invoice.id}`}
+
         />
 
         <Card>
@@ -84,7 +84,7 @@ export default async function PaymentPage({
       <PageHeader
         title="Record Payment"
         description={`Invoice ${invoice.invoice_number}`}
-        backHref={`/billing/${invoice.id}`}
+
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -104,7 +104,7 @@ export default async function PaymentPage({
             <CardTitle>Paid</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-green-600">
+            <div className="text-2xl font-semibold" style={{ color: "var(--brand-green)" }}>
               €{centsToEur(amountPaid).toFixed(2)}
             </div>
           </CardContent>
@@ -115,7 +115,7 @@ export default async function PaymentPage({
             <CardTitle>Balance Due</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-red-600">
+            <div className="text-2xl font-semibold" style={{ color: "var(--brand-red)" }}>
               €{centsToEur(balanceDue).toFixed(2)}
             </div>
           </CardContent>

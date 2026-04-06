@@ -31,7 +31,8 @@ async function updateSubscription(formData: FormData) {
     throw new Error("Client, property, package, and start date are required.");
   }
 
-  const monthly_price = monthly_price_raw === "" ? null : Number(monthly_price_raw);
+  const monthly_price =
+    monthly_price_raw === "" ? null : Number(monthly_price_raw);
 
   if (monthly_price_raw !== "" && Number.isNaN(monthly_price)) {
     throw new Error("Monthly price must be a valid number.");
@@ -105,8 +106,7 @@ export default async function EditSubscriptionPage({
   ] = await Promise.all([
     supabase
       .from("subscriptions")
-      .select(
-        `
+      .select(`
         id,
         client_id,
         property_id,
@@ -116,8 +116,7 @@ export default async function EditSubscriptionPage({
         status,
         monthly_price,
         notes
-      `
-      )
+      `)
       .eq("id", id)
       .single(),
 
@@ -155,35 +154,40 @@ export default async function EditSubscriptionPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Button asChild variant="ghost">
+          <Link href={`/subscriptions/${subscription.id}`}>← Back</Link>
+        </Button>
+      </div>
+
       <PageHeader
         title="Edit Contract"
         description={subscription.id}
-        backHref={`/subscriptions/${subscription.id}`}
         actions={
-  <div className="flex gap-2">
-    <Button asChild variant="outline">
-      <Link href={`/subscriptions/${subscription.id}`}>
-        Back to Contract
-      </Link>
-    </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link href={`/subscriptions/${subscription.id}`}>
+                Back to Contract
+              </Link>
+            </Button>
 
-    {subscription?.id && (
-      <>
-        <Button asChild>
-          <Link href={`/subscriptions/${subscription.id}/pdf`}>
-            Open PDF
-          </Link>
-        </Button>
+            {subscription.id && (
+              <>
+                <Button asChild>
+                  <Link href={`/subscriptions/${subscription.id}/pdf`}>
+                    Open PDF
+                  </Link>
+                </Button>
 
-        <Button asChild variant="outline">
-          <Link href={`/subscriptions/${subscription.id}/pdf?download=1`}>
-            Download PDF
-          </Link>
-        </Button>
-      </>
-    )}
-  </div>
-}
+                <Button asChild variant="outline">
+                  <Link href={`/subscriptions/${subscription.id}/pdf?download=1`}>
+                    Download PDF
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
+        }
       />
 
       <SectionCard
@@ -196,8 +200,8 @@ export default async function EditSubscriptionPage({
           <Card size="sm">
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Editing a contract updates the source record used for future scheduled work.
-                It does not create tasks immediately.
+                Editing a contract updates the source record used for future
+                scheduled work. It does not create tasks immediately.
               </p>
             </CardContent>
           </Card>

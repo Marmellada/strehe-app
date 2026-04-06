@@ -208,8 +208,10 @@ export function LineItemsEditor({
   ) => {
     updateRowState(rowId, {
       sourceType: value,
-      selectedSubscriptionId: value === "package" ? rowState[rowId]?.selectedSubscriptionId || "" : "",
-      selectedServiceId: value === "service" ? rowState[rowId]?.selectedServiceId || "" : "",
+      selectedSubscriptionId:
+        value === "package" ? rowState[rowId]?.selectedSubscriptionId || "" : "",
+      selectedServiceId:
+        value === "service" ? rowState[rowId]?.selectedServiceId || "" : "",
       months: rowState[rowId]?.months || 1,
     });
 
@@ -264,7 +266,7 @@ export function LineItemsEditor({
           );
 
           return (
-            <div key={rowId} className="space-y-4 rounded-lg border p-4">
+            <div key={rowId} className="space-y-4 rounded-2xl border bg-card p-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor={`item-${rowId}-source-type`}>Line Type</Label>
@@ -304,7 +306,8 @@ export function LineItemsEditor({
                         <SelectContent>
                           {filteredSubscriptions.map((sub) => (
                             <SelectItem key={sub.id} value={sub.id}>
-                              {sub.package_name} — {sub.property_title} (€{sub.monthly_price.toFixed(2)}/mo)
+                              {sub.package_name} — {sub.property_title} (€
+                              {sub.monthly_price.toFixed(2)}/mo)
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -360,7 +363,7 @@ export function LineItemsEditor({
                 )}
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor={`item-${rowId}-description`}>Description</Label>
                 <Input
                   id={`item-${rowId}-description`}
@@ -370,8 +373,8 @@ export function LineItemsEditor({
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="space-y-2">
                   <Label htmlFor={`item-${rowId}-quantity`}>Quantity</Label>
                   <Input
                     id={`item-${rowId}-quantity`}
@@ -385,7 +388,7 @@ export function LineItemsEditor({
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor={`item-${rowId}-unit-price`}>Unit Price (€)</Label>
                   <Input
                     id={`item-${rowId}-unit-price`}
@@ -399,7 +402,7 @@ export function LineItemsEditor({
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor={`item-${rowId}-vat-rate`}>VAT (%)</Label>
                   <Input
                     id={`item-${rowId}-vat-rate`}
@@ -416,10 +419,10 @@ export function LineItemsEditor({
               </div>
 
               <div className="flex items-center justify-between border-t pt-2 text-sm">
-                <div className="space-x-4 text-gray-600">
+                <div className="space-x-4 text-muted-foreground">
                   <span>Subtotal: €{subtotal.toFixed(2)}</span>
                   <span>VAT: €{vatAmount.toFixed(2)}</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="font-semibold text-foreground">
                     Total: €{total.toFixed(2)}
                   </span>
                 </div>
@@ -431,7 +434,7 @@ export function LineItemsEditor({
                     size="sm"
                     onClick={() => removeItem(index)}
                   >
-                    <Trash2 className="h-4 w-4 text-red-600" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
               </div>

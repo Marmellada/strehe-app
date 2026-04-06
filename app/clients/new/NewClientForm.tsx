@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Textarea } from "@/components/ui/Textarea";
 
 type Municipality = {
   id: string;
@@ -62,8 +64,8 @@ export default function NewClientForm({
   const title = isEdit
     ? "Edit Client"
     : clientType === "business"
-    ? "New Business Client"
-    : "New Individual Client";
+      ? "New Business Client"
+      : "New Individual Client";
 
   const subtitle = isEdit
     ? "Update client details"
@@ -83,23 +85,20 @@ export default function NewClientForm({
       <PageHeader
         title={title}
         description={subtitle}
-        backHref={isEdit ? `/clients/${clientId}` : "/clients"}
       />
 
-      <form action={action} className="space-y-6 max-w-3xl">
+      <form action={action} className="max-w-3xl space-y-6">
         <SectionCard title="General">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label htmlFor="client_type" className="text-sm font-medium">
-                Client Type
-              </label>
+              <Label htmlFor="client_type">Client Type</Label>
               <select
                 id="client_type"
                 name="client_type"
                 value={clientType}
                 onChange={(e) => setClientType(e.target.value)}
                 required
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="input"
               >
                 <option value="individual">Individual</option>
                 <option value="business">Business</option>
@@ -107,14 +106,12 @@ export default function NewClientForm({
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="status" className="text-sm font-medium">
-                Status
-              </label>
+              <Label htmlFor="status">Status</Label>
               <select
                 id="status"
                 name="status"
                 defaultValue={initialData?.status || "active"}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="input"
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -132,9 +129,7 @@ export default function NewClientForm({
         <SectionCard title="Client Details">
           {showIndividual && (
             <div className="space-y-2">
-              <label htmlFor="full_name" className="text-sm font-medium">
-                Full Name
-              </label>
+              <Label htmlFor="full_name">Full Name</Label>
               <Input
                 id="full_name"
                 name="full_name"
@@ -147,9 +142,7 @@ export default function NewClientForm({
           {showBusiness && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="company_name" className="text-sm font-medium">
-                  Company Name
-                </label>
+                <Label htmlFor="company_name">Company Name</Label>
                 <Input
                   id="company_name"
                   name="company_name"
@@ -159,9 +152,7 @@ export default function NewClientForm({
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="contact_person" className="text-sm font-medium">
-                  Contact Person
-                </label>
+                <Label htmlFor="contact_person">Contact Person</Label>
                 <Input
                   id="contact_person"
                   name="contact_person"
@@ -173,11 +164,9 @@ export default function NewClientForm({
         </SectionCard>
 
         <SectionCard title="Contact">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label htmlFor="phone" className="text-sm font-medium">
-                Phone
-              </label>
+              <Label htmlFor="phone">Phone</Label>
               <Input
                 id="phone"
                 name="phone"
@@ -186,9 +175,7 @@ export default function NewClientForm({
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 name="email"
@@ -202,9 +189,7 @@ export default function NewClientForm({
         <SectionCard title="Address">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="address_line_1" className="text-sm font-medium">
-                Address Line 1
-              </label>
+              <Label htmlFor="address_line_1">Address Line 1</Label>
               <Input
                 id="address_line_1"
                 name="address_line_1"
@@ -213,9 +198,7 @@ export default function NewClientForm({
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="address_line_2" className="text-sm font-medium">
-                Address Line 2
-              </label>
+              <Label htmlFor="address_line_2">Address Line 2</Label>
               <Input
                 id="address_line_2"
                 name="address_line_2"
@@ -231,9 +214,7 @@ export default function NewClientForm({
             />
 
             <div className="space-y-2">
-              <label htmlFor="country" className="text-sm font-medium">
-                Country
-              </label>
+              <Label htmlFor="country">Country</Label>
               <Input
                 id="country"
                 name="country"
@@ -245,21 +226,18 @@ export default function NewClientForm({
 
         <SectionCard title="Notes">
           <div className="space-y-2">
-            <label htmlFor="notes" className="text-sm font-medium">
-              Notes
-            </label>
-            <textarea
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
               id="notes"
               name="notes"
               rows={4}
               defaultValue={initialData?.notes || ""}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
         </SectionCard>
 
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" asChild>
+          <Button variant="outline" asChild>
             <Link href={isEdit ? `/clients/${clientId}` : "/clients"}>
               Cancel
             </Link>

@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InvoiceForm } from "@/components/billing/InvoiceForm";
 import { PageHeader } from "@/components/ui/PageHeader";
+import Link from "next/link";
+import { Button } from "@/components/ui/Button";
 
 type ClientOption = {
   id: string;
@@ -147,13 +149,16 @@ export default async function EditInvoicePage({
     base_price: Number(row.base_price || 0),
   }));
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Edit Invoice"
-        description="Update draft invoice"
-        backHref={`/billing/${id}`}
-      />
+
+    <div className="space-y-4">
+  <Button asChild variant="ghost">
+    <Link href="/billing/${id}">← Back</Link>
+  </Button>
+
+  <PageHeader
+    title="Edit Invoice"
+    description="Update draft invoice"
+  />
 
       <InvoiceForm
         mode="edit"
@@ -178,5 +183,5 @@ export default async function EditInvoicePage({
         }}
       />
     </div>
-  );
+  ;
 }

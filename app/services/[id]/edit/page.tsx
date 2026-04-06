@@ -95,16 +95,16 @@ export default async function EditServicePage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Edit Service"
-        description={service.name || "-"}
-        backHref={`/services/${service.id}`}
-        actions={
-          <Button asChild variant="outline">
-            <Link href={`/services/${service.id}`}>Back to Service</Link>
-          </Button>
-        }
-      />
+    <div className="space-y-4">
+  <Button asChild variant="ghost">
+    <Link href="/somewhere">← Back</Link>
+  </Button>
+
+  <PageHeader
+    title="Edit Service"
+    description= {service.name || "-"}
+  />
+</div>
 
       <SectionCard
         title="Service Setup"
