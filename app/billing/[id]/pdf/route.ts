@@ -183,8 +183,17 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
+function selectAccountsForPdf(
+  accounts: CompanyBankAccountPdfData[]
+): CompanyBankAccountPdfData[] {
+  if (!accounts.length) return [];
+  const primary = accounts.find((a) => a.is_primary);
+  if (primary) return [primary];
+  return accounts;
+}
+
 function mapBankAccounts(rows: BankAccountRow[]): CompanyBankAccountPdfData[] {
-  return (rows || []).map((row) => {
+  const mapped = (rows || []).map((row) => {
     const bank = firstRelation(row.banks);
 
     return {
@@ -196,6 +205,8 @@ function mapBankAccounts(rows: BankAccountRow[]): CompanyBankAccountPdfData[] {
       is_primary: !!row.is_primary,
     };
   });
+
+  return selectAccountsForPdf(mapped);
 }
 
 export async function GET(_req: NextRequest, context: RouteContext) {
@@ -349,7 +360,6 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       `)
       .eq("is_active", true)
       .eq("show_on_invoice", true)
-      .order("is_primary", { ascending: false })
       .order("created_at", { ascending: true })
       .returns<BankAccountRow[]>(),
 
@@ -448,7 +458,6 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   };
 
   const { bytes, filename } = await generateBillingPdf({ document });
-
   const pdfBytes = new Uint8Array(bytes);
 
   return new NextResponse(pdfBytes, {

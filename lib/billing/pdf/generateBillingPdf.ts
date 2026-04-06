@@ -1,6 +1,7 @@
 import { PDFDocument, PDFFont, PDFPage } from "pdf-lib";
 import {
   BillingDocumentPdfData,
+  CompanyBankAccountPdfData,
   PAGE,
   PDF_COLORS,
   clientAddress,
@@ -51,6 +52,17 @@ function createPage(ctx: Omit<PdfContext, "page" | "cursorY">): PdfContext {
     page,
     cursorY: PAGE.height - PAGE.marginTop,
   };
+}
+
+function selectAccountsForPdf(
+  accounts: CompanyBankAccountPdfData[]
+): CompanyBankAccountPdfData[] {
+  if (!accounts?.length) return [];
+
+  const primary = accounts.find((account) => account.is_primary);
+  if (primary) return [primary];
+
+  return accounts;
 }
 
 async function drawHeader(ctx: PdfContext): Promise<PdfContext> {
@@ -570,7 +582,9 @@ function drawTotalsBox(ctx: PdfContext): PdfContext {
     width: totalsBoxWidth,
     height: totalsBoxHeight,
     color:
-      document.type === "credit_note" ? PDF_COLORS.noteSoft : PDF_COLORS.soft,
+      document.type === "credit_note"
+        ? PDF_COLORS.noteSoft
+        : PDF_COLORS.soft,
     borderColor: PDF_COLORS.border,
     borderWidth: 1,
   });
@@ -635,43 +649,53 @@ function drawBottomSections(ctx: PdfContext): PdfContext {
 
     let y = ctx.cursorY - 16;
 
-    const accounts = (document.company_bank_accounts || [])
-      .filter((a) => a.iban)
-      .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+    const selectedAccounts = selectAccountsForPdf(
+      document.company_bank_accounts || []
+    );
 
     const lines: string[] = [];
 
-    for (const acc of accounts) {
-      const parts = [
-        acc.account_name || "",
-        acc.bank_name || "",
-        acc.iban ? `IBAN: ${acc.iban}` : "",
-        acc.swift ? `SWIFT: ${acc.swift}` : "",
-      ].filter(Boolean);
+    if (selectedAccounts.length > 0) {
+      selectedAccounts.forEach((account, index) => {
+        if (selectedAccounts.length > 1) {
+          lines.push(`${index + 1}.`);
+        }
 
-      if (parts.length) {
-        lines.push(parts.join(" — "));
-      }
+        if (account.bank_name) {
+          lines.push(`Bank: ${account.bank_name}`);
+        }
+
+        if (account.account_name) {
+          lines.push(`Account: ${account.account_name}`);
+        }
+
+        lines.push(`IBAN: ${account.iban}`);
+
+        if (account.swift) {
+          lines.push(`SWIFT: ${account.swift}`);
+        }
+
+        lines.push("");
+      });
+    } else {
+      lines.push("Payment details available upon request.");
+      lines.push("");
     }
 
     if (document.payment_reference) {
       lines.push(`Reference: ${document.payment_reference}`);
     }
 
-    const text =
-      lines.length > 0
-        ? lines.join("\n")
-        : "No payment information available.";
-
     y =
       drawTextBlock({
         page,
-        text,
+        text: lines.join("\n").trim(),
         x: leftX,
         y,
         maxWidth: contentWidth - totalsBoxWidth - 20,
         font: fontRegular,
         fontSize: 10,
+        lineHeight: 14,
         color: PDF_COLORS.text,
       }) - 18;
 

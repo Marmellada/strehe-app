@@ -267,12 +267,15 @@ export function drawTextBlock(params: {
     color = PDF_COLORS.text,
   } = params;
 
-  const lines = splitText(text || "", font, fontSize, maxWidth);
+  const paragraphs = String(text || "").split("\n");
   let cursorY = y;
 
-  for (const line of lines) {
-    page.drawText(line, { x, y: cursorY, size: fontSize, font, color });
-    cursorY -= lineHeight;
+  for (const paragraph of paragraphs) {
+    const lines = splitText(paragraph || "", font, fontSize, maxWidth);
+    for (const line of lines) {
+      page.drawText(line, { x, y: cursorY, size: fontSize, font, color });
+      cursorY -= lineHeight;
+    }
   }
 
   return cursorY;
