@@ -42,7 +42,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
       ),
       properties (
         id,
-        name
+        title
       )
     `)
     .eq("id", id)
@@ -115,7 +115,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
 
             <div>
               <div className="text-sm text-muted-foreground">Property</div>
-              <div className="font-medium">{property?.name ?? "—"}</div>
+              <div className="font-medium">{property?.title ?? "—"}</div>
             </div>
 
             <div>
@@ -133,3 +133,4 @@ export default async function ExpenseDetailPage({ params }: Props) {
     </div>
   );
 }
+

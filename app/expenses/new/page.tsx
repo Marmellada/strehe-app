@@ -26,8 +26,8 @@ export default async function NewExpensePage() {
       .order("name", { ascending: true }),
     supabase
       .from("properties")
-      .select("id, name")
-      .order("name", { ascending: true }),
+      .select("id, title")
+      .order("title", { ascending: true }),
   ]);
 
   if (categoriesError) throw new Error(categoriesError.message);
@@ -50,7 +50,10 @@ export default async function NewExpensePage() {
         <ExpenseForm
           categories={categories ?? []}
           vendors={vendors ?? []}
-          properties={properties ?? []}
+          properties={(properties ?? []).map((property) => ({
+            id: property.id,
+            name: property.title ?? "",
+          }))}
         />
       </div>
     </div>

@@ -34,7 +34,7 @@ export default async function ExpensesPage() {
       ),
       properties (
         id,
-        name
+        title
       )
     `)
     .order("expense_date", { ascending: false })
@@ -105,7 +105,7 @@ export default async function ExpensesPage() {
                     {vendor?.name ?? "—"}
                     {vendor && !vendor.is_active ? " (inactive)" : ""}
                   </td>
-                  <td className="px-4 py-3">{property?.name ?? "—"}</td>
+                  <td className="px-4 py-3">{property?.title ?? "—"}</td>
                   <td className="px-4 py-3 text-right font-medium">
                     {formatCurrencyFromCents(expense.amount_cents)}
                   </td>
