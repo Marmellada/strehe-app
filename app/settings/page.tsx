@@ -25,6 +25,18 @@ export default async function SettingsPage() {
       href: "/settings/users",
       cta: "Manage Users",
     },
+    {
+      title: "Expense Categories",
+      description: "Manage active/inactive expense categories used by expenses.",
+      href: "/settings/expense-categories",
+      cta: "Manage Categories",
+    },
+    {
+      title: "Vendors",
+      description: "Manage vendors used on expense records.",
+      href: "/settings/vendors",
+      cta: "Manage Vendors",
+    },
   ];
 
   return (
