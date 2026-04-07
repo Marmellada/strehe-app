@@ -8,6 +8,11 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { DeleteInvoiceButton } from "@/components/billing/DeleteInvoiceButton";
 import { UpdateInvoiceStatusButton } from "@/components/billing/UpdateInvoiceStatusButton";
 import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
+import {
+  computeSettlement,
+  sumAmountCents,
+  sumIssuedCreditNoteCents,
+} from "@/lib/billing/settlement";
 
 function centsToEur(cents: number) {
   return (cents || 0) / 100;
@@ -107,10 +112,10 @@ export default async function InvoiceDetailPage({
     { data: property },
     { data: invoiceItems, error: itemsError },
     { data: paymentsRaw, error: paymentsError },
-    { data: settings },
-    { data: banksRaw },
+    { data: settings, error: settingsError },
+    { data: banksRaw, error: banksError },
     { data: creditNotesRaw, error: creditNotesError },
-    { data: originalInvoice },
+    { data: originalInvoice, error: originalInvoiceError },
   ] = await Promise.all([
     supabase
       .from("clients")
@@ -178,18 +183,23 @@ export default async function InvoiceDetailPage({
       : Promise.resolve({ data: [], error: null }),
 
     supabase
-      .from("general_settings")
+      .from("company_settings")
       .select(`
+        id,
         company_name,
-        company_address,
-        company_city,
-        company_postal_code,
-        company_country,
-        company_email,
-        company_phone,
-        company_vat_number
+        legal_name,
+        email,
+        phone,
+        address,
+        city,
+        country,
+        vat_enabled,
+        vat_number,
+        business_number,
+        currency
       `)
-      .single(),
+      .limit(1)
+      .maybeSingle(),
 
     supabase
       .from("banks")
@@ -232,8 +242,20 @@ export default async function InvoiceDetailPage({
     throw new Error(paymentsError.message);
   }
 
+  if (settingsError) {
+    throw new Error(settingsError.message);
+  }
+
+  if (banksError) {
+    throw new Error(banksError.message);
+  }
+
   if (creditNotesError) {
     throw new Error(creditNotesError.message);
+  }
+
+  if (originalInvoiceError) {
+    throw new Error(originalInvoiceError.message);
   }
 
   const bankMap = new Map((banksRaw || []).map((bank: any) => [bank.id, bank]));
@@ -252,29 +274,24 @@ export default async function InvoiceDetailPage({
     total_cents: number;
   }>;
 
-  const amountPaid =
-    payments.reduce(
-      (sum: number, payment: { amount_cents: number | null }) =>
-        sum + (payment.amount_cents || 0),
-      0
-    ) || 0;
+  const amountPaid = sumAmountCents(payments);
+  const issuedCreditNotesTotal = sumIssuedCreditNoteCents(creditNotes);
 
-  const issuedCreditNotesTotal =
-    creditNotes.reduce(
-      (sum: number, creditNote) =>
-        creditNote.status === "issued"
-          ? sum + (creditNote.total_cents || 0)
-          : sum,
-      0
-    ) || 0;
+  const settlement =
+    invoice.document_type === "invoice"
+      ? computeSettlement({
+          totalCents: invoice.total_cents || 0,
+          paymentsCents: amountPaid,
+          issuedCreditNotesCents: issuedCreditNotesTotal,
+        })
+      : computeSettlement({
+          totalCents: 0,
+          paymentsCents: 0,
+          issuedCreditNotesCents: 0,
+        });
 
   const balanceDue =
-    invoice.document_type === "invoice"
-      ? Math.max(
-          0,
-          (invoice.total_cents || 0) - amountPaid - issuedCreditNotesTotal
-        )
-      : 0;
+    invoice.document_type === "invoice" ? settlement.remainingCents : 0;
 
   const clientName = client?.company_name || client?.full_name || "N/A";
   const clientAddress = client ? formatAddress(client) : "N/A";
@@ -282,13 +299,11 @@ export default async function InvoiceDetailPage({
   const propertyLabel = property?.title || "—";
   const propertyAddress = property ? formatAddress(property) : "—";
 
+  const companyName =
+    settings?.legal_name || settings?.company_name || "Company Name";
+
   const companyAddress = settings
-    ? [
-        settings.company_address,
-        settings.company_city,
-        settings.company_postal_code,
-        settings.company_country,
-      ]
+    ? [settings.address, settings.city, settings.country]
         .filter(Boolean)
         .join(", ")
     : "Not configured";
@@ -396,19 +411,22 @@ export default async function InvoiceDetailPage({
         <div className={sectionCardClasses()}>
           <h2 className="text-lg font-semibold text-foreground">From</h2>
           <div className="space-y-2 text-sm">
-            <p className="font-medium text-foreground">
-              {settings?.company_name || "Company Name"}
-            </p>
+            <p className="font-medium text-foreground">{companyName}</p>
             <p className="text-muted-foreground">{companyAddress}</p>
-            {settings?.company_email && (
-              <p className="text-muted-foreground">{settings.company_email}</p>
+            {settings?.email && (
+              <p className="text-muted-foreground">{settings.email}</p>
             )}
-            {settings?.company_phone && (
-              <p className="text-muted-foreground">{settings.company_phone}</p>
+            {settings?.phone && (
+              <p className="text-muted-foreground">{settings.phone}</p>
             )}
-            {settings?.company_vat_number && (
+            {settings?.vat_enabled && settings?.vat_number && (
               <p className="text-muted-foreground">
-                VAT: {settings.company_vat_number}
+                VAT: {settings.vat_number}
+              </p>
+            )}
+            {settings?.business_number && (
+              <p className="text-muted-foreground">
+                Business No: {settings.business_number}
               </p>
             )}
           </div>
@@ -493,8 +511,8 @@ export default async function InvoiceDetailPage({
               <span className="text-muted-foreground">Subtotal</span>
               <span className="text-foreground">
                 {documentType === "credit_note"
-                  ? formatCreditMoney(invoice.subtotal_cents)
-                  : formatMoney(invoice.subtotal_cents)}
+                  ? formatCreditMoney(invoice.subtotal_cents || 0)
+                  : formatMoney(invoice.subtotal_cents || 0)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -503,8 +521,8 @@ export default async function InvoiceDetailPage({
               </span>
               <span className="text-foreground">
                 {documentType === "credit_note"
-                  ? formatCreditMoney(invoice.vat_amount_cents)
-                  : formatMoney(invoice.vat_amount_cents)}
+                  ? formatCreditMoney(invoice.vat_amount_cents || 0)
+                  : formatMoney(invoice.vat_amount_cents || 0)}
               </span>
             </div>
             <div className="flex justify-between border-t pt-2 text-base font-semibold">
@@ -513,8 +531,8 @@ export default async function InvoiceDetailPage({
               </span>
               <span className="text-foreground">
                 {documentType === "credit_note"
-                  ? formatCreditMoney(invoice.total_cents)
-                  : formatMoney(invoice.total_cents)}
+                  ? formatCreditMoney(invoice.total_cents || 0)
+                  : formatMoney(invoice.total_cents || 0)}
               </span>
             </div>
 
@@ -523,21 +541,21 @@ export default async function InvoiceDetailPage({
                 <div className="flex justify-between pt-2">
                   <span className="text-muted-foreground">Paid</span>
                   <span className="font-medium text-foreground">
-                    {formatMoney(amountPaid)}
+                    {formatMoney(settlement.paymentsCents)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Credit Notes</span>
                   <span className="font-medium text-foreground">
-                    {issuedCreditNotesTotal > 0
-                      ? formatCreditMoney(issuedCreditNotesTotal)
+                    {settlement.issuedCreditNotesCents > 0
+                      ? formatCreditMoney(settlement.issuedCreditNotesCents)
                       : "€0.00"}
                   </span>
                 </div>
                 <div className="flex justify-between border-t pt-2 text-base font-semibold">
                   <span className="text-foreground">Balance Due</span>
                   <span className="text-foreground">
-                    {formatMoney(balanceDue)}
+                    {formatMoney(settlement.remainingCents)}
                   </span>
                 </div>
               </>
@@ -571,13 +589,13 @@ export default async function InvoiceDetailPage({
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
                       {documentType === "credit_note"
-                        ? formatCreditMoney(item.unit_price_cents)
-                        : formatMoney(item.unit_price_cents)}
+                        ? formatCreditMoney(item.unit_price_cents || 0)
+                        : formatMoney(item.unit_price_cents || 0)}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-foreground">
                       {documentType === "credit_note"
-                        ? formatCreditMoney(item.total_cents)
-                        : formatMoney(item.total_cents)}
+                        ? formatCreditMoney(item.total_cents || 0)
+                        : formatMoney(item.total_cents || 0)}
                     </td>
                   </tr>
                 ))
@@ -618,10 +636,10 @@ export default async function InvoiceDetailPage({
                 <thead className="bg-muted/40">
                   <tr>
                     <th className={tableHeaderCellClasses()}>Number</th>
-                    <th className={tableHeaderCellClasses()}>Status</th>
                     <th className={tableHeaderCellClasses()}>Date</th>
+                    <th className={tableHeaderCellClasses()}>Status</th>
                     <th className={tableHeaderCellRightClasses()}>Amount</th>
-                    <th className={tableHeaderCellRightClasses()}>Action</th>
+                    <th className={tableHeaderCellRightClasses()}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -629,26 +647,24 @@ export default async function InvoiceDetailPage({
                     creditNotes.map((creditNote) => (
                       <tr key={creditNote.id} className={tableRowClasses()}>
                         <td className="px-4 py-3 text-foreground">
-                          {creditNote.status === "draft"
-                            ? "—"
-                            : creditNote.invoice_number || "—"}
+                          {creditNote.invoice_number || "Draft Credit Note"}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatDate(creditNote.issue_date)}
                         </td>
                         <td className="px-4 py-3">
                           <Badge variant={getStatusVariant(creditNote.status)}>
                             {formatStatusLabel(creditNote.status)}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(creditNote.issue_date)}
-                        </td>
                         <td className="px-4 py-3 text-right font-medium text-foreground">
-                          {creditNote.status === "issued"
-                            ? formatCreditMoney(creditNote.total_cents)
-                            : `(${formatCreditMoney(creditNote.total_cents)})`}
+                          {formatCreditMoney(creditNote.total_cents || 0)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/billing/${creditNote.id}`}>Open</Link>
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/billing/${creditNote.id}`}>
+                              View
+                            </Link>
                           </Button>
                         </td>
                       </tr>
@@ -659,7 +675,7 @@ export default async function InvoiceDetailPage({
                         colSpan={5}
                         className="px-4 py-8 text-center text-muted-foreground"
                       >
-                        No credit notes created yet.
+                        No credit notes found.
                       </td>
                     </tr>
                   )}
@@ -673,7 +689,7 @@ export default async function InvoiceDetailPage({
               <h2 className="text-lg font-semibold text-foreground">
                 Payments
               </h2>
-              {status === "issued" && balanceDue > 0 && (
+              {status === "issued" && settlement.remainingCents > 0 && (
                 <Button asChild variant="outline">
                   <Link href={`/billing/${invoice.id}/payment`}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -717,7 +733,7 @@ export default async function InvoiceDetailPage({
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-foreground">
-                          {formatMoney(payment.amount_cents)}
+                          {formatMoney(payment.amount_cents || 0)}
                         </td>
                       </tr>
                     ))
@@ -727,7 +743,7 @@ export default async function InvoiceDetailPage({
                         colSpan={5}
                         className="px-4 py-8 text-center text-muted-foreground"
                       >
-                        No payments recorded yet.
+                        No payments found.
                       </td>
                     </tr>
                   )}
@@ -741,7 +757,7 @@ export default async function InvoiceDetailPage({
       {invoice.notes && (
         <div className={sectionCardClasses()}>
           <h2 className="text-lg font-semibold text-foreground">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
             {invoice.notes}
           </p>
         </div>

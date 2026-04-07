@@ -6,28 +6,72 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
 
+function centsToEur(cents: number | null | undefined) {
+  return (cents || 0) / 100;
+}
+
+type BillingListRow = {
+  id: string;
+  invoice_number: string | null;
+  status: string | null;
+  document_type: "invoice" | "credit_note" | string | null;
+  total_cents: number | null;
+  created_at: string | null;
+  client:
+    | {
+        full_name: string | null;
+        company_name: string | null;
+      }
+    | {
+        full_name: string | null;
+        company_name: string | null;
+      }[]
+    | null;
+};
+
+function getSingleRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function getDocumentLabel(row: BillingListRow) {
+  if (row.invoice_number) return row.invoice_number;
+
+  if (row.document_type === "credit_note") {
+    return "Draft Credit Note";
+  }
+
+  return "Draft Invoice";
+}
+
 export default async function BillingPage() {
   const supabase = await createClient();
 
-  const { data: invoices } = await supabase
+  const { data, error } = await supabase
     .from("invoices")
-    .select(
-      `
+    .select(`
       id,
       invoice_number,
       status,
-      total_amount,
+      document_type,
+      total_cents,
       created_at,
-      client:clients(full_name)
-    `
-    )
+      client:clients (
+        full_name,
+        company_name
+      )
+    `)
     .order("created_at", { ascending: false });
 
-  const hasData = invoices && invoices.length > 0;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const invoices = (data || []) as BillingListRow[];
+  const hasData = invoices.length > 0;
 
   return (
     <div>
-      {/* Page Header */}
       <PageHeader
         title="Invoices"
         subtitle="Manage billing documents"
@@ -38,7 +82,6 @@ export default async function BillingPage() {
         }
       />
 
-      {/* Content */}
       {!hasData ? (
         <EmptyState
           title="No invoices yet"
@@ -52,14 +95,16 @@ export default async function BillingPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
-            {/* Header */}
             <thead className="bg-muted/40 text-left">
               <tr className="border-b">
                 <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Invoice
+                  Document
                 </th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">
                   Client
+                </th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">
+                  Type
                 </th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">
                   Status
@@ -76,44 +121,65 @@ export default async function BillingPage() {
               </tr>
             </thead>
 
-            {/* Body */}
             <tbody>
-              {invoices.map((invoice) => (
-                <tr
-                  key={invoice.id}
-                  className="border-b last:border-none hover:bg-muted/30 transition-colors"
-                >
-                  <td className="px-4 py-3 font-medium">
-                    {invoice.invoice_number}
-                  </td>
+              {invoices.map((invoice) => {
+                const client = getSingleRelation(invoice.client);
+                const clientName =
+                  client?.company_name || client?.full_name || "—";
 
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {invoice.client?.[0]?.full_name ?? "—"}
-                  </td>
+                return (
+                  <tr
+                    key={invoice.id}
+                    className="border-b last:border-none transition-colors hover:bg-muted/30"
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      {getDocumentLabel(invoice)}
+                    </td>
 
-                  <td className="px-4 py-3">
-                    <Badge variant={getStatusVariant(invoice.status)}>
-                      {formatStatusLabel(invoice.status)}
-                    </Badge>
-                  </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {clientName}
+                    </td>
 
-                  <td className="px-4 py-3 text-right font-medium">
-                    €{Number(invoice.total_amount ?? 0).toFixed(2)}
-                  </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant={
+                          invoice.document_type === "credit_note"
+                            ? "danger"
+                            : "info"
+                        }
+                      >
+                        {invoice.document_type === "credit_note"
+                          ? "Credit Note"
+                          : "Invoice"}
+                      </Badge>
+                    </td>
 
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(invoice.created_at).toLocaleDateString()}
-                  </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={getStatusVariant(invoice.status || "draft")}>
+                        {formatStatusLabel(invoice.status || "draft")}
+                      </Badge>
+                    </td>
 
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/billing/${invoice.id}`}>
-                      <Button variant="outline" size="sm">
-                        View
-                      </Button>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-4 py-3 text-right font-medium">
+                      €{centsToEur(invoice.total_cents).toFixed(2)}
+                    </td>
+
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {invoice.created_at
+                        ? new Date(invoice.created_at).toLocaleDateString("en-GB")
+                        : "—"}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      <Link href={`/billing/${invoice.id}`}>
+                        <Button variant="outline" size="sm">
+                          View
+                        </Button>
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

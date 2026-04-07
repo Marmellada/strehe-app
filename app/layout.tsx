@@ -111,6 +111,7 @@ export default async function RootLayout({
                   <Link href="/tasks">Tasks</Link>
                   <Link href="/subscriptions">Contracts</Link>
                   <Link href="/billing">Billing</Link>
+                  <Link href="/finance">Finance</Link>
 
                   {(role === "admin" || role === "office") ? (
                     <Link href="/workers">Staff</Link>

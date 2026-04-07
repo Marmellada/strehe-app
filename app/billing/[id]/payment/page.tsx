@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { PaymentForm } from "@/components/billing/PaymentForm";
 import { recordPayment } from "@/app/billing/actions";
+import {
+  computeSettlement,
+  sumAmountCents,
+  sumIssuedCreditNoteCents,
+} from "@/lib/billing/settlement";
 
 function centsToEur(cents: number) {
   return (cents || 0) / 100;
@@ -21,7 +26,7 @@ export default async function PaymentPage({
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id, invoice_number, total_cents, status")
+    .select("id, invoice_number, total_cents, status, document_type")
     .eq("id", id)
     .single();
 
@@ -29,29 +34,67 @@ export default async function PaymentPage({
     notFound();
   }
 
-  const { data: payments } = await supabase
-    .from("payments")
-    .select("amount_cents")
-    .eq("invoice_id", invoice.id);
+  const [{ data: payments }, { data: issuedCreditNotes }, { data: banks, error: banksError }] =
+    await Promise.all([
+      supabase
+        .from("payments")
+        .select("amount_cents")
+        .eq("invoice_id", invoice.id),
 
-  const { data: banks, error: banksError } = await supabase
-    .from("banks")
-    .select("id, name, swift_code")
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+      supabase
+        .from("invoices")
+        .select("status, total_cents")
+        .eq("document_type", "credit_note")
+        .eq("original_invoice_id", invoice.id),
+
+      supabase
+        .from("banks")
+        .select("id, name, swift_code")
+        .eq("is_active", true)
+        .order("name", { ascending: true }),
+    ]);
 
   if (banksError) {
     throw new Error(banksError.message);
   }
 
-  const amountPaid =
-    payments?.reduce(
-      (sum: number, payment: { amount_cents: number | null }) =>
-        sum + (payment.amount_cents || 0),
-      0
-    ) || 0;
+  const amountPaid = sumAmountCents(payments || []);
+  const issuedCreditNotesTotal = sumIssuedCreditNoteCents(
+    (issuedCreditNotes || []) as Array<{ status?: string | null; total_cents?: number | null }>
+  );
 
-  const balanceDue = Math.max(0, (invoice.total_cents || 0) - amountPaid);
+  const settlement = computeSettlement({
+    totalCents: invoice.total_cents || 0,
+    paymentsCents: amountPaid,
+    issuedCreditNotesCents: issuedCreditNotesTotal,
+  });
+
+  const balanceDue = settlement.remainingCents;
+
+  if (invoice.document_type !== "invoice") {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Record Payment"
+          description={`Document ${invoice.invoice_number || "Draft Document"}`}
+        />
+
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Payments can only be recorded for invoices.
+            </p>
+
+            <div className="mt-4">
+              <Button asChild variant="outline">
+                <Link href={`/billing/${invoice.id}`}>Back to Document</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (invoice.status !== "issued") {
     return (
@@ -59,7 +102,6 @@ export default async function PaymentPage({
         <PageHeader
           title="Record Payment"
           description={`Invoice ${invoice.invoice_number || "Draft Invoice"}`}
-
         />
 
         <Card>
@@ -79,22 +121,46 @@ export default async function PaymentPage({
     );
   }
 
+  if (balanceDue <= 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Record Payment"
+          description={`Invoice ${invoice.invoice_number}`}
+        />
+
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              This invoice has no remaining balance after payments and issued credit notes.
+            </p>
+
+            <div className="mt-4">
+              <Button asChild variant="outline">
+                <Link href={`/billing/${invoice.id}`}>Back to Invoice</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       <PageHeader
         title="Record Payment"
         description={`Invoice ${invoice.invoice_number}`}
-
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card size="sm">
           <CardHeader>
             <CardTitle>Total</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              €{centsToEur(invoice.total_cents).toFixed(2)}
+              €{centsToEur(settlement.totalCents).toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -104,8 +170,22 @@ export default async function PaymentPage({
             <CardTitle>Paid</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold" style={{ color: "var(--brand-green)" }}>
-              €{centsToEur(amountPaid).toFixed(2)}
+            <div
+              className="text-2xl font-semibold"
+              style={{ color: "var(--brand-green)" }}
+            >
+              €{centsToEur(settlement.paymentsCents).toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Credit Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              €{centsToEur(settlement.issuedCreditNotesCents).toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -115,8 +195,11 @@ export default async function PaymentPage({
             <CardTitle>Balance Due</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold" style={{ color: "var(--brand-red)" }}>
-              €{centsToEur(balanceDue).toFixed(2)}
+            <div
+              className="text-2xl font-semibold"
+              style={{ color: "var(--brand-red)" }}
+            >
+              €{centsToEur(settlement.remainingCents).toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -130,7 +213,7 @@ export default async function PaymentPage({
         <CardContent>
           <PaymentForm
             invoiceId={invoice.id}
-            balanceDueCents={balanceDue}
+            balanceDueCents={settlement.remainingCents}
             banks={(banks || []).map((bank: any) => ({
               id: bank.id,
               name: bank.name,
