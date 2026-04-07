@@ -98,6 +98,20 @@ export async function createWorker(formData: FormData) {
     throw new Error(error.message);
   }
 
+  const { error: historyError } = await supabase
+    .from("worker_role_title_history")
+    .insert({
+      worker_id: data.id,
+      role_title: payload.role_title,
+      valid_from: payload.start_date,
+      valid_to: null,
+      change_reason: "Initial worker creation",
+    });
+
+  if (historyError) {
+    throw new Error(historyError.message);
+  }
+
   revalidatePath("/workers");
   revalidatePath("/workers/new");
 
@@ -107,6 +121,17 @@ export async function createWorker(formData: FormData) {
 export async function updateWorker(workerId: string, formData: FormData) {
   const { supabase } = await requireWorkersAccess();
   const payload = normalizeWorkerPayload(formData);
+  const currentDate = new Date().toISOString().slice(0, 10);
+
+  const { data: existingWorker, error: existingWorkerError } = await supabase
+    .from("workers")
+    .select("role_title")
+    .eq("id", workerId)
+    .single();
+
+  if (existingWorkerError || !existingWorker) {
+    throw new Error(existingWorkerError?.message || "Worker not found.");
+  }
 
   const { error } = await supabase
     .from("workers")
@@ -118,6 +143,32 @@ export async function updateWorker(workerId: string, formData: FormData) {
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (existingWorker.role_title !== payload.role_title) {
+    const { error: closeHistoryError } = await supabase
+      .from("worker_role_title_history")
+      .update({ valid_to: currentDate })
+      .eq("worker_id", workerId)
+      .is("valid_to", null);
+
+    if (closeHistoryError) {
+      throw new Error(closeHistoryError.message);
+    }
+
+    const { error: insertHistoryError } = await supabase
+      .from("worker_role_title_history")
+      .insert({
+        worker_id: workerId,
+        role_title: payload.role_title,
+        valid_from: currentDate,
+        valid_to: null,
+        change_reason: "Role title updated",
+      });
+
+    if (insertHistoryError) {
+      throw new Error(insertHistoryError.message);
+    }
   }
 
   revalidatePath("/workers");

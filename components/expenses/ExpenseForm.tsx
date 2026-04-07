@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { createExpenseAction, type ExpenseActionState } from "@/lib/actions/expenses";
+import { createClient } from "@/lib/supabase/client";
 
 type CategoryOption = {
   id: string;
@@ -16,6 +17,12 @@ type VendorOption = {
 type PropertyOption = {
   id: string;
   name: string | null;
+};
+
+type WorkerOption = {
+  id: string;
+  full_name: string | null;
+  role_title: string | null;
 };
 
 type Props = {
@@ -39,6 +46,30 @@ function SubmitButton() {
 
 export function ExpenseForm({ categories, vendors, properties }: Props) {
   const [state, formAction] = useActionState(createExpenseAction, initialState);
+  const [workers, setWorkers] = useState<WorkerOption[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWorkers() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("workers")
+        .select("id, full_name, role_title")
+        .eq("status", "active")
+        .order("full_name", { ascending: true });
+
+      if (isMounted) {
+        setWorkers((data ?? []) as WorkerOption[]);
+      }
+    }
+
+    void loadWorkers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -88,6 +119,26 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
+        <div className="space-y-2">
+          <label htmlFor="worker_id" className="block text-sm font-medium">
+            Worker
+          </label>
+          <select
+            id="worker_id"
+            name="worker_id"
+            defaultValue=""
+            className="w-full rounded-md border px-3 py-2"
+          >
+            <option value="">No worker</option>
+            {workers.map((worker) => (
+              <option key={worker.id} value={worker.id}>
+                {worker.full_name || worker.id}
+                {worker.role_title ? ` - ${worker.role_title}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="space-y-2">
           <label htmlFor="expense_category_id" className="block text-sm font-medium">
             Category

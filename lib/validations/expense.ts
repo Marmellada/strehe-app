@@ -32,6 +32,7 @@ export const expenseSchema = z.object({
     .min(1, "Description is required.")
     .max(500, "Description must be 500 characters or fewer."),
   expense_category_id: z.string().uuid("Category is required."),
+  worker_id: z.preprocess(emptyToUndefined, z.string().uuid("Worker is invalid.").optional()),
   vendor_id: z.preprocess(emptyToUndefined, z.string().uuid("Vendor is invalid.").optional()),
   property_id: z.preprocess(emptyToUndefined, z.string().uuid("Property is invalid.").optional()),
   notes: z.preprocess(
