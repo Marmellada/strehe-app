@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { APP_ROLES, type AppRole } from "@/lib/auth/roles";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 type AppUserRow = {
   id: string;
@@ -12,6 +13,87 @@ type AppUserRow = {
   is_active: boolean;
   created_at: string;
 };
+
+function getAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Missing Supabase admin credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+    );
+  }
+
+  return createAdminClient(supabaseUrl, serviceRoleKey);
+}
+
+async function createTestUser(formData: FormData) {
+  "use server";
+
+  await requireRole(["admin"]);
+
+  const supabase = await createClient();
+  const admin = getAdminClient();
+
+  const fullName = String(formData.get("full_name") || "").trim();
+  const email = String(formData.get("email") || "")
+    .trim()
+    .toLowerCase();
+  const password = String(formData.get("password") || "");
+  const role = String(formData.get("role") || "").trim() as AppRole;
+
+  if (!fullName) {
+    throw new Error("Full name is required.");
+  }
+
+  if (!email) {
+    throw new Error("Email is required.");
+  }
+
+  if (password.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
+  if (!APP_ROLES.includes(role)) {
+    throw new Error("Invalid role.");
+  }
+
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: fullName,
+    },
+  });
+
+  if (authError || !authData.user) {
+    throw new Error(authError?.message || "Failed to create auth user.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { error: appUserError } = await supabase.from("app_users").upsert(
+    {
+      id: authData.user.id,
+      email,
+      full_name: fullName,
+      role,
+      is_active: true,
+      updated_at: now,
+    },
+    {
+      onConflict: "id",
+    }
+  );
+
+  if (appUserError) {
+    await admin.auth.admin.deleteUser(authData.user.id);
+    throw new Error(appUserError.message);
+  }
+
+  revalidatePath("/settings/users");
+}
 
 async function updateUserRole(formData: FormData) {
   "use server";
@@ -132,6 +214,70 @@ export default async function SettingsUsersPage() {
       </div>
 
       <section className="card">
+        <div className="mb-6 border-b border-border pb-6">
+          <h2 className="section-title !mb-0">Create Test User</h2>
+          <p className="page-subtitle mt-1">
+            Temporary admin-only user creation for testing. This creates both the
+            auth account and the matching app user record.
+          </p>
+
+          <form
+            action={createTestUser}
+            className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+          >
+            <label className="field">
+              Full Name
+              <input
+                name="full_name"
+                type="text"
+                required
+                className="input"
+                placeholder="Test User"
+              />
+            </label>
+
+            <label className="field">
+              Email
+              <input
+                name="email"
+                type="email"
+                required
+                className="input"
+                placeholder="test.user@example.com"
+              />
+            </label>
+
+            <label className="field">
+              Password
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                className="input"
+                placeholder="Minimum 8 characters"
+              />
+            </label>
+
+            <label className="field">
+              Role
+              <select name="role" required defaultValue="office" className="input">
+                {APP_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="md:col-span-2 xl:col-span-4 flex justify-end">
+              <button type="submit" className="btn btn-primary">
+                Create Test User
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div className="mb-4">
           <h2 className="section-title !mb-0">Users</h2>
           <p className="page-subtitle mt-1">
