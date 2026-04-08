@@ -24,10 +24,17 @@ type TaskRow = {
   priority: string | null;
   due_date: string | null;
   assigned_user_id: string | null;
+  assigned_user_name_snapshot: string | null;
   created_by_user_id: string | null;
+  created_by_user_name_snapshot: string | null;
+  reported_by_user_id: string | null;
+  reported_by_user_name_snapshot: string | null;
   property_id: string | null;
+  property_code_snapshot: string | null;
   subscription_id: string | null;
+  subscription_package_name_snapshot: string | null;
   service_id: string | null;
+  service_name_snapshot: string | null;
   created_at: string | null;
   updated_at: string | null;
   completed_at: string | null;
@@ -45,6 +52,22 @@ type PropertyRow = {
   property_code: string | null;
   title: string | null;
   address_line_1: string | null;
+};
+
+type ServiceRow = {
+  id: string;
+  name: string | null;
+};
+
+type SubscriptionRow = {
+  id: string;
+  package_name_snapshot: string | null;
+  package_id: string | null;
+};
+
+type PackageRow = {
+  id: string;
+  name: string | null;
 };
 
 type TaskReportRow = {
@@ -168,10 +191,17 @@ export default async function TaskDetailPage({ params }: PageProps) {
       priority,
       due_date,
       assigned_user_id,
+      assigned_user_name_snapshot,
       created_by_user_id,
+      created_by_user_name_snapshot,
+      reported_by_user_id,
+      reported_by_user_name_snapshot,
       property_id,
+      property_code_snapshot,
       subscription_id,
+      subscription_package_name_snapshot,
       service_id,
+      service_name_snapshot,
       created_at,
       updated_at,
       completed_at
@@ -225,7 +255,11 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
   const userIdsToLoad = Array.from(
     new Set(
-      [typedTask.assigned_user_id, typedTask.created_by_user_id].filter(
+      [
+        typedTask.assigned_user_id,
+        typedTask.created_by_user_id,
+        typedTask.reported_by_user_id,
+      ].filter(
         (value): value is string => Boolean(value)
       )
     )
@@ -256,6 +290,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
     ? userMap.get(typedTask.created_by_user_id) || null
     : null;
 
+  const reportedByUser = typedTask.reported_by_user_id
+    ? userMap.get(typedTask.reported_by_user_id) || null
+    : null;
+
   let property: PropertyRow | null = null;
 
   if (typedTask.property_id) {
@@ -271,6 +309,84 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
     property = (propertyData as PropertyRow | null) || null;
   }
+
+  let service: ServiceRow | null = null;
+
+  if (typedTask.service_id) {
+    const { data: serviceData, error: serviceError } = await supabase
+      .from("services")
+      .select("id, name")
+      .eq("id", typedTask.service_id)
+      .single();
+
+    if (serviceError && serviceError.code !== "PGRST116") {
+      throw new Error(`Failed to load service: ${serviceError.message}`);
+    }
+
+    service = (serviceData as ServiceRow | null) || null;
+  }
+
+  let subscription: SubscriptionRow | null = null;
+  let subscriptionPackage: PackageRow | null = null;
+
+  if (typedTask.subscription_id) {
+    const { data: subscriptionData, error: subscriptionError } = await supabase
+      .from("subscriptions")
+      .select("id, package_name_snapshot, package_id")
+      .eq("id", typedTask.subscription_id)
+      .single();
+
+    if (subscriptionError && subscriptionError.code !== "PGRST116") {
+      throw new Error(`Failed to load subscription: ${subscriptionError.message}`);
+    }
+
+    subscription = (subscriptionData as SubscriptionRow | null) || null;
+
+    if (subscription?.package_id) {
+      const { data: packageData, error: packageError } = await supabase
+        .from("packages")
+        .select("id, name")
+        .eq("id", subscription.package_id)
+        .single();
+
+      if (packageError && packageError.code !== "PGRST116") {
+        throw new Error(`Failed to load package: ${packageError.message}`);
+      }
+
+      subscriptionPackage = (packageData as PackageRow | null) || null;
+    }
+  }
+
+  const assignedUserLabel =
+    typedTask.assigned_user_name_snapshot ||
+    (assignedUser ? getPersonLabel(assignedUser) : null) ||
+    "Unassigned";
+  const createdByUserLabel =
+    typedTask.created_by_user_name_snapshot ||
+    (createdByUser ? getPersonLabel(createdByUser) : null) ||
+    "Not recorded";
+  const reportedByUserLabel =
+    typedTask.reported_by_user_name_snapshot ||
+    (reportedByUser ? getPersonLabel(reportedByUser) : null) ||
+    "-";
+  const propertyLabel = typedTask.property_code_snapshot
+    ? typedTask.property_code_snapshot
+    : property
+    ? [
+        property.property_code,
+        property.title,
+        property.address_line_1,
+      ]
+        .filter(Boolean)
+        .join(" - ")
+    : "-";
+  const serviceLabel =
+    typedTask.service_name_snapshot || service?.name || typedTask.service_id || "-";
+  const subscriptionPackageLabel =
+    typedTask.subscription_package_name_snapshot ||
+    subscription?.package_name_snapshot ||
+    subscriptionPackage?.name ||
+    "-";
 
   const { data: reports, error: reportsError } = await supabase
     .from("task_reports")
@@ -466,17 +582,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
                 <div>
                   <dt className="text-xs uppercase text-gray-500">Property</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
-                    {property
-                      ? [
-                          property.property_code,
-                          property.title,
-                          property.address_line_1,
-                        ]
-                          .filter(Boolean)
-                          .join(" — ")
-                      : "—"}
-                  </dd>
+                  <dd className="mt-1 text-sm text-gray-900">{propertyLabel}</dd>
                 </div>
 
                 <div>
@@ -666,10 +772,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     Assigned To
                   </dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    {assignedUser ? (
+                    {assignedUserLabel !== "Unassigned" ? (
                       <div>
-                        <div>{getPersonLabel(assignedUser)}</div>
-                        {getRoleLabel(assignedUser) ? (
+                        <div>{assignedUserLabel}</div>
+                        {assignedUser && getRoleLabel(assignedUser) ? (
                           <div className="text-xs text-gray-500 mt-0.5">
                             {getRoleLabel(assignedUser)}
                           </div>
@@ -686,10 +792,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     Created By
                   </dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    {createdByUser ? (
+                    {createdByUserLabel !== "Not recorded" ? (
                       <div>
-                        <div>{getPersonLabel(createdByUser)}</div>
-                        {getRoleLabel(createdByUser) ? (
+                        <div>{createdByUserLabel}</div>
+                        {createdByUser && getRoleLabel(createdByUser) ? (
                           <div className="text-xs text-gray-500 mt-0.5">
                             {getRoleLabel(createdByUser)}
                           </div>
@@ -698,6 +804,15 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     ) : (
                       <span className="text-gray-500 italic">Not recorded</span>
                     )}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Reported By
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {reportedByUserLabel}
                   </dd>
                 </div>
               </dl>
@@ -771,10 +886,19 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
                 <div>
                   <dt className="text-xs uppercase text-gray-500">
-                    Service ID
+                    Service
                   </dt>
                   <dd className="mt-1 text-sm text-gray-900 break-all">
-                    {typedTask.service_id || "—"}
+                    {serviceLabel}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-gray-500">
+                    Subscription Package
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900 break-all">
+                    {subscriptionPackageLabel}
                   </dd>
                 </div>
               </dl>
@@ -814,3 +938,6 @@ export default async function TaskDetailPage({ params }: PageProps) {
     </div>
   );
 }
+
+
+

@@ -30,6 +30,11 @@ export default async function ExpenseDetailPage({ params }: Props) {
       description,
       notes,
       created_at,
+      worker_id,
+      worker_name_snapshot,
+      vendor_name_snapshot,
+      category_name_snapshot,
+      property_code_snapshot,
       vendors (
         id,
         name,
@@ -42,6 +47,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
       ),
       properties (
         id,
+        property_code,
         title
       )
     `)
@@ -58,6 +64,26 @@ export default async function ExpenseDetailPage({ params }: Props) {
 
   const vendor = Array.isArray(expense.vendors) ? expense.vendors[0] : expense.vendors;
   const property = Array.isArray(expense.properties) ? expense.properties[0] : expense.properties;
+
+  let worker: { id: string; full_name: string | null } | null = null;
+
+  if (expense.worker_id) {
+    const { data: workerData, error: workerError } = await supabase
+      .from("workers")
+      .select("id, full_name")
+      .eq("id", expense.worker_id)
+      .single();
+
+    if (!workerError && workerData) {
+      worker = workerData;
+    }
+  }
+
+  const categoryLabel = expense.category_name_snapshot || category?.name || "—";
+  const vendorLabel = expense.vendor_name_snapshot || vendor?.name || "—";
+  const propertyLabel =
+    expense.property_code_snapshot || property?.property_code || property?.title || "—";
+  const workerLabel = expense.worker_name_snapshot || worker?.full_name || "—";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -98,7 +124,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
             <div>
               <div className="text-sm text-muted-foreground">Category</div>
               <div className="mt-1 flex items-center gap-2">
-                <span className="font-medium">{category?.name ?? "—"}</span>
+                <span className="font-medium">{categoryLabel}</span>
                 {category ? <ExpenseCategoryStatusBadge isActive={category.is_active} /> : null}
               </div>
             </div>
@@ -108,14 +134,19 @@ export default async function ExpenseDetailPage({ params }: Props) {
             <div>
               <div className="text-sm text-muted-foreground">Vendor</div>
               <div className="font-medium">
-                {vendor?.name ?? "—"}
-                {vendor && !vendor.is_active ? " (inactive)" : ""}
+                {vendorLabel}
+                {!expense.vendor_name_snapshot && vendor && !vendor.is_active ? " (inactive)" : ""}
               </div>
             </div>
 
             <div>
               <div className="text-sm text-muted-foreground">Property</div>
-              <div className="font-medium">{property?.title ?? "—"}</div>
+              <div className="font-medium">{propertyLabel}</div>
+            </div>
+
+            <div>
+              <div className="text-sm text-muted-foreground">Worker</div>
+              <div className="font-medium">{workerLabel}</div>
             </div>
 
             <div>
@@ -133,4 +164,3 @@ export default async function ExpenseDetailPage({ params }: Props) {
     </div>
   );
 }
-

@@ -18,7 +18,9 @@ type TaskRow = {
   priority: string | null;
   due_date: string | null;
   assigned_user_id: string | null;
+  assigned_user_name_snapshot: string | null;
   property_id: string | null;
+  property_code_snapshot: string | null;
   subscription_id: string | null;
   created_at: string | null;
 };
@@ -158,7 +160,7 @@ export default async function TasksPage({
   let query = supabase
     .from("tasks")
     .select(
-      "id, title, status, priority, due_date, assigned_user_id, property_id, subscription_id, created_at",
+      "id, title, status, priority, due_date, assigned_user_id, assigned_user_name_snapshot, property_id, property_code_snapshot, subscription_id, created_at",
       { count: "exact" }
     )
     .order("created_at", { ascending: false });
@@ -833,10 +835,14 @@ export default async function TasksPage({
                     task.status !== "completed";
 
                   const assignedTo = task.assigned_user_id
-                    ? assigneeMap.get(task.assigned_user_id) || "Unknown User"
+                    ? task.assigned_user_name_snapshot ||
+                      assigneeMap.get(task.assigned_user_id) ||
+                      "Unknown User"
                     : "Unassigned";
 
-                  const propertyLabel = task.property_id
+                  const propertyLabel = task.property_code_snapshot
+                    ? task.property_code_snapshot
+                    : task.property_id
                     ? propertyMap.get(task.property_id) || "Unknown Property"
                     : "-";
 

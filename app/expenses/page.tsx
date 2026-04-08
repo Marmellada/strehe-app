@@ -22,6 +22,10 @@ export default async function ExpensesPage() {
       expense_date,
       amount_cents,
       description,
+      category_name_snapshot,
+      vendor_name_snapshot,
+      property_code_snapshot,
+      worker_name_snapshot,
       vendors (
         id,
         name,
@@ -34,6 +38,7 @@ export default async function ExpensesPage() {
       ),
       properties (
         id,
+        property_code,
         title
       )
     `)
@@ -83,6 +88,11 @@ export default async function ExpensesPage() {
               const vendor = Array.isArray(expense.vendors) ? expense.vendors[0] : expense.vendors;
               const property = Array.isArray(expense.properties) ? expense.properties[0] : expense.properties;
 
+              const categoryLabel = expense.category_name_snapshot || category?.name || "—";
+              const vendorLabel = expense.vendor_name_snapshot || vendor?.name || "—";
+              const propertyLabel =
+                expense.property_code_snapshot || property?.property_code || property?.title || "—";
+
               return (
                 <tr key={expense.id} className="border-t">
                   <td className="px-4 py-3">{expense.expense_date}</td>
@@ -92,20 +102,20 @@ export default async function ExpensesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    {category ? (
+                    {categoryLabel !== "—" ? (
                       <div className="flex items-center gap-2">
-                        <span>{category.name}</span>
-                        <ExpenseCategoryStatusBadge isActive={category.is_active} />
+                        <span>{categoryLabel}</span>
+                        {category ? <ExpenseCategoryStatusBadge isActive={category.is_active} /> : null}
                       </div>
                     ) : (
                       "—"
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {vendor?.name ?? "—"}
-                    {vendor && !vendor.is_active ? " (inactive)" : ""}
+                    {vendorLabel}
+                    {!expense.vendor_name_snapshot && vendor && !vendor.is_active ? " (inactive)" : ""}
                   </td>
-                  <td className="px-4 py-3">{property?.title ?? "—"}</td>
+                  <td className="px-4 py-3">{propertyLabel}</td>
                   <td className="px-4 py-3 text-right font-medium">
                     {formatCurrencyFromCents(expense.amount_cents)}
                   </td>

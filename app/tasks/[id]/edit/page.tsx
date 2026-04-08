@@ -76,18 +76,60 @@ async function updateTask(formData: FormData) {
     title,
     description: description || null,
     assigned_user_id: assigned_user_id || null,
+    assigned_user_name_snapshot: null,
     priority,
     status,
     due_date: due_date || null,
+    property_code_snapshot: null,
   };
+
+  if (assigned_user_id) {
+    const { data: assignedUser, error: assignedUserError } = await supabase
+      .from("app_users")
+      .select("id, full_name, email")
+      .eq("id", assigned_user_id)
+      .single();
+
+    if (assignedUserError || !assignedUser) {
+      throw new Error("Selected assignee was not found.");
+    }
+
+    updates.assigned_user_name_snapshot =
+      assignedUser.full_name?.trim() || assignedUser.email || assignedUser.id;
+  }
 
   if (isAutoTask) {
     updates.property_id = existingTask.property_id;
+    if (existingTask.property_id) {
+      const { data: lockedProperty, error: lockedPropertyError } = await supabase
+        .from("properties")
+        .select("id, property_code")
+        .eq("id", existingTask.property_id)
+        .single();
+
+      if (lockedPropertyError || !lockedProperty) {
+        throw new Error("Task property was not found.");
+      }
+
+      updates.property_code_snapshot = lockedProperty.property_code || null;
+    }
   } else {
     if (!property_id) {
       throw new Error("Property is required.");
     }
+
+    const { data: property, error: propertyError } = await supabase
+      .from("properties")
+      .select("id, property_code")
+      .eq("id", property_id)
+      .single();
+
+    if (propertyError || !property) {
+      throw new Error("Selected property was not found.");
+    }
+
     updates.property_id = property_id;
+    updates.property_code_snapshot = property.property_code || null;
   }
 
   if (status === "completed") {

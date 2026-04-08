@@ -169,6 +169,7 @@ export async function unassignTask(formData: FormData) {
     .from("tasks")
     .update({
       assigned_user_id: null,
+      assigned_user_name_snapshot: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", taskId);
@@ -212,6 +213,8 @@ export async function assignTaskToMe(formData: FormData) {
     .from("tasks")
     .update({
       assigned_user_id: authUser.id,
+      assigned_user_name_snapshot:
+        appUser.full_name?.trim() || appUser.email || authUser.id,
       updated_at: new Date().toISOString(),
     })
     .eq("id", taskId);

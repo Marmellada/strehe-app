@@ -37,6 +37,8 @@ type SubscriptionRow = {
   start_date: string;
   end_date: string | null;
   status: string | null;
+  package_name_snapshot?: string | null;
+  property_code_snapshot?: string | null;
 };
 
 function getSingleRelation<T>(value: T | T[] | null): T | null {
@@ -236,7 +238,9 @@ export async function generateTasks(referenceDate = new Date()) {
       package_id,
       start_date,
       end_date,
-      status
+      status,
+      package_name_snapshot,
+      property_code_snapshot
     `
     );
 
@@ -248,6 +252,43 @@ export async function generateTasks(referenceDate = new Date()) {
     (subscription) =>
       isSubscriptionActiveOnDate(subscription, windowStart) ||
       isSubscriptionActiveOnDate(subscription, windowEnd)
+  );
+
+  const propertyIds = Array.from(
+    new Set(eligibleSubscriptions.map((subscription) => subscription.property_id))
+  );
+  const packageIds = Array.from(
+    new Set(eligibleSubscriptions.map((subscription) => subscription.package_id))
+  );
+
+  const [propertiesResult, packagesResult] = await Promise.all([
+    propertyIds.length > 0
+      ? supabase
+          .from("properties")
+          .select("id, property_code")
+          .in("id", propertyIds)
+      : Promise.resolve({ data: [], error: null }),
+    packageIds.length > 0
+      ? supabase
+          .from("packages")
+          .select("id, name")
+          .in("id", packageIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (propertiesResult.error) {
+    throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
+  }
+
+  if (packagesResult.error) {
+    throw new Error(`Failed to load packages: ${packagesResult.error.message}`);
+  }
+
+  const propertyCodeById = new Map(
+    (propertiesResult.data || []).map((property) => [property.id, property.property_code || null])
+  );
+  const packageNameById = new Map(
+    (packagesResult.data || []).map((pkg) => [pkg.id, pkg.name || null])
   );
 
   let createdCount = 0;
@@ -355,6 +396,15 @@ export async function generateTasks(referenceDate = new Date()) {
           due_date: dueDate,
           service_id: service.id,
           subscription_id: subscription.id,
+          service_name_snapshot: service.name?.trim() || null,
+          subscription_package_name_snapshot:
+            subscription.package_name_snapshot ||
+            packageNameById.get(subscription.package_id) ||
+            null,
+          property_code_snapshot:
+            subscription.property_code_snapshot ||
+            propertyCodeById.get(subscription.property_id) ||
+            null,
         });
 
         if (insertError) {

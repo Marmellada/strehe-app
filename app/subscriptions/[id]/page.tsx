@@ -92,6 +92,9 @@ type SubscriptionRow = {
   client_id: string;
   property_id: string;
   package_id: string;
+  client_name_snapshot: string | null;
+  property_code_snapshot: string | null;
+  package_name_snapshot: string | null;
   start_date: string | null;
   end_date: string | null;
   status: string | null;
@@ -190,6 +193,9 @@ export default async function SubscriptionDetailPage({
       client_id,
       property_id,
       package_id,
+      client_name_snapshot,
+      property_code_snapshot,
+      package_name_snapshot,
       start_date,
       end_date,
       status,
@@ -256,10 +262,20 @@ export default async function SubscriptionDetailPage({
 
   const serviceRows = (includedServices || []) as PackageServiceRow[];
 
-  const clientName = client?.company_name || client?.full_name || "-";
-  const propertyLabel = property?.property_code
+  const clientName =
+    subscription.client_name_snapshot ||
+    client?.company_name ||
+    client?.full_name ||
+    "-";
+  const propertyLabel = subscription.property_code_snapshot
+    ? subscription.property_code_snapshot
+    : property?.property_code
     ? `${property.property_code} - ${property.title || ""}`
     : property?.title || "-";
+  const packageName =
+    subscription.package_name_snapshot ||
+    pkg?.name ||
+    "-";
 
   return (
     <div className="space-y-6">
@@ -348,7 +364,7 @@ export default async function SubscriptionDetailPage({
       >
         <DetailField label="Client" value={clientName} />
         <DetailField label="Property" value={propertyLabel} />
-        <DetailField label="Package" value={pkg?.name || "-"} />
+        <DetailField label="Package" value={packageName} />
         <DetailField label="Status" value={formatLabel(subscription.status)} />
         <DetailField
           label="Monthly Price"
@@ -374,7 +390,7 @@ export default async function SubscriptionDetailPage({
       >
         <DetailField
           label="Property Code"
-          value={property?.property_code || "-"}
+          value={subscription.property_code_snapshot || property?.property_code || "-"}
         />
         <DetailField label="Title" value={property?.title || "-"} />
         <DetailField
@@ -388,7 +404,7 @@ export default async function SubscriptionDetailPage({
         title="Package Details"
         contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
       >
-        <DetailField label="Package Name" value={pkg?.name || "-"} />
+        <DetailField label="Package Name" value={packageName} />
         <DetailField
           label="Package Price"
           value={formatPrice(pkg?.monthly_price)}
