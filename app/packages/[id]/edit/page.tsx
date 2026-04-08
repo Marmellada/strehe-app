@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ type EditPackagePageProps = {
 async function updatePackage(formData: FormData) {
   "use server";
 
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const id = String(formData.get("id") || "").trim();
@@ -57,6 +59,8 @@ async function updatePackage(formData: FormData) {
 export default async function EditPackagePage({
   params,
 }: EditPackagePageProps) {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
   const { id } = await params;
 

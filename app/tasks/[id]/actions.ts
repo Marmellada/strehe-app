@@ -236,15 +236,22 @@ export async function deleteTask(formData: FormData) {
   const { supabase, task } = await loadTaskForAction(taskId);
 
   if (task.subscription_id) {
-    throw new Error("Auto-generated subscription tasks cannot be deleted manually.");
+    throw new Error("Auto-generated subscription tasks cannot be cancelled manually.");
   }
 
-  const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
 
   if (error) {
-    throw new Error(`Failed to delete task: ${error.message}`);
+    throw new Error(`Failed to cancel task: ${error.message}`);
   }
 
   revalidatePath("/tasks");
-  redirect("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  redirect(`/tasks/${taskId}`);
 }

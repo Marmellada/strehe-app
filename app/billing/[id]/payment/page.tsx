@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -21,6 +22,8 @@ export default async function PaymentPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
   const { id } = await params;
   const supabase = await createClient();
 

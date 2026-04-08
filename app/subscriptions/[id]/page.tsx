@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { DetailField } from "@/components/ui/DetailField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import { requireRole } from "@/lib/auth/require-role";
+import CancelContractButton from "./CancelContractButton";
 
 type SubscriptionPageProps = {
   params: Promise<{ id: string }>;
@@ -163,6 +165,7 @@ function getBadgeVariant(status: string | null | undefined) {
 async function deleteSubscription(formData: FormData) {
   "use server";
 
+  await requireRole(["admin"]);
   const supabase = await createClient();
   const id = String(formData.get("id") || "").trim();
 
@@ -170,7 +173,13 @@ async function deleteSubscription(formData: FormData) {
     throw new Error("Missing contract id.");
   }
 
-  const { error } = await supabase.from("subscriptions").delete().eq("id", id);
+  const { error } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);
@@ -182,6 +191,8 @@ async function deleteSubscription(formData: FormData) {
 export default async function SubscriptionDetailPage({
   params,
 }: SubscriptionPageProps) {
+  await requireRole(["admin"]);
+
   const supabase = await createClient();
   const { id } = await params;
 
@@ -316,9 +327,7 @@ export default async function SubscriptionDetailPage({
 
             <form action={deleteSubscription}>
               <input type="hidden" name="id" value={subscription.id} />
-              <Button type="submit" variant="destructive">
-                Delete Contract
-              </Button>
+              <CancelContractButton />
             </form>
           </>
         }

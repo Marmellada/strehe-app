@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
 import { deleteTask } from "./actions";
 import {
@@ -141,30 +144,30 @@ function getRoleLabel(user: AppUserRow | null) {
 function getStatusClasses(status: string | null) {
   switch (status) {
     case "open":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return "info" as const;
     case "in_progress":
-      return "bg-amber-50 text-amber-700 border border-amber-200";
+      return "warning" as const;
     case "blocked":
-      return "bg-red-50 text-red-700 border border-red-200";
+      return "danger" as const;
     case "completed":
-      return "bg-green-50 text-green-700 border border-green-200";
+      return "success" as const;
     default:
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "neutral" as const;
   }
 }
 
 function getPriorityClasses(priority: string | null) {
   switch (priority) {
     case "urgent":
-      return "bg-red-50 text-red-700 border border-red-200";
+      return "danger" as const;
     case "high":
-      return "bg-orange-50 text-orange-700 border border-orange-200";
+      return "warning" as const;
     case "medium":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return "info" as const;
     case "low":
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "neutral" as const;
     default:
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "neutral" as const;
   }
 }
 
@@ -467,61 +470,45 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="page-title">{typedTask.title || "Untitled Task"}</h1>
-          <p className="page-subtitle">
-            Task ID: <span className="font-medium">{typedTask.id}</span>
-          </p>
-          <p className="page-subtitle mt-1">
-            Signed in as: <strong>{appUser.role}</strong>
-          </p>
-        </div>
+      <PageHeader
+        title={typedTask.title || "Untitled Task"}
+        description={`Task ID: ${typedTask.id}`}
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href="/tasks">Back to Tasks</Link>
+            </Button>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/tasks" className="btn btn-secondary">
-            Back to Tasks
-          </Link>
-
-          {canShowEditButton ? (
-            <Link href={`/tasks/${typedTask.id}/edit`} className="btn">
-              Edit Task
-            </Link>
-          ) : null}
-        </div>
-      </div>
+            {canShowEditButton ? (
+              <Button asChild>
+                <Link href={`/tasks/${typedTask.id}/edit`}>Edit Task</Link>
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       {isAutoTask ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          This is an auto-generated subscription task. It can be worked on and reassigned, but it cannot be deleted manually.
+          This is an auto-generated subscription task. It can be worked on and reassigned, but it cannot be cancelled manually.
         </div>
       ) : null}
 
       <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(
-            typedTask.status
-          )}`}
-        >
+        <Badge variant={getStatusClasses(typedTask.status)}>
           {formatLabel(typedTask.status)}
-        </span>
+        </Badge>
 
-        <span
-          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getPriorityClasses(
-            typedTask.priority
-          )}`}
-        >
+        <Badge variant={getPriorityClasses(typedTask.priority)}>
           {formatLabel(typedTask.priority)} Priority
-        </span>
+        </Badge>
 
-        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+        <Badge variant="neutral">
           {isAutoTask ? "Subscription Task" : "Manual Task"}
-        </span>
+        </Badge>
 
         {isMyTask ? (
-          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-            My Task
-          </span>
+          <Badge variant="info">My Task</Badge>
         ) : null}
       </div>
 
@@ -529,16 +516,16 @@ export default async function TaskDetailPage({ params }: PageProps) {
         <div className="xl:col-span-2 space-y-6">
           <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 Description
               </h2>
 
               {typedTask.description ? (
-                <p className="whitespace-pre-wrap text-sm leading-6 text-gray-900">
+                <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
                   {typedTask.description}
                 </p>
               ) : (
-                <p className="text-sm text-gray-500 italic">
+                <p className="text-sm text-muted-foreground italic">
                   No description provided.
                 </p>
               )}
@@ -547,49 +534,49 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
           <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 Task Summary
               </h2>
 
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Source</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Source</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {isAutoTask ? "Subscription" : "Manual"}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Status</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Status</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatLabel(typedTask.status)}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Priority</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Priority</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatLabel(typedTask.priority)}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Due Date</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Due Date</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatDate(typedTask.due_date)}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Property</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{propertyLabel}</dd>
+                  <dt className="text-xs uppercase text-muted-foreground">Property</dt>
+                  <dd className="mt-1 text-sm text-foreground">{propertyLabel}</dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Subscription Link
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-foreground">
                     {typedTask.subscription_id || "—"}
                   </dd>
                 </div>
@@ -599,7 +586,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
           <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 Quick Actions
               </h2>
 
@@ -627,7 +614,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     <input type="hidden" name="taskId" value={typedTask.id} />
                     <button
                       type="submit"
-                      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                      className="inline-flex items-center rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
                     >
                       Reopen Task
                     </button>
@@ -639,7 +626,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     <input type="hidden" name="taskId" value={typedTask.id} />
                     <button
                       type="submit"
-                      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                      className="inline-flex items-center rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
                     >
                       Assign to Me
                     </button>
@@ -651,7 +638,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     <input type="hidden" name="taskId" value={typedTask.id} />
                     <button
                       type="submit"
-                      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                      className="inline-flex items-center rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
                     >
                       Unassign
                     </button>
@@ -659,7 +646,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                 ) : null}
 
                 {isCompleted ? (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-muted-foreground">
                     This task is completed. Reopen it to continue work.
                   </div>
                 ) : null}
@@ -670,7 +657,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
           <div className="card">
             <div className="p-6">
               <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   Reports & Photos
                 </h2>
 
@@ -682,7 +669,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
               </div>
 
               {typedReports.length === 0 ? (
-                <p className="text-sm text-gray-500">No reports yet.</p>
+                <p className="text-sm text-muted-foreground">No reports yet.</p>
               ) : (
                 <div className="space-y-6">
                   {typedReports.map((report) => {
@@ -695,26 +682,26 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     return (
                       <div
                         key={report.id}
-                        className="border border-gray-200 rounded-lg p-4 space-y-4"
+                        className="border rounded-lg p-4 space-y-4"
                       >
                         <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-card text-foreground border">
                               {formatLabel(report.report_type)}
                             </span>
 
                             {report.status_at_submission ? (
-                              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-card text-foreground border">
                                 Status: {formatLabel(report.status_at_submission)}
                               </span>
                             ) : null}
 
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               {formatDateTime(report.created_at)}
                             </span>
                           </div>
 
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             {reportAuthor
                               ? getPersonLabel(reportAuthor)
                               : "Unknown User"}
@@ -722,11 +709,11 @@ export default async function TaskDetailPage({ params }: PageProps) {
                         </div>
 
                         {report.notes ? (
-                          <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                          <p className="text-sm text-foreground whitespace-pre-wrap">
                             {report.notes}
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-500 italic">
+                          <p className="text-sm text-muted-foreground italic">
                             No notes provided.
                           </p>
                         )}
@@ -744,7 +731,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                                 <img
                                   src={image.signed_url}
                                   alt={image.file_name || "Task photo"}
-                                  className="w-full h-32 object-cover rounded border border-gray-200"
+                                  className="w-full h-32 object-cover rounded border"
                                 />
                               </a>
                             ))}
@@ -762,56 +749,56 @@ export default async function TaskDetailPage({ params }: PageProps) {
         <div className="space-y-6">
           <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 People
               </h2>
 
               <dl className="space-y-4">
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Assigned To
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-foreground">
                     {assignedUserLabel !== "Unassigned" ? (
                       <div>
                         <div>{assignedUserLabel}</div>
                         {assignedUser && getRoleLabel(assignedUser) ? (
-                          <div className="text-xs text-gray-500 mt-0.5">
+                          <div className="text-xs text-muted-foreground mt-0.5">
                             {getRoleLabel(assignedUser)}
                           </div>
                         ) : null}
                       </div>
                     ) : (
-                      <span className="text-gray-500 italic">Unassigned</span>
+                      <span className="text-muted-foreground italic">Unassigned</span>
                     )}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Created By
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-foreground">
                     {createdByUserLabel !== "Not recorded" ? (
                       <div>
                         <div>{createdByUserLabel}</div>
                         {createdByUser && getRoleLabel(createdByUser) ? (
-                          <div className="text-xs text-gray-500 mt-0.5">
+                          <div className="text-xs text-muted-foreground mt-0.5">
                             {getRoleLabel(createdByUser)}
                           </div>
                         ) : null}
                       </div>
                     ) : (
-                      <span className="text-gray-500 italic">Not recorded</span>
+                      <span className="text-muted-foreground italic">Not recorded</span>
                     )}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Reported By
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-foreground">
                     {reportedByUserLabel}
                   </dd>
                 </div>
@@ -821,39 +808,39 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
           <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 Timeline
               </h2>
 
               <dl className="space-y-4">
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Created</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Created</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatDateTime(typedTask.created_at)}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Last Updated
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatDateTime(typedTask.updated_at)}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Due Date</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Due Date</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatDate(typedTask.due_date)}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Completed
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-foreground">
                     {formatDateTime(typedTask.completed_at)}
                   </dd>
                 </div>
@@ -863,41 +850,41 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
           <div className="card">
             <div className="p-6">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                 Source Info
               </h2>
 
               <dl className="space-y-4">
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">Task Type</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dt className="text-xs uppercase text-muted-foreground">Task Type</dt>
+                  <dd className="mt-1 text-sm text-foreground">
                     {isAutoTask ? "Auto-generated from subscription" : "Manual task"}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Subscription ID
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 break-all">
+                  <dd className="mt-1 text-sm text-foreground break-all">
                     {typedTask.subscription_id || "—"}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Service
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 break-all">
+                  <dd className="mt-1 text-sm text-foreground break-all">
                     {serviceLabel}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase text-gray-500">
+                  <dt className="text-xs uppercase text-muted-foreground">
                     Subscription Package
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 break-all">
+                  <dd className="mt-1 text-sm text-foreground break-all">
                     {subscriptionPackageLabel}
                   </dd>
                 </div>
@@ -906,16 +893,16 @@ export default async function TaskDetailPage({ params }: PageProps) {
           </div>
 
           {canManageTask ? (
-            <div className="card border border-red-200">
+            <div className="card border border-destructive/30">
               <div className="p-6">
-                <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wider mb-2">
-                  Danger Zone
+                <h2 className="text-sm font-semibold text-destructive uppercase tracking-wider mb-2">
+                  Task Lifecycle
                 </h2>
 
                 {canDeleteTask ? (
                   <>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Permanently delete this task. This action cannot be undone.
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Cancel this manual task. The task record will be preserved.
                     </p>
 
                     <DeleteTaskButton
@@ -925,8 +912,8 @@ export default async function TaskDetailPage({ params }: PageProps) {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-gray-600">
-                      Auto-generated subscription tasks cannot be deleted manually.
+                    <p className="text-sm text-muted-foreground">
+                      Auto-generated subscription tasks cannot be cancelled manually.
                     </p>
                   </>
                 )}

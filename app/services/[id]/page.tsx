@@ -9,16 +9,25 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { DetailField } from "@/components/ui/DetailField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import { requireRole } from "@/lib/auth/require-role";
+import DeactivateServiceButton from "./DeactivateServiceButton";
 
 async function deleteService(formData: FormData) {
   "use server";
 
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
   const id = String(formData.get("id") || "").trim();
 
   if (!id) throw new Error("Missing service id.");
 
-  const { error } = await supabase.from("services").delete().eq("id", id);
+  const { error } = await supabase
+    .from("services")
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 
   redirect("/services");
@@ -46,6 +55,8 @@ type Props = {
 };
 
 export default async function Page({ params }: Props) {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
   const { id } = await params;
 
@@ -77,9 +88,7 @@ export default async function Page({ params }: Props) {
 
             <form action={deleteService}>
               <input type="hidden" name="id" value={service.id} />
-              <Button type="submit" variant="destructive">
-                Delete
-              </Button>
+              <DeactivateServiceButton />
             </form>
           </>
         }

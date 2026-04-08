@@ -87,6 +87,9 @@ type PackageServiceRow = {
 
 type SubscriptionRow = {
   id: string;
+  client_name_snapshot: string | null;
+  property_code_snapshot: string | null;
+  package_name_snapshot: string | null;
   start_date: string | null;
   end_date: string | null;
   status: string | null;
@@ -344,6 +347,9 @@ export async function GET(
       .select(
         `
         id,
+        client_name_snapshot,
+        property_code_snapshot,
+        package_name_snapshot,
         start_date,
         end_date,
         status,
@@ -441,10 +447,19 @@ export async function GET(
     "-"
   );
 
-  const clientName = client?.company_name || client?.full_name || "-";
-  const propertyName = property?.property_code
+  const clientName =
+    subscription.client_name_snapshot ||
+    client?.company_name ||
+    client?.full_name ||
+    "-";
+  const propertyName = subscription.property_code_snapshot
+    ? property?.title
+      ? `${subscription.property_code_snapshot} - ${property.title}`.trim()
+      : subscription.property_code_snapshot
+    : property?.property_code
     ? `${property.property_code} - ${property.title || ""}`.trim()
     : property?.title || "-";
+  const packageName = subscription.package_name_snapshot || pkg?.name || "-";
 
   const contractTitle = "PROPERTY MANAGEMENT CONTRACT";
   const statusText = formatLabel(subscription.status);
@@ -949,7 +964,7 @@ export async function GET(
     items: [
       { label: "Property", value: propertyName },
       { label: "Address", value: property?.address_line_1 || "-" },
-      { label: "Package", value: pkg?.name || "-" },
+      { label: "Package", value: packageName },
     ],
   });
 

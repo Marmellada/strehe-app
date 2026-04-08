@@ -1,79 +1,87 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { companySettingsSchema } from '@/lib/validations/settings';
+import { requireRole } from '@/lib/auth/require-role';
 import { revalidatePath } from 'next/cache';
+
+function getString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getNullableString(formData: FormData, key: string) {
+  const value = getString(formData, key);
+  return value || null;
+}
 
 export async function createOrUpdateCompany(formData: FormData, userId: string) {
   try {
+    void userId;
+    await requireRole(['admin']);
     const supabase = await createClient();
 
-    // Parse and validate form data
-    const validatedData = companySettingsSchema.parse({
-      name: formData.get('name'),
-      email: formData.get('email'),
-      phone: formData.get('phone'),
-      website: formData.get('website'),
-      fax: formData.get('fax'),
-      address: formData.get('address'),
-      city: formData.get('city'),
-      postal_code: formData.get('postal_code'),
-      country: formData.get('country'),
-      registration_number: formData.get('registration_number'),
-      vat_number: formData.get('vat_number'),
-      tax_id: formData.get('tax_id'),
-    });
+    const company_name = getString(formData, 'company_name');
+    const vatRateRaw = getString(formData, 'vat_rate');
+    const vat_rate = vatRateRaw ? Number(vatRateRaw) : null;
 
-    // Get user's profile to check for existing company
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .single();
+    if (!company_name) {
+      return { error: 'Company name is required.' };
+    }
 
-    let companyId = profile?.company_id;
+    if (vatRateRaw && Number.isNaN(vat_rate)) {
+      return { error: 'VAT rate must be a valid number.' };
+    }
 
-    if (companyId) {
-      // Update existing company
+    const payload = {
+      company_name,
+      email: getNullableString(formData, 'email'),
+      phone: getNullableString(formData, 'phone'),
+      address: getNullableString(formData, 'address'),
+      city: getNullableString(formData, 'city'),
+      country: getNullableString(formData, 'country') || 'Kosovo',
+      currency: getNullableString(formData, 'currency') || 'EUR',
+      vat_enabled: formData.get('vat_enabled') === 'on',
+      vat_number: getNullableString(formData, 'vat_number'),
+      vat_rate,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existing, error: existingError } = await supabase
+      .from('company_settings')
+      .select('id')
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    let settingsId = existing?.id ?? null;
+
+    if (settingsId) {
       const { error: updateError } = await supabase
-        .from('companies')
-        .update({
-          ...validatedData,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', companyId);
+        .from('company_settings')
+        .update(payload)
+        .eq('id', settingsId);
 
       if (updateError) throw updateError;
     } else {
-      // Create new company
-      const { data: newCompany, error: insertError } = await supabase
-        .from('companies')
-        .insert({
-          ...validatedData,
-          created_at: new Date().toISOString(),
-        })
-        .select()
+      const { data: inserted, error: insertError } = await supabase
+        .from('company_settings')
+        .insert(payload)
+        .select('id')
         .single();
 
       if (insertError) throw insertError;
-      if (!newCompany) throw new Error('Failed to create company');
+      if (!inserted) throw new Error('Failed to create company settings');
 
-      companyId = newCompany.id;
-
-      // Link company to user profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ company_id: companyId })
-        .eq('id', userId);
-
-      if (profileError) throw profileError;
+      settingsId = inserted.id;
     }
 
-    // Handle logo upload if provided
-    const logoFile = formData.get('logo') as File;
-    if (logoFile && logoFile.size > 0) {
+    const logoFile = formData.get('logo') as File | null;
+    if (settingsId && logoFile && logoFile.size > 0) {
       const fileExt = logoFile.name.split('.').pop();
-      const fileName = `${companyId}-${Date.now()}.${fileExt}`;
+      const fileName = `${settingsId}-${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('company-logos')
@@ -87,25 +95,23 @@ export async function createOrUpdateCompany(formData: FormData, userId: string) 
         .from('company-logos')
         .getPublicUrl(fileName);
 
-      // Update company with logo URL
-      await supabase
-        .from('companies')
-        .update({ logo_url: publicUrl })
-        .eq('id', companyId);
+      const { error: logoUpdateError } = await supabase
+        .from('company_settings')
+        .update({ logo_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', settingsId);
+
+      if (logoUpdateError) throw logoUpdateError;
     }
 
     revalidatePath('/settings/general');
     revalidatePath('/settings/banking');
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Company settings error:', error);
-    
-    if (error.name === 'ZodError') {
-      const firstError = error.errors[0];
-      return { error: `${firstError.path.join('.')}: ${firstError.message}` };
-    }
-    
-    return { error: error.message || 'Failed to save company settings' };
+
+    return {
+      error: error instanceof Error ? error.message : 'Failed to save company settings',
+    };
   }
 }

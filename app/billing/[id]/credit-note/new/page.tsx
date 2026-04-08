@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { CreditNoteForm } from "@/components/billing/CreditNoteForm";
@@ -10,16 +11,10 @@ export default async function NewCreditNotePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
   const { id } = await params;
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")

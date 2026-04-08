@@ -9,6 +9,7 @@ export type KeyLog = {
   to_status: string | null;
   created_at: string | null;
   user_name: string | null;
+  performed_by_user_id: string | null;
   performed_by_user: {
     full_name: string | null;
     role: string | null;
@@ -27,10 +28,7 @@ export async function getKeyLogs(keyId: string): Promise<KeyLog[]> {
       to_status,
       created_at,
       user_name,
-      performed_by_user:users!key_logs_performed_by_user_fk (
-        full_name,
-        role
-      )
+      performed_by_user_id
     `
     )
     .eq("key_id", keyId)
@@ -41,12 +39,38 @@ export async function getKeyLogs(keyId: string): Promise<KeyLog[]> {
     return [];
   }
 
-  return (data || []).map((row) => {
-    const raw = row.performed_by_user;
-    const performed_by_user = Array.isArray(raw)
-      ? (raw[0] ?? null)
-      : (raw ?? null);
+  const rows = data || [];
+  const userIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.performed_by_user_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
 
+  let userMap = new Map<
+    string,
+    { full_name: string | null; role: string | null }
+  >();
+
+  if (userIds.length > 0) {
+    const { data: users, error: usersError } = await supabase
+      .from("app_users")
+      .select("id, full_name, role")
+      .in("id", userIds);
+
+    if (!usersError) {
+      userMap = new Map(
+        ((users || []) as Array<{
+          id: string;
+          full_name: string | null;
+          role: string | null;
+        }>).map((user) => [user.id, user])
+      );
+    }
+  }
+
+  return rows.map((row) => {
     return {
       id: row.id,
       action: row.action,
@@ -55,10 +79,10 @@ export async function getKeyLogs(keyId: string): Promise<KeyLog[]> {
       to_status: row.to_status,
       created_at: row.created_at,
       user_name: row.user_name,
-      performed_by_user: performed_by_user as {
-        full_name: string | null;
-        role: string | null;
-      } | null,
+      performed_by_user_id: row.performed_by_user_id,
+      performed_by_user: row.performed_by_user_id
+        ? userMap.get(row.performed_by_user_id) || null
+        : null,
     };
   });
 }

@@ -1,17 +1,19 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
+
 export default function DeletePropertyButton() {
   return (
-    <button
+    <Button
       type="submit"
-      className="btn btn-danger"
+      variant="destructive"
       onClick={(e) => {
-        if (!confirm("Are you sure you want to delete this property?")) {
+        if (!confirm("Deactivate this property? Historical records will be preserved.")) {
           e.preventDefault();
         }
       }}
     >
-      Delete Property
-    </button>
+      Deactivate Property
+    </Button>
   );
 }

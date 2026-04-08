@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getActiveUsers } from "@/lib/users";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import KeyStatusActionForm from './KeyStatusActionForm'
 import {
   assignKey,
@@ -27,7 +30,7 @@ type HolderUser = {
   id: string;
   full_name: string | null;
   role: string | null;
-} | null;
+};
 
 type KeyRecord = {
   id: string;
@@ -43,7 +46,6 @@ type KeyRecord = {
   created_at: string | null;
   property_id: string | null;
   properties: RelatedProperty | RelatedProperty[];
-  holder_user: HolderUser | HolderUser[];
 };
 
 type KeyLog = {
@@ -53,10 +55,7 @@ type KeyLog = {
   from_status: string | null;
   to_status: string | null;
   created_at: string | null;
-  performed_by_user:
-    | { full_name: string | null; role: string | null }
-    | { full_name: string | null; role: string | null }[]
-    | null;
+  performed_by_user_id: string | null;
   user_name: string | null;
 };
 
@@ -77,6 +76,20 @@ function formatDate(value: string | null) {
   }
 }
 
+function getKeyStatusVariant(status: string | null | undefined) {
+  switch ((status || "").toLowerCase()) {
+    case "available":
+      return "success" as const;
+    case "assigned":
+    case "damaged":
+      return "warning" as const;
+    case "lost":
+      return "danger" as const;
+    default:
+      return "neutral" as const;
+  }
+}
+
 export default async function KeyDetailPage({ params }: PageProps) {
   const { id } = await params;
 
@@ -89,8 +102,7 @@ export default async function KeyDetailPage({ params }: PageProps) {
             id, key_code, name, key_type, description, status,
             storage_location, holder_name, holder_user_id,
             last_checked_out_at, created_at, property_id,
-            properties ( id, title, property_code, address_line_1 ),
-            holder_user:users!keys_holder_user_fk ( id, full_name, role )
+            properties ( id, title, property_code, address_line_1 )
           `
         )
         .eq("id", id)
@@ -102,7 +114,7 @@ export default async function KeyDetailPage({ params }: PageProps) {
           `
             id, action, notes, from_status, to_status, created_at,
             user_name,
-            performed_by_user:users!key_logs_performed_by_user_fk ( full_name, role )
+            performed_by_user_id
           `
         )
         .eq("key_id", id)
@@ -118,8 +130,36 @@ export default async function KeyDetailPage({ params }: PageProps) {
 
   const key = rawKey as KeyRecord;
   const property = getSingle(key.properties);
-  const holderUser = getSingle(key.holder_user);
   const keyLogs = (logs || []) as KeyLog[];
+  const userIdsToLoad = Array.from(
+    new Set(
+      [
+        key.holder_user_id,
+        ...keyLogs.map((log) => log.performed_by_user_id),
+      ].filter((value): value is string => Boolean(value))
+    )
+  );
+
+  let userMap = new Map<string, HolderUser>();
+
+  if (userIdsToLoad.length > 0) {
+    const { data: appUsers, error: appUsersError } = await supabase
+      .from("app_users")
+      .select("id, full_name, role")
+      .in("id", userIdsToLoad);
+
+    if (appUsersError) {
+      return <div className="card">Error loading key users: {appUsersError.message}</div>;
+    }
+
+    userMap = new Map(
+      ((appUsers || []) as HolderUser[]).map((user) => [user.id, user])
+    );
+  }
+
+  const holderUser = key.holder_user_id
+    ? userMap.get(key.holder_user_id) || null
+    : null;
 
   const holderDisplay = holderUser?.full_name ?? key.holder_name ?? "In storage";
 
@@ -131,41 +171,32 @@ export default async function KeyDetailPage({ params }: PageProps) {
   return (
     <main className="space-y-6">
       {/* ── Header ── */}
-      <div className="status-row">
-        <span className="badge badge-outline">{key.key_type || "Key"}</span>
-        <span
-          className={`badge ${
-            key.status === "available" ? "badge-success" :
-            key.status === "assigned"  ? "badge-warning" :
-            key.status === "lost"      ? "badge-danger"  :
-            key.status === "damaged"   ? "badge-warning" :
-                                         "badge-outline"
-          }`}
-        >
+      <PageHeader
+        title={key.name || "Unnamed Key"}
+        description={`Tag: ${key.key_code || "-"}`}
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={property?.id ? `/properties/${property.id}/keys` : "/keys"}>
+                Back to Keys
+              </Link>
+            </Button>
+
+            {property?.id ? (
+              <Button asChild variant="outline">
+                <Link href={`/properties/${property.id}`}>View Property</Link>
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="neutral">{key.key_type || "Key"}</Badge>
+        <Badge variant={getKeyStatusVariant(key.status)}>
           {key.status || "Unknown"}
-        </span>
+        </Badge>
       </div>
-
-      <div>
-        <h1 className="page-title">{key.name || "Unnamed Key"}</h1>
-        <p className="page-subtitle mt-2">Tag: {key.key_code || "-"}</p>
-      </div>
-
-      <div className="top-actions">
-        <Link
-          href={property?.id ? `/properties/${property.id}/keys` : "/keys"}
-          className="btn btn-ghost"
-        >
-          ← Back to Keys
-        </Link>
-        {property?.id ? (
-          <Link href={`/properties/${property.id}`} className="btn btn-ghost">
-            View Property
-          </Link>
-        ) : null}
-      </div>
-
-      {/* ── Summary cards ── */}
       <section className="grid gap-4 md:grid-cols-4">
         <div className="card">
           <span className="field-label">Key Tag</span>
@@ -258,7 +289,7 @@ export default async function KeyDetailPage({ params }: PageProps) {
               Record who is taking custody of this key.
             </p>
           </div>
-          <form action={assignKey} style={{ display: "grid", gap: 16, maxWidth: 720 }}>
+          <form action={assignKey} className="grid max-w-[720px] gap-4">
             <input type="hidden" name="key_id" value={id} />
             <label className="field">
               Assign To
@@ -280,10 +311,10 @@ export default async function KeyDetailPage({ params }: PageProps) {
                 placeholder="Optional note about why the key is being assigned"
               />
             </label>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button type="submit" className="btn btn-primary">
+            <div className="flex justify-end">
+              <Button type="submit">
                 Assign Key
-              </button>
+              </Button>
             </div>
           </form>
         </section>
@@ -380,7 +411,9 @@ export default async function KeyDetailPage({ params }: PageProps) {
         ) : (
           <div className="related-list">
             {keyLogs.map((log) => {
-              const performer = getSingle(log.performed_by_user);
+              const performer = log.performed_by_user_id
+                ? userMap.get(log.performed_by_user_id) || null
+                : null;
               const performerDisplay =
                 performer?.full_name ?? log.user_name ?? "system";
               return (

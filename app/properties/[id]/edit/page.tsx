@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import PropertyEditForm from "./PropertyEditForm";
 
 async function updateProperty(formData: FormData) {
   "use server";
+
+  await requireRole(["admin", "office"]);
+  const supabase = await createClient();
 
   const id = String(formData.get("id") || "").trim();
   const title = String(formData.get("title") || "").trim();
@@ -98,6 +102,9 @@ export default async function EditPropertyPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
+  const supabase = await createClient();
   const { id } = await params;
 
   const [propertyResult, clientsResult, municipalitiesResult, locationsResult] =

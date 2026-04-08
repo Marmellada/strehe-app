@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import NewClientForm from "../../new/NewClientForm";
+import { requireRole } from "@/lib/auth/require-role";
 
 async function updateClientAction(id: string, formData: FormData) {
   "use server";
 
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const payload = {
@@ -40,6 +42,8 @@ export default async function EditClientPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
   const { id } = await params;
 

@@ -4,7 +4,7 @@ import { useFormStatus } from 'react-dom';
 
 type User = {
   id: string;
-  full_name: string;
+  full_name: string | null;
 };
 
 type Props = {
@@ -19,15 +19,15 @@ type Props = {
 function SubmitButton({ label, variant }: { label: string; variant?: string }) {
   const { pending } = useFormStatus();
 
-  const base = 'px-4 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50';
+  const base = 'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50';
   const styles: Record<string, string> = {
-    default:     'bg-gray-600 text-white hover:bg-gray-700',
-    primary:     'bg-blue-600 text-white hover:bg-blue-700',
-    destructive: 'bg-red-600 text-white hover:bg-red-700',
-    danger:      'bg-red-600 text-white hover:bg-red-700',
-    warning:     'bg-yellow-500 text-white hover:bg-yellow-600',
-    outline:     'border border-gray-300 text-gray-700 hover:bg-gray-100',
-    ghost:       'text-gray-600 hover:bg-gray-100',
+    default:     'bg-primary text-primary-foreground hover:bg-primary/90',
+    primary:     'bg-primary text-primary-foreground hover:bg-primary/90',
+    destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+    danger:      'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+    warning:     'bg-amber-500/90 text-white hover:bg-amber-500',
+    outline:     'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+    ghost:       'hover:bg-accent hover:text-accent-foreground',
   };
 
   const style = styles[variant ?? 'default'] ?? styles.default;
@@ -53,18 +53,18 @@ export default function KeyStatusActionForm({
 
       {users.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="mb-1 block text-sm font-medium text-muted-foreground">
             Assign To
           </label>
           <select
             name="userId"
             required
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
           >
             <option value="">Select a user...</option>
             {users.map((u: User) => (
               <option key={u.id} value={u.id}>
-                {u.full_name}
+                {u.full_name || "Unnamed User"}
               </option>
             ))}
           </select>
@@ -72,14 +72,14 @@ export default function KeyStatusActionForm({
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="mb-1 block text-sm font-medium text-muted-foreground">
           Note (optional)
         </label>
         <textarea
           name="note"
           defaultValue={defaultNote}
           rows={2}
-          className="w-full border border-gray-300 rounded px-3 py-2 text-sm resize-none"
+          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
           placeholder="Add a note..."
         />
       </div>

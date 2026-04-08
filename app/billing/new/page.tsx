@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { InvoiceForm } from "@/components/billing/InvoiceForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -27,15 +27,9 @@ type ServiceOption = {
 };
 
 export default async function NewInvoicePage() {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const [{ data: clients }, { data: subscriptionsRaw }, { data: servicesRaw }] =
     await Promise.all([

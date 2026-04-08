@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +42,8 @@ export default async function PropertiesPage({
     search?: string;
   }>;
 }) {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
   const params = await searchParams;
 

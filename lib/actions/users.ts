@@ -1,9 +1,20 @@
 // lib/actions/users.ts
 'use server'
 
+// LEGACY QUARANTINE:
+// This file targets the old public.users / roles model. Phase A canonical
+// role source is public.app_users via /settings/users. Do not use these actions
+// for new flows; keep only until the legacy user model is removed deliberately.
+
 import { createClient } from '@/lib/supabase/server'           // ✅ Fixed path
 import { createClient as createAdminClient } from '@supabase/supabase-js' // ✅ Admin client
 import { revalidatePath } from 'next/cache'
+
+function assertLegacyUsersDisabled() {
+  throw new Error(
+    "Legacy users/roles actions are disabled. Use /settings/users with app_users."
+  )
+}
 
 // =============================================
 // ADMIN CLIENT (service role — server only)
@@ -137,6 +148,8 @@ export async function createUser(input: CreateUserInput): Promise<{
   data: User | null
   error: string | null
 }> {
+  assertLegacyUsersDisabled()
+
   const admin = getAdminClient()       // Admin for auth.admin.createUser
   const supabase = await createClient() // Regular client for DB insert
 
@@ -192,6 +205,8 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<{
   data: User | null
   error: string | null
 }> {
+  assertLegacyUsersDisabled()
+
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -225,6 +240,8 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<{
 export async function toggleUserStatus(id: string, is_active: boolean): Promise<{
   error: string | null
 }> {
+  assertLegacyUsersDisabled()
+
   const supabase = await createClient()
 
   const { error } = await supabase
@@ -249,6 +266,8 @@ export async function toggleUserStatus(id: string, is_active: boolean): Promise<
 export async function deleteUser(id: string, auth_id: string): Promise<{
   error: string | null
 }> {
+  assertLegacyUsersDisabled()
+
   const admin = getAdminClient()
   const supabase = await createClient()
 

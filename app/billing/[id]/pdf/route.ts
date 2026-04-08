@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { generateBillingPdf } from "@/lib/billing/pdf/generateBillingPdf";
 import {
   BillingDocumentPdfData,
@@ -53,6 +54,20 @@ type InvoiceRow = {
   total_cents: number | null;
   notes: string | null;
   created_at: string | null;
+  client_name_snapshot: string | null;
+  client_email_snapshot: string | null;
+  client_phone_snapshot: string | null;
+  client_address_snapshot: string | null;
+  property_label_snapshot: string | null;
+  property_address_snapshot: string | null;
+  company_name_snapshot: string | null;
+  company_address_snapshot: string | null;
+  company_email_snapshot: string | null;
+  company_phone_snapshot: string | null;
+  company_vat_number_snapshot: string | null;
+  company_business_number_snapshot: string | null;
+  currency_snapshot: string | null;
+  bank_accounts_snapshot: CompanyBankAccountPdfData[] | null;
 };
 
 type InvoiceItemRow = {
@@ -165,6 +180,25 @@ function mapCompanySettings(
   };
 }
 
+function mapCompanyForInvoice(
+  invoice: InvoiceRow,
+  row: SettingsRow,
+  supabaseUrl: string
+): CompanyPdfData {
+  const fallback = mapCompanySettings(row, supabaseUrl);
+
+  return {
+    ...fallback,
+    company_name: invoice.company_name_snapshot ?? fallback.company_name,
+    address_line_1: invoice.company_address_snapshot ?? fallback.address_line_1,
+    email: invoice.company_email_snapshot ?? fallback.email,
+    phone: invoice.company_phone_snapshot ?? fallback.phone,
+    vat_number: invoice.company_vat_number_snapshot ?? fallback.vat_number,
+    business_number:
+      invoice.company_business_number_snapshot ?? fallback.business_number,
+  };
+}
+
 function mapItems(
   rows: InvoiceItemRow[],
   vatRate: number
@@ -209,7 +243,23 @@ function mapBankAccounts(rows: BankAccountRow[]): CompanyBankAccountPdfData[] {
   return selectAccountsForPdf(mapped);
 }
 
+function getBankAccountsForInvoice(
+  invoice: InvoiceRow,
+  bankAccounts: BankAccountRow[]
+): CompanyBankAccountPdfData[] {
+  if (
+    Array.isArray(invoice.bank_accounts_snapshot) &&
+    invoice.bank_accounts_snapshot.length > 0
+  ) {
+    return invoice.bank_accounts_snapshot;
+  }
+
+  return mapBankAccounts(bankAccounts);
+}
+
 export async function GET(_req: NextRequest, context: RouteContext) {
+  await requireRole(["admin", "office"]);
+
   const { id } = await context.params;
 
   if (!id || id === "undefined") {
@@ -246,7 +296,21 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       vat_amount_cents,
       total_cents,
       notes,
-      created_at
+      created_at,
+      client_name_snapshot,
+      client_email_snapshot,
+      client_phone_snapshot,
+      client_address_snapshot,
+      property_label_snapshot,
+      property_address_snapshot,
+      company_name_snapshot,
+      company_address_snapshot,
+      company_email_snapshot,
+      company_phone_snapshot,
+      company_vat_number_snapshot,
+      company_business_number_snapshot,
+      currency_snapshot,
+      bank_accounts_snapshot
     `)
     .eq("id", id)
     .single<InvoiceRow>();
@@ -409,7 +473,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     number: invoice.invoice_number ?? null,
     issue_date: invoice.issue_date ?? null,
     due_date: invoice.due_date ?? null,
-    currency: settings.currency ?? "EUR",
+    currency: invoice.currency_snapshot ?? settings.currency ?? "EUR",
     notes: invoice.notes ?? null,
     payment_reference: invoice.invoice_number ?? invoice.id,
 
@@ -418,11 +482,13 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     total: centsToAmount(invoice.total_cents),
 
     client: {
-      full_name: client?.full_name ?? null,
-      company_name: client?.company_name ?? null,
-      email: client?.email ?? null,
-      phone: client?.phone ?? null,
-      address_line_1: client?.address_line_1 ?? null,
+      full_name: invoice.client_name_snapshot ? null : client?.full_name ?? null,
+      company_name:
+        invoice.client_name_snapshot ?? client?.company_name ?? null,
+      email: invoice.client_email_snapshot ?? client?.email ?? null,
+      phone: invoice.client_phone_snapshot ?? client?.phone ?? null,
+      address_line_1:
+        invoice.client_address_snapshot ?? client?.address_line_1 ?? null,
       address_line_2: client?.address_line_2 ?? null,
       city: client?.city ?? null,
       postal_code: client?.postal_code ?? null,
@@ -431,20 +497,26 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       business_number: null,
     },
 
-    property: property
+    property: property || invoice.property_label_snapshot || invoice.property_address_snapshot
       ? {
           property_code: null,
-          title: property.title ?? null,
-          address_line_1: property.address_line_1 ?? null,
-          address_line_2: property.address_line_2 ?? null,
-          city: property.city ?? null,
-          postal_code: property.postal_code ?? null,
-          country: property.country ?? null,
+          title: invoice.property_label_snapshot ?? property?.title ?? null,
+          address_line_1:
+            invoice.property_address_snapshot ??
+            property?.address_line_1 ??
+            null,
+          address_line_2: property?.address_line_2 ?? null,
+          city: property?.city ?? null,
+          postal_code: property?.postal_code ?? null,
+          country: property?.country ?? null,
         }
       : null,
 
-    company: mapCompanySettings(settings, supabaseUrl),
-    company_bank_accounts: mapBankAccounts(bankAccounts || []),
+    company: mapCompanyForInvoice(invoice, settings, supabaseUrl),
+    company_bank_accounts: getBankAccountsForInvoice(
+      invoice,
+      bankAccounts || []
+    ),
     items: mapItems(invoiceItems || [], safeNumber(invoice.vat_rate, 0)),
 
     original_invoice:

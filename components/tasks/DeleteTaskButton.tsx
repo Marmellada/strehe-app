@@ -20,12 +20,12 @@ export function DeleteTaskButton({
         variant="destructive"
         size="sm"
         onClick={(e) => {
-          if (!confirm("Delete this task permanently?")) {
+          if (!confirm("Cancel this task? The task record will be preserved.")) {
             e.preventDefault();
           }
         }}
       >
-        Delete Task
+        Cancel Task
       </Button>
     </form>
   );

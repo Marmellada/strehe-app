@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 async function createService(formData: FormData) {
   "use server";
 
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const name = String(formData.get("name") || "").trim();
@@ -54,6 +56,8 @@ async function createService(formData: FormData) {
 }
 
 export default async function CreateServicePage() {
+  await requireRole(["admin", "office"]);
+
   return (
     <div className="space-y-6">
       <div className="space-y-4">

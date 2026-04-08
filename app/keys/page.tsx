@@ -36,11 +36,6 @@ type RelatedProperty =
     }[]
   | null;
 
-type HolderUser =
-  | { full_name: string | null }
-  | { full_name: string | null }[]
-  | null;
-
 type KeyRow = {
   id: string;
   key_code: string | null;
@@ -48,11 +43,16 @@ type KeyRow = {
   key_type: string | null;
   status: string | null;
   holder_name: string | null;
-  holder_user: HolderUser;
+  holder_user_id: string | null;
   storage_location: string | null;
   last_checked_out_at: string | null;
   property_id: string | null;
   properties: RelatedProperty;
+};
+
+type HolderUser = {
+  id: string;
+  full_name: string | null;
 };
 
 type PropertyOption = {
@@ -147,6 +147,7 @@ export default async function KeysPage({
             key_type,
             status,
             holder_name,
+            holder_user_id,
             storage_location,
             last_checked_out_at,
             property_id,
@@ -155,9 +156,6 @@ export default async function KeysPage({
               title,
               property_code,
               address_line_1
-            ),
-            holder_user:users!keys_holder_user_fk (
-              full_name
             )
           `
         )
@@ -208,6 +206,30 @@ export default async function KeysPage({
   const propertyOptions = (properties || []) as PropertyOption[];
   const keys = (filteredKeys || []) as KeyRow[];
   const allKeyRows = (allKeys || []) as StatusCountRow[];
+  const holderUserIds = Array.from(
+    new Set(
+      keys
+        .map((key) => key.holder_user_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  let holderUserMap = new Map<string, HolderUser>();
+
+  if (holderUserIds.length > 0) {
+    const { data: holderUsers, error: holderUsersError } = await supabase
+      .from("app_users")
+      .select("id, full_name")
+      .in("id", holderUserIds);
+
+    if (holderUsersError) {
+      throw new Error(`Failed to load key holders: ${holderUsersError.message}`);
+    }
+
+    holderUserMap = new Map(
+      ((holderUsers || []) as HolderUser[]).map((user) => [user.id, user])
+    );
+  }
 
   const counts = allKeyRows.reduce(
     (acc, row) => {
@@ -443,7 +465,9 @@ export default async function KeysPage({
             <div className="space-y-3">
               {keys.map((key) => {
                 const property = getSingleRelation(key.properties);
-                const holderUser = getSingleRelation(key.holder_user);
+                const holderUser = key.holder_user_id
+                  ? holderUserMap.get(key.holder_user_id) || null
+                  : null;
 
                 const holderDisplay =
                   holderUser?.full_name ?? key.holder_name ?? "In storage";

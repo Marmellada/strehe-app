@@ -1,13 +1,23 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import DeletePropertyButton from "./DeletePropertyButton";
+import { requireRole } from "@/lib/auth/require-role";
 
 async function deleteProperty(id: string) {
   "use server";
 
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
-  const { error } = await supabase.from("properties").delete().eq("id", id);
+  const { error } = await supabase
+    .from("properties")
+    .update({
+      status: "inactive",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);
@@ -160,6 +170,8 @@ type PropertyPageProps = {
 export default async function PropertyDetailPage({
   params,
 }: PropertyPageProps) {
+  await requireRole(["admin", "office"]);
+
   const { id } = await params;
   const supabase = await createClient();
 
@@ -269,39 +281,39 @@ export default async function PropertyDetailPage({
         </span>
       </div>
 
-      <div>
-        <h1 className="page-title">{property.title || "Untitled Property"}</h1>
-        <p className="page-subtitle mt-2">
-          {property.property_code || "No property code"}
-        </p>
-      </div>
+      <PageHeader
+        title={property.title || "Untitled Property"}
+        description={property.property_code || "No property code"}
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href="/properties">Back to Properties</Link>
+            </Button>
 
-      <div className="top-actions">
-        <Link href="/properties" className="btn btn-ghost">
-          ← Back to Properties
-        </Link>
+            <Button asChild>
+              <Link href={`/properties/${id}/edit`}>Edit Property</Link>
+            </Button>
 
-        <Link href={`/properties/${id}/edit`} className="btn btn-primary">
-          Edit Property
-        </Link>
+            <Button asChild variant="outline">
+              <Link href={`/properties/${id}/keys`}>
+                Manage Keys {typeof keysCount === "number" ? `(${keysCount})` : ""}
+              </Link>
+            </Button>
 
-        <Link href={`/properties/${id}/keys`} className="btn btn-ghost">
-          Manage Keys {typeof keysCount === "number" ? `(${keysCount})` : ""}
-        </Link>
+            <Button asChild variant="outline">
+              <Link href={`/subscriptions/create?property_id=${id}`}>New Contract</Link>
+            </Button>
 
-        <Link href={`/subscriptions/create?property_id=${id}`} className="btn btn-ghost">
-          + New Contract
-        </Link>
+            <Button asChild variant="outline">
+              <Link href={`/tasks/create?property_id=${id}`}>New Task</Link>
+            </Button>
 
-        <Link href={`/tasks/create?property_id=${id}`} className="btn btn-ghost">
-          + New Task
-        </Link>
-
-        <form action={deletePropertyWithId}>
-          <DeletePropertyButton />
-        </form>
-      </div>
-
+            <form action={deletePropertyWithId}>
+              <DeletePropertyButton />
+            </form>
+          </>
+        }
+      />
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div className="card">
           <span className="field-label">Owner</span>

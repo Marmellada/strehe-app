@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { CompanySettingsForm } from '@/components/settings/CompanySettingsForm';
+import { requireRole } from '@/lib/auth/require-role';
 
 export const metadata = {
   title: 'General Settings - STREHË',
@@ -9,16 +9,8 @@ export const metadata = {
 };
 
 export default async function GeneralSettingsPage() {
+  const { authUser } = await requireRole(['admin']);
   const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    redirect('/auth/login');
-  }
 
   const { data: companySettings } = await supabase
     .from('company_settings')
@@ -33,7 +25,7 @@ export default async function GeneralSettingsPage() {
         description="Manage your company information, branding, and contact details"
       />
 
-      <CompanySettingsForm initialData={companySettings} userId={user.id} />
+      <CompanySettingsForm initialData={companySettings} userId={authUser.id} />
     </div>
   );
 }

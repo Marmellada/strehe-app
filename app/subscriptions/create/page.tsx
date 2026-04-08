@@ -1,15 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import CreateSubscriptionForm from "@/app/subscriptions/create/CreateSubscriptionForm";
+import { resolveContractSnapshot } from "@/lib/actions/contract-setup";
 
 async function createSubscription(formData: FormData) {
   "use server";
 
+  await requireRole(["admin"]);
   const supabase = await createClient();
 
   const client_id = String(formData.get("client_id") || "").trim();
@@ -59,6 +62,12 @@ async function createSubscription(formData: FormData) {
     throw new Error("This property already has an active or paused contract.");
   }
 
+  const snapshot = await resolveContractSnapshot({
+    clientId: client_id,
+    propertyId: property_id,
+    packageId: package_id,
+  });
+
   const { data, error } = await supabase
     .from("subscriptions")
     .insert({
@@ -70,6 +79,7 @@ async function createSubscription(formData: FormData) {
       status,
       monthly_price,
       notes: notes || null,
+      ...snapshot,
     })
     .select("id")
     .single();
@@ -82,6 +92,8 @@ async function createSubscription(formData: FormData) {
 }
 
 export default async function CreateSubscriptionPage() {
+  await requireRole(["admin"]);
+
   const supabase = await createClient();
 
   const [clientsResult, propertiesResult, packagesResult, subscriptionsResult] =

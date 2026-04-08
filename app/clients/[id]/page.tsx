@@ -9,13 +9,26 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { DetailField } from "@/components/ui/DetailField";
 import { Card, CardContent } from "@/components/ui/Card";
 import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
+import { requireRole } from "@/lib/auth/require-role";
+import DeleteClientButton from "./DeleteClientButton";
 
 async function deleteClient(id: string) {
   "use server";
 
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
-  await supabase.from("clients").delete().eq("id", id);
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      status: "inactive",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   redirect("/clients");
 }
@@ -31,6 +44,8 @@ export default async function ClientDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
   const { id } = await params;
 
@@ -76,9 +91,7 @@ export default async function ClientDetailPage({
             </Button>
 
             <form action={deleteAction}>
-              <Button type="submit" variant="destructive">
-                Delete
-              </Button>
+              <DeleteClientButton />
             </form>
           </>
         }

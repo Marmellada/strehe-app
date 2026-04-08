@@ -12,6 +12,11 @@ import {
   type UpdateInvoiceInput,
 } from "@/lib/validations/billing";
 import { computeInvoiceTotals } from "@/lib/billing-helpers";
+import { requireRole } from "@/lib/auth/require-role";
+import {
+  refreshBillingSnapshot,
+  resolveBillingSnapshot,
+} from "@/lib/billing/snapshots";
 
 export type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 export type DocumentType = "invoice" | "credit_note";
@@ -50,20 +55,16 @@ async function getIssuedCreditNotesTotal(
 }
 
 export async function createInvoice(data: CreateInvoiceInput) {
+  const { authUser } = await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const validatedData = createInvoiceSchema.parse(data);
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { error: "Unauthorized" };
-  }
-
   const totals = computeInvoiceTotals(validatedData.items);
+  const snapshot = await resolveBillingSnapshot({
+    clientId: validatedData.client_id,
+    propertyId: validatedData.property_id ?? null,
+  });
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
@@ -77,13 +78,14 @@ export async function createInvoice(data: CreateInvoiceInput) {
       issue_date: validatedData.issue_date,
       due_date: validatedData.due_date,
       notes: validatedData.notes ?? null,
-      user_id: user.id,
+      user_id: authUser.id,
       subtotal_cents: Math.round(totals.subtotal * 100),
       vat_amount_cents: Math.round(totals.totalVat * 100),
       total_cents: Math.round(totals.total * 100),
       vat_rate: getStoredVatRate(validatedData.items),
       status: "draft",
       invoice_number: null,
+      ...snapshot,
     })
     .select("id")
     .single();
@@ -120,18 +122,10 @@ export async function createInvoice(data: CreateInvoiceInput) {
 }
 
 export async function createCreditNote(data: CreateCreditNoteInput) {
+  const { authUser } = await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const validatedData = createCreditNoteSchema.parse(data);
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { error: "Unauthorized" };
-  }
 
   const { data: originalInvoice, error: originalError } = await supabase
     .from("invoices")
@@ -142,7 +136,21 @@ export async function createCreditNote(data: CreateCreditNoteInput) {
       subscription_id,
       status,
       document_type,
-      total_cents
+      total_cents,
+      client_name_snapshot,
+      client_email_snapshot,
+      client_phone_snapshot,
+      client_address_snapshot,
+      property_label_snapshot,
+      property_address_snapshot,
+      company_name_snapshot,
+      company_address_snapshot,
+      company_email_snapshot,
+      company_phone_snapshot,
+      company_vat_number_snapshot,
+      company_business_number_snapshot,
+      currency_snapshot,
+      bank_accounts_snapshot
     `)
     .eq("id", validatedData.original_invoice_id)
     .single();
@@ -186,13 +194,27 @@ export async function createCreditNote(data: CreateCreditNoteInput) {
       issue_date: validatedData.issue_date,
       due_date: validatedData.issue_date,
       notes: validatedData.notes ?? null,
-      user_id: user.id,
+      user_id: authUser.id,
       subtotal_cents: Math.round(totals.subtotal * 100),
       vat_amount_cents: Math.round(totals.totalVat * 100),
       total_cents: Math.round(totals.total * 100),
       vat_rate: getStoredVatRate(validatedData.items),
       status: "draft",
       invoice_number: null,
+      client_name_snapshot: originalInvoice.client_name_snapshot,
+      client_email_snapshot: originalInvoice.client_email_snapshot,
+      client_phone_snapshot: originalInvoice.client_phone_snapshot,
+      client_address_snapshot: originalInvoice.client_address_snapshot,
+      property_label_snapshot: originalInvoice.property_label_snapshot,
+      property_address_snapshot: originalInvoice.property_address_snapshot,
+      company_name_snapshot: originalInvoice.company_name_snapshot,
+      company_address_snapshot: originalInvoice.company_address_snapshot,
+      company_email_snapshot: originalInvoice.company_email_snapshot,
+      company_phone_snapshot: originalInvoice.company_phone_snapshot,
+      company_vat_number_snapshot: originalInvoice.company_vat_number_snapshot,
+      company_business_number_snapshot: originalInvoice.company_business_number_snapshot,
+      currency_snapshot: originalInvoice.currency_snapshot,
+      bank_accounts_snapshot: originalInvoice.bank_accounts_snapshot,
     })
     .select("id")
     .single();
@@ -230,18 +252,10 @@ export async function createCreditNote(data: CreateCreditNoteInput) {
 }
 
 export async function updateInvoice(data: UpdateInvoiceInput) {
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const validatedData = updateInvoiceSchema.parse(data);
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { error: "Unauthorized" };
-  }
 
   const { data: existingInvoice, error: fetchError } = await supabase
     .from("invoices")
@@ -262,6 +276,10 @@ export async function updateInvoice(data: UpdateInvoiceInput) {
   }
 
   const totals = computeInvoiceTotals(validatedData.items);
+  const snapshot = await resolveBillingSnapshot({
+    clientId: validatedData.client_id,
+    propertyId: validatedData.property_id ?? null,
+  });
 
   const { error: updateError } = await supabase
     .from("invoices")
@@ -276,6 +294,7 @@ export async function updateInvoice(data: UpdateInvoiceInput) {
       vat_amount_cents: Math.round(totals.totalVat * 100),
       total_cents: Math.round(totals.total * 100),
       vat_rate: getStoredVatRate(validatedData.items),
+      ...snapshot,
     })
     .eq("id", validatedData.invoice_id)
     .eq("status", "draft")
@@ -321,6 +340,7 @@ export async function updateInvoiceStatus(
   invoiceId: string,
   status: InvoiceStatus
 ) {
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const { data: invoice, error: fetchError } = await supabase
@@ -336,6 +356,17 @@ export async function updateInvoiceStatus(
   const currentStatus = invoice.status as InvoiceStatus;
 
   if (currentStatus === "draft" && status === "issued") {
+    try {
+      await refreshBillingSnapshot(invoiceId);
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to refresh billing snapshot",
+      };
+    }
+
     const { data, error } = await supabase.rpc("issue_billing_document_with_number", {
       p_invoice_id: invoiceId,
     });
@@ -377,6 +408,7 @@ export async function updateInvoiceStatus(
 }
 
 export async function deleteInvoice(invoiceId: string) {
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
   const { data: invoice, error: fetchError } = await supabase
@@ -408,16 +440,8 @@ export async function deleteInvoice(invoiceId: string) {
 }
 
 export async function recordPayment(formData: FormData) {
+  await requireRole(["admin", "office"]);
   const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    throw new Error("Unauthorized");
-  }
 
   const invoice_id = String(formData.get("invoice_id") || "").trim();
   const amount = Number(formData.get("amount") || 0);

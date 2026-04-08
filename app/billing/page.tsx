@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,6 +18,7 @@ type BillingListRow = {
   document_type: "invoice" | "credit_note" | string | null;
   total_cents: number | null;
   created_at: string | null;
+  client_name_snapshot: string | null;
   client:
     | {
         full_name: string | null;
@@ -45,6 +47,8 @@ function getDocumentLabel(row: BillingListRow) {
 }
 
 export default async function BillingPage() {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -56,6 +60,7 @@ export default async function BillingPage() {
       document_type,
       total_cents,
       created_at,
+      client_name_snapshot,
       client:clients (
         full_name,
         company_name
@@ -125,7 +130,10 @@ export default async function BillingPage() {
               {invoices.map((invoice) => {
                 const client = getSingleRelation(invoice.client);
                 const clientName =
-                  client?.company_name || client?.full_name || "—";
+                  invoice.client_name_snapshot ||
+                  client?.company_name ||
+                  client?.full_name ||
+                  "—";
 
                 return (
                   <tr

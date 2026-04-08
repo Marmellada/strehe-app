@@ -136,13 +136,13 @@ export default function TaskEditForm({
         </div>
 
         <div>
-          <label htmlFor="assigned_to_user_id" className="field-label">
+          <label htmlFor="assigned_user_id" className="field-label">
             Assigned To
           </label>
           <select
-            id="assigned_to_user_id"
-            name="assigned_to_user_id"
-            defaultValue={task.assigned_to_user_id || ""}
+            id="assigned_user_id"
+            name="assigned_user_id"
+            defaultValue={task.assigned_user_id || ""}
             className="input"
           >
             <option value="">Select user</option>

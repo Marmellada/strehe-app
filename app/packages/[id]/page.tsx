@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -45,6 +46,8 @@ function getBadgeVariant(status: string | null | undefined) {
 }
 
 export default async function PackageDetailPage({ params }: PackagePageProps) {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
   const { id } = await params;
 
@@ -72,13 +75,6 @@ export default async function PackageDetailPage({ params }: PackagePageProps) {
             <Button asChild variant="outline">
               <Link href={`/packages/${pkg.id}/edit`}>Edit</Link>
             </Button>
-
-            <form action="/api/delete-package">
-              <input type="hidden" name="id" value={pkg.id} />
-              <Button type="submit" variant="destructive">
-                Delete
-              </Button>
-            </form>
           </>
         }
       />

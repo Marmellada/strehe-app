@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +24,8 @@ function formatPrice(value: number | string | null | undefined) {
 }
 
 export default async function PackagesPage() {
+  await requireRole(["admin", "office"]);
+
   const supabase = await createClient();
 
   const [{ data: packages }, { data: subscriptions }] = await Promise.all([

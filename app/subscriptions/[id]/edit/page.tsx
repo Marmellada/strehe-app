@@ -1,15 +1,18 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Card, CardContent } from "@/components/ui/Card";
+import { resolveContractSnapshot } from "@/lib/actions/contract-setup";
 
 async function updateSubscription(formData: FormData) {
   "use server";
 
+  await requireRole(["admin"]);
   const supabase = await createClient();
 
   const id = String(formData.get("id") || "").trim();
@@ -67,6 +70,12 @@ async function updateSubscription(formData: FormData) {
     throw new Error("This property already has another active or paused contract.");
   }
 
+  const snapshot = await resolveContractSnapshot({
+    clientId: client_id,
+    propertyId: property_id,
+    packageId: package_id,
+  });
+
   const { error } = await supabase
     .from("subscriptions")
     .update({
@@ -78,6 +87,7 @@ async function updateSubscription(formData: FormData) {
       status,
       monthly_price,
       notes: notes || null,
+      ...snapshot,
     })
     .eq("id", id);
 
@@ -95,6 +105,8 @@ type EditSubscriptionPageProps = {
 export default async function EditSubscriptionPage({
   params,
 }: EditSubscriptionPageProps) {
+  await requireRole(["admin"]);
+
   const supabase = await createClient();
   const id = params.id;
 

@@ -1,17 +1,19 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
+
 export default function DeleteClientButton() {
   return (
-    <button
+    <Button
       type="submit"
-      className="btn btn-danger"
+      variant="destructive"
       onClick={(e) => {
-        if (!confirm("Are you sure you want to delete this client?")) {
+        if (!confirm("Deactivate this client? Historical records will be preserved.")) {
           e.preventDefault();
         }
       }}
     >
-      Delete Client
-    </button>
+      Deactivate Client
+    </Button>
   );
 }

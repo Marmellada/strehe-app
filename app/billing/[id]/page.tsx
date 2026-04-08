@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Edit, FileText, Plus, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -77,6 +78,8 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
   const { id } = await params;
   const supabase = await createClient();
 
@@ -98,6 +101,19 @@ export default async function InvoiceDetailPage({
       vat_amount_cents,
       total_cents,
       notes,
+      client_name_snapshot,
+      client_email_snapshot,
+      client_phone_snapshot,
+      client_address_snapshot,
+      property_label_snapshot,
+      property_address_snapshot,
+      company_name_snapshot,
+      company_address_snapshot,
+      company_email_snapshot,
+      company_phone_snapshot,
+      company_vat_number_snapshot,
+      company_business_number_snapshot,
+      currency_snapshot,
       created_at
     `)
     .eq("id", id)
@@ -293,8 +309,13 @@ export default async function InvoiceDetailPage({
   const balanceDue =
     invoice.document_type === "invoice" ? settlement.remainingCents : 0;
 
-  const clientName = client?.company_name || client?.full_name || "N/A";
-  const clientAddress = client ? formatAddress(client) : "N/A";
+  const clientName =
+    invoice.client_name_snapshot ||
+    client?.company_name ||
+    client?.full_name ||
+    "N/A";
+  const clientAddress =
+    invoice.client_address_snapshot || (client ? formatAddress(client) : "N/A");
 
   const propertyLabel = property?.title || "—";
   const propertyAddress = property ? formatAddress(property) : "—";
@@ -307,6 +328,26 @@ export default async function InvoiceDetailPage({
         .filter(Boolean)
         .join(", ")
     : "Not configured";
+
+  const displayPropertyLabel =
+    invoice.property_label_snapshot || propertyLabel;
+  const displayPropertyAddress =
+    invoice.property_address_snapshot || propertyAddress;
+  const displayCompanyName = invoice.company_name_snapshot || companyName;
+  const displayCompanyAddress =
+    invoice.company_address_snapshot || companyAddress;
+  const displayCompanyEmail =
+    invoice.company_email_snapshot || settings?.email || null;
+  const displayCompanyPhone =
+    invoice.company_phone_snapshot || settings?.phone || null;
+  const displayCompanyVatNumber =
+    invoice.company_vat_number_snapshot || settings?.vat_number || null;
+  const displayCompanyBusinessNumber =
+    invoice.company_business_number_snapshot ||
+    settings?.business_number ||
+    null;
+  const displayClientEmail = invoice.client_email_snapshot || client?.email || null;
+  const displayClientPhone = invoice.client_phone_snapshot || client?.phone || null;
 
   const status = invoice.status as InvoiceStatus;
   const documentType = invoice.document_type as DocumentType;
@@ -411,22 +452,22 @@ export default async function InvoiceDetailPage({
         <div className={sectionCardClasses()}>
           <h2 className="text-lg font-semibold text-foreground">From</h2>
           <div className="space-y-2 text-sm">
-            <p className="font-medium text-foreground">{companyName}</p>
-            <p className="text-muted-foreground">{companyAddress}</p>
-            {settings?.email && (
-              <p className="text-muted-foreground">{settings.email}</p>
+            <p className="font-medium text-foreground">{displayCompanyName}</p>
+            <p className="text-muted-foreground">{displayCompanyAddress}</p>
+            {displayCompanyEmail && (
+              <p className="text-muted-foreground">{displayCompanyEmail}</p>
             )}
-            {settings?.phone && (
-              <p className="text-muted-foreground">{settings.phone}</p>
+            {displayCompanyPhone && (
+              <p className="text-muted-foreground">{displayCompanyPhone}</p>
             )}
-            {settings?.vat_enabled && settings?.vat_number && (
+            {displayCompanyVatNumber && (
               <p className="text-muted-foreground">
-                VAT: {settings.vat_number}
+                VAT: {displayCompanyVatNumber}
               </p>
             )}
-            {settings?.business_number && (
+            {displayCompanyBusinessNumber && (
               <p className="text-muted-foreground">
-                Business No: {settings.business_number}
+                Business No: {displayCompanyBusinessNumber}
               </p>
             )}
           </div>
@@ -437,11 +478,11 @@ export default async function InvoiceDetailPage({
           <div className="space-y-2 text-sm">
             <p className="font-medium text-foreground">{clientName}</p>
             <p className="text-muted-foreground">{clientAddress || "N/A"}</p>
-            {client?.email && (
-              <p className="text-muted-foreground">{client.email}</p>
+            {displayClientEmail && (
+              <p className="text-muted-foreground">{displayClientEmail}</p>
             )}
-            {client?.phone && (
-              <p className="text-muted-foreground">{client.phone}</p>
+            {displayClientPhone && (
+              <p className="text-muted-foreground">{displayClientPhone}</p>
             )}
           </div>
         </div>
@@ -494,9 +535,9 @@ export default async function InvoiceDetailPage({
             )}
             <div className="col-span-2">
               <p className="text-muted-foreground">Property</p>
-              <p className="font-medium text-foreground">{propertyLabel}</p>
-              {property && (
-                <p className="text-muted-foreground">{propertyAddress}</p>
+              <p className="font-medium text-foreground">{displayPropertyLabel}</p>
+              {(property || invoice.property_address_snapshot) && (
+                <p className="text-muted-foreground">{displayPropertyAddress}</p>
               )}
             </div>
           </div>

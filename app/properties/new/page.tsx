@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import PropertyForm from "./PropertyForm";
 
 async function createProperty(formData: FormData) {
   "use server";
+
+  await requireRole(["admin", "office"]);
+  const supabase = await createClient();
 
   const title = String(formData.get("title") || "").trim();
   const owner_client_id = String(formData.get("owner_client_id") || "").trim();
@@ -80,6 +84,9 @@ export default async function NewPropertyPage({
 }: {
   searchParams: Promise<{ owner_client_id?: string }>;
 }) {
+  await requireRole(["admin", "office"]);
+
+  const supabase = await createClient();
   const params = await searchParams;
   const preselectedOwnerId = params.owner_client_id || "";
 

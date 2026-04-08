@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Filter } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -77,6 +78,8 @@ export default async function PaymentsPage({
 }: {
   searchParams: PaymentsPageSearchParams;
 }) {
+  await requireRole(["admin", "office"]);
+
   const params = await searchParams;
   const supabase = await createClient();
 
