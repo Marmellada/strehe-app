@@ -75,8 +75,14 @@ export function CreditNoteForm({
       }
 
       setIsLoading(false);
-    } catch (error: any) {
-      setErrors({ _form: [error?.message || "Failed to create credit note"] });
+    } catch (error: unknown) {
+      setErrors({
+        _form: [
+          error instanceof Error
+            ? error.message
+            : "Failed to create credit note",
+        ],
+      });
       setIsLoading(false);
     }
   };

@@ -6,6 +6,13 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { CreditNoteForm } from "@/components/billing/CreditNoteForm";
 
+type InvoiceItemRow = {
+  id: string;
+  description: string;
+  quantity: number | string | null;
+  unit_price_cents: number | null;
+};
+
 export default async function NewCreditNotePage({
   params,
 }: {
@@ -70,7 +77,7 @@ export default async function NewCreditNotePage({
       <CreditNoteForm
         originalInvoiceId={invoice.id}
         originalInvoiceNumber={invoice.invoice_number || "Invoice"}
-        initialItems={(invoiceItems || []).map((item: any, index: number) => ({
+        initialItems={((invoiceItems || []) as InvoiceItemRow[]).map((item, index) => ({
           description: item.description,
           quantity: Number(item.quantity || 0),
           unit_price: Number(item.unit_price_cents || 0) / 100,

@@ -15,11 +15,6 @@ type PackagePageProps = {
   params: Promise<{ id: string }>;
 };
 
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "—";
-  return value.replaceAll("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
 function formatPrice(value: number | string | null | undefined) {
   if (!value) return "—";
   const num = Number(value);
@@ -30,19 +25,6 @@ function formatPrice(value: number | string | null | undefined) {
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-GB");
-}
-
-function getBadgeVariant(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-      return "success" as const;
-    case "paused":
-      return "info" as const;
-    case "cancelled":
-      return "danger" as const;
-    default:
-      return "neutral" as const;
-  }
 }
 
 export default async function PackageDetailPage({ params }: PackagePageProps) {

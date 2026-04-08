@@ -152,6 +152,7 @@ export function CompanySettingsForm({
           {initialData?.logo_url ? (
             <div>
               <Label>Current Logo</Label>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={initialData.logo_url}
                 alt="Company Logo"

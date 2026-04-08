@@ -1,4 +1,12 @@
-import { PDFDocument, PDFFont, PDFImage, StandardFonts, rgb } from "pdf-lib";
+import {
+  PDFDocument,
+  PDFFont,
+  PDFImage,
+  PDFPage,
+  RGB,
+  StandardFonts,
+  rgb,
+} from "pdf-lib";
 
 export type BillingPdfMode = "invoice" | "credit_note";
 
@@ -282,7 +290,7 @@ export function splitText(
 }
 
 export function drawTextBlock(params: {
-  page: any;
+  page: PDFPage;
   text: string;
   x: number;
   y: number;
@@ -290,7 +298,7 @@ export function drawTextBlock(params: {
   font: PDFFont;
   fontSize: number;
   lineHeight?: number;
-  color?: any;
+  color?: RGB;
 }) {
   const {
     page,
@@ -325,7 +333,7 @@ export function drawTextBlock(params: {
   return cursorY;
 }
 
-export function drawHorizontalRule(page: any, y: number) {
+export function drawHorizontalRule(page: PDFPage, y: number) {
   page.drawLine({
     start: { x: PAGE.marginX, y },
     end: { x: PAGE.width - PAGE.marginX, y },
@@ -335,7 +343,7 @@ export function drawHorizontalRule(page: any, y: number) {
 }
 
 export function drawLabelValue(params: {
-  page: any;
+  page: PDFPage;
   label: string;
   value: string;
   x: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 type Municipality = {
   id: string;
@@ -45,21 +45,6 @@ export default function AddressFields({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [locations, selectedMunicipalityId]);
 
-  useEffect(() => {
-    if (!selectedMunicipalityId) {
-      setSelectedLocationId("");
-      return;
-    }
-
-    const stillValid = filteredLocations.some(
-      (location) => location.id === selectedLocationId
-    );
-
-    if (!stillValid) {
-      setSelectedLocationId("");
-    }
-  }, [selectedMunicipalityId, filteredLocations, selectedLocationId]);
-
   return (
     <>
       <div className="grid grid-2 gap-4">
@@ -71,7 +56,10 @@ export default function AddressFields({
             className="input"
             required
             value={selectedMunicipalityId}
-            onChange={(e) => onMunicipalityChange(e.target.value)}
+            onChange={(e) => {
+              onMunicipalityChange(e.target.value);
+              setSelectedLocationId("");
+            }}
           >
             <option value="" disabled>
               Select municipality
@@ -91,7 +79,11 @@ export default function AddressFields({
             name="location_id"
             className="input"
             required
-            value={selectedLocationId}
+            value={
+              filteredLocations.some((location) => location.id === selectedLocationId)
+                ? selectedLocationId
+                : ""
+            }
             onChange={(e) => setSelectedLocationId(e.target.value)}
             disabled={!selectedMunicipalityId}
           >

@@ -36,7 +36,7 @@ export function UpdateInvoiceStatusButton({
           description: `Invoice marked as ${newStatus}`,
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: 'Error',
         description: 'Failed to update invoice status',

@@ -29,6 +29,34 @@ type ServiceOption = {
   base_price: number;
 };
 
+type RelatedProperty = {
+  id: string;
+  title: string | null;
+};
+
+type RelatedPackage = {
+  id: string;
+  name: string | null;
+  monthly_price: number | string | null;
+};
+
+type SubscriptionQueryRow = {
+  id: string;
+  client_id: string;
+  property_id: string;
+  package_id: string;
+  monthly_price: number | string | null;
+  property: RelatedProperty | RelatedProperty[] | null;
+  package: RelatedPackage | RelatedPackage[] | null;
+};
+
+type InvoiceItemRow = {
+  id: string;
+  description: string;
+  quantity: number | string | null;
+  unit_price_cents: number | null;
+};
+
 export default async function EditInvoicePage({
   params,
 }: {
@@ -121,7 +149,7 @@ export default async function EditInvoicePage({
   }
 
   const subscriptionOptions: SubscriptionOption[] = (subscriptionsRaw || []).map(
-    (row: any) => {
+    (row: SubscriptionQueryRow) => {
       const property = Array.isArray(row.property) ? row.property[0] : row.property;
       const pkg = Array.isArray(row.package) ? row.package[0] : row.package;
 
@@ -137,7 +165,7 @@ export default async function EditInvoicePage({
     }
   );
 
-  const serviceOptions: ServiceOption[] = (servicesRaw || []).map((row: any) => ({
+  const serviceOptions: ServiceOption[] = (servicesRaw || []).map((row) => ({
     id: row.id,
     name: row.name,
     category: row.category,
@@ -145,15 +173,16 @@ export default async function EditInvoicePage({
   }));
 
 
+  return (
     <div className="space-y-4">
-  <Button asChild variant="ghost">
-    <Link href="/billing/${id}">← Back</Link>
-  </Button>
+      <Button asChild variant="ghost">
+        <Link href={`/billing/${id}`}>Back</Link>
+      </Button>
 
-  <PageHeader
-    title="Edit Invoice"
-    description="Update draft invoice"
-  />
+      <PageHeader
+        title="Edit Invoice"
+        description="Update draft invoice"
+      />
 
       <InvoiceForm
         mode="edit"
@@ -168,7 +197,7 @@ export default async function EditInvoicePage({
           issue_date: invoice.issue_date,
           due_date: invoice.due_date,
           notes: invoice.notes,
-          items: (invoiceItems || []).map((item: any, index: number) => ({
+          items: ((invoiceItems || []) as InvoiceItemRow[]).map((item, index) => ({
             description: item.description,
             quantity: Number(item.quantity || 0),
             unit_price: Number(item.unit_price_cents || 0) / 100,
@@ -178,5 +207,5 @@ export default async function EditInvoicePage({
         }}
       />
     </div>
-  ;
+  );
 }

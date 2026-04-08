@@ -85,9 +85,8 @@ function formatDate(value: string | null) {
   }
 }
 
-function getKeyTypeVariant(
-  _keyType: string | null | undefined
-): "neutral" {
+function getKeyTypeVariant(keyType: string | null | undefined): "neutral" {
+  void keyType;
   return "neutral";
 }
 

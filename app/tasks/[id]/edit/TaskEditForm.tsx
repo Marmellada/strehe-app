@@ -1,16 +1,61 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { User } from "@/lib/users";
+
+type TaskEditRow = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
+  due_date: string | null;
+  property_id: string | null;
+  service_id: string | null;
+  subscription_id: string | null;
+  reported_by_user_id: string | null;
+  assigned_user_id: string | null;
+};
+
+type PropertyOption = {
+  id: string;
+  property_code: string | null;
+  title: string | null;
+};
+
+type ServiceOption = {
+  id: string;
+  name: string | null;
+  category: string | null;
+  default_title: string | null;
+  default_description: string | null;
+  default_priority: string | null;
+};
+
+type SubscriptionOption = {
+  id: string;
+  property_id: string | null;
+  client?: {
+    full_name: string | null;
+    company_name: string | null;
+  } | null;
+  property?: {
+    property_code: string | null;
+    title: string | null;
+  } | null;
+  package?: {
+    name: string | null;
+  } | null;
+};
 
 type TaskEditFormProps = {
   action: (formData: FormData) => void | Promise<void>;
-  task: any;
-  properties: any[];
+  task: TaskEditRow;
+  properties: PropertyOption[];
   users: User[];
-  services: any[];
-  subscriptions: any[];
+  services: ServiceOption[];
+  subscriptions: SubscriptionOption[];
 };
 
 export default function TaskEditForm({
@@ -39,38 +84,9 @@ export default function TaskEditForm({
     );
   }, [subscriptions, selectedPropertyId]);
 
-  const selectedService = useMemo(() => {
-    return services.find((service) => service.id === selectedServiceId) || null;
-  }, [services, selectedServiceId]);
-
   const currentSubscriptionStillValid = filteredSubscriptions.some(
     (subscription) => subscription.id === task.subscription_id
   );
-
-  useEffect(() => {
-    if (!selectedService) return;
-
-    if (
-      (!task.title || title === task.title) &&
-      selectedService.default_title
-    ) {
-      setTitle(selectedService.default_title);
-    }
-
-    if (
-      (!task.description || description === task.description) &&
-      selectedService.default_description
-    ) {
-      setDescription(selectedService.default_description);
-    }
-
-    if (
-      (!task.priority || priority === task.priority) &&
-      selectedService.default_priority
-    ) {
-      setPriority(selectedService.default_priority);
-    }
-  }, [selectedService]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <form action={action} className="card space-y-6">
@@ -107,7 +123,7 @@ export default function TaskEditForm({
             <option value="" disabled>
               Select property
             </option>
-            {properties.map((property: any) => (
+            {properties.map((property) => (
               <option key={property.id} value={property.id}>
                 {property.property_code ? `${property.property_code} - ` : ""}
                 {property.title}
@@ -162,11 +178,40 @@ export default function TaskEditForm({
             id="service_id"
             name="service_id"
             value={selectedServiceId}
-            onChange={(e) => setSelectedServiceId(e.target.value)}
+            onChange={(e) => {
+              const nextServiceId = e.target.value;
+              const nextService =
+                services.find((service) => service.id === nextServiceId) || null;
+              setSelectedServiceId(nextServiceId);
+
+              if (
+                nextService &&
+                (!task.title || title === task.title) &&
+                nextService.default_title
+              ) {
+                setTitle(nextService.default_title);
+              }
+
+              if (
+                nextService &&
+                (!task.description || description === task.description) &&
+                nextService.default_description
+              ) {
+                setDescription(nextService.default_description);
+              }
+
+              if (
+                nextService &&
+                (!task.priority || priority === task.priority) &&
+                nextService.default_priority
+              ) {
+                setPriority(nextService.default_priority);
+              }
+            }}
             className="input"
           >
             <option value="">Select service</option>
-            {services.map((service: any) => (
+            {services.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name}{" "}
                 {service.category ? `(${service.category})` : ""}
@@ -193,7 +238,7 @@ export default function TaskEditForm({
                 ? "Select subscription"
                 : "Select property first"}
             </option>
-            {filteredSubscriptions.map((subscription: any) => {
+            {filteredSubscriptions.map((subscription) => {
               const clientName =
                 subscription.client?.company_name ||
                 subscription.client?.full_name ||

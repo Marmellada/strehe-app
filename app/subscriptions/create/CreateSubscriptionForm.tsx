@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { DetailField } from "@/components/ui/DetailField";
@@ -94,19 +94,6 @@ export default function CreateSubscriptionForm({
     return properties.find((property) => property.id === selectedPropertyId) || null;
   }, [properties, selectedPropertyId]);
 
-  useEffect(() => {
-    setSelectedPropertyId("");
-  }, [selectedClientId]);
-
-  useEffect(() => {
-    if (!selectedPackage) {
-      setMonthlyPrice("");
-      return;
-    }
-
-    setMonthlyPrice(formatPrice(selectedPackage.monthly_price));
-  }, [selectedPackage]);
-
   return (
     <form action={action} className="space-y-6">
       <Card size="sm">
@@ -129,7 +116,10 @@ export default function CreateSubscriptionForm({
               name="client_id"
               required
               value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
+              onChange={(e) => {
+                setSelectedClientId(e.target.value);
+                setSelectedPropertyId("");
+              }}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="" disabled>
@@ -187,7 +177,13 @@ export default function CreateSubscriptionForm({
               name="package_id"
               required
               value={selectedPackageId}
-              onChange={(e) => setSelectedPackageId(e.target.value)}
+              onChange={(e) => {
+                const nextPackageId = e.target.value;
+                const nextPackage =
+                  packages.find((pkg) => pkg.id === nextPackageId) || null;
+                setSelectedPackageId(nextPackageId);
+                setMonthlyPrice(formatPrice(nextPackage?.monthly_price));
+              }}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="" disabled>

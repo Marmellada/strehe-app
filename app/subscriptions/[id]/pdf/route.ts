@@ -5,7 +5,6 @@ import {
   rgb,
   type Color,
   type PDFFont,
-  type PDFPage,
   type PDFImage,
 } from "pdf-lib";
 import { createClient } from "@/lib/supabase/server";

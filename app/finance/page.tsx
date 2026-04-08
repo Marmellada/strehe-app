@@ -27,23 +27,6 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString("en-GB");
 }
 
-function buildFinanceHref(params: {
-  dateFrom?: string;
-  dateTo?: string;
-  clientId?: string;
-  propertyId?: string;
-}) {
-  const search = new URLSearchParams();
-
-  if (params.dateFrom) search.set("dateFrom", params.dateFrom);
-  if (params.dateTo) search.set("dateTo", params.dateTo);
-  if (params.clientId) search.set("clientId", params.clientId);
-  if (params.propertyId) search.set("propertyId", params.propertyId);
-
-  const query = search.toString();
-  return query ? `/finance?${query}` : "/finance";
-}
-
 export default async function FinancePage({
   searchParams,
 }: {

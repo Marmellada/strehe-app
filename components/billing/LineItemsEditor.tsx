@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -79,24 +79,6 @@ export function LineItemsEditor({
       return true;
     });
   }, [subscriptions, clientId, propertyId]);
-
-  useEffect(() => {
-    setRowState((prev) => {
-      const next: Record<string, RowHelperState> = {};
-
-      items.forEach((item, index) => {
-        const rowId = getRowId(item, index);
-        next[rowId] = prev[rowId] || {
-          sourceType: "manual",
-          selectedSubscriptionId: "",
-          selectedServiceId: "",
-          months: 1,
-        };
-      });
-
-      return next;
-    });
-  }, [items]);
 
   const addItem = () => {
     onChange([

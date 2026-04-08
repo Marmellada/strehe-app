@@ -102,6 +102,25 @@ type EditSubscriptionPageProps = {
   params: { id: string };
 };
 
+type ClientOption = {
+  id: string;
+  full_name: string | null;
+  company_name: string | null;
+};
+
+type PropertyOption = {
+  id: string;
+  title: string | null;
+  property_code: string | null;
+};
+
+type PackageOption = {
+  id: string;
+  name: string | null;
+  monthly_price: number | string | null;
+  is_active: boolean | null;
+};
+
 export default async function EditSubscriptionPage({
   params,
 }: EditSubscriptionPageProps) {
@@ -233,7 +252,7 @@ export default async function EditSubscriptionPage({
                 <option value="" disabled>
                   Select client
                 </option>
-                {clients?.map((client: any) => (
+                {((clients || []) as ClientOption[]).map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.company_name || client.full_name || "-"}
                   </option>
@@ -255,7 +274,7 @@ export default async function EditSubscriptionPage({
                 <option value="" disabled>
                   Select property
                 </option>
-                {properties?.map((property: any) => (
+                {((properties || []) as PropertyOption[]).map((property) => (
                   <option key={property.id} value={property.id}>
                     {property.property_code
                       ? `${property.property_code} - ${property.title || ""}`
@@ -279,7 +298,7 @@ export default async function EditSubscriptionPage({
                 <option value="" disabled>
                   Select package
                 </option>
-                {packages?.map((pkg: any) => (
+                {((packages || []) as PackageOption[]).map((pkg) => (
                   <option key={pkg.id} value={pkg.id}>
                     {pkg.name}
                     {pkg.monthly_price !== null && pkg.monthly_price !== undefined

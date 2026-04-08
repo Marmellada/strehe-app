@@ -13,6 +13,12 @@ import {
   sumIssuedCreditNoteCents,
 } from "@/lib/billing/settlement";
 
+type BankOption = {
+  id: string;
+  name: string;
+  swift_code: string | null;
+};
+
 function centsToEur(cents: number) {
   return (cents || 0) / 100;
 }
@@ -217,7 +223,7 @@ export default async function PaymentPage({
           <PaymentForm
             invoiceId={invoice.id}
             balanceDueCents={settlement.remainingCents}
-            banks={(banks || []).map((bank: any) => ({
+            banks={((banks || []) as BankOption[]).map((bank) => ({
               id: bank.id,
               name: bank.name,
               swift_code: bank.swift_code,

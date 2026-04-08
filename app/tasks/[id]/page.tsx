@@ -728,6 +728,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
                                 rel="noreferrer"
                                 className="block"
                               >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={image.signed_url}
                                   alt={image.file_name || "Task photo"}

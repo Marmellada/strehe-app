@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { computeSettlement } from "@/lib/billing/settlement";
 
-type Nullable<T> = T | null;
-
 export type FinanceOverviewFilters = {
   dateFrom?: string;
   dateTo?: string;

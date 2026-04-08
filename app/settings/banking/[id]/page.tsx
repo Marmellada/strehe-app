@@ -3,6 +3,13 @@ import { BankAccountForm } from '@/components/banking/BankAccountForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { notFound } from 'next/navigation'
 
+type BankOption = {
+  id: string
+  name: string
+  swift_code: string | null
+  country: string | null
+}
+
 export default async function EditBankAccountPage({
   params,
 }: {
@@ -28,6 +35,11 @@ export default async function EditBankAccountPage({
     notFound()
   }
 
+  const bankAccountFormProps = {
+    banks: (banks || []) as BankOption[],
+    account,
+  } as unknown as Parameters<typeof BankAccountForm>[0]
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -45,7 +57,7 @@ export default async function EditBankAccountPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <BankAccountForm {...({ banks: banks || [], account } as any)} />
+          <BankAccountForm {...bankAccountFormProps} />
         </CardContent>
       </Card>
     </div>

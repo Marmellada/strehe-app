@@ -41,7 +41,7 @@ export function DeleteInvoiceButton({ invoiceId }: { invoiceId: string }) {
         });
         // Redirect happens automatically via the action
       }
-    } catch (error) {
+    } catch {
       toast({
         title: 'Error',
         description: 'Failed to delete invoice',

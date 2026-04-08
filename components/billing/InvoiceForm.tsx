@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -117,18 +117,6 @@ export function InvoiceForm({
   const [notes, setNotes] = useState(initialNotes);
   const [items, setItems] = useState<LineItemInput[]>(initialItems);
 
-  useEffect(() => {
-    if (mode === "edit") return;
-    setDueDate(addDays(issueDate, 14));
-  }, [issueDate, mode]);
-
-  useEffect(() => {
-    if (mode === "edit" && initialValues) return;
-
-    setPropertyId("none");
-    setItems([createInitialItem()]);
-  }, [clientId, mode, initialValues]);
-
   const clientSubscriptions = useMemo(() => {
     return subscriptions.filter((sub) => sub.client_id === clientId);
   }, [subscriptions, clientId]);
@@ -213,18 +201,37 @@ export function InvoiceForm({
       }
 
       setIsLoading(false);
-    } catch (error: any) {
-      if (error?.errors) {
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "errors" in error &&
+        Array.isArray(error.errors)
+      ) {
         const formattedErrors: Record<string, string[]> = {};
-        error.errors.forEach((err: any) => {
-          const path = err.path.join(".");
-          formattedErrors[path] = [err.message];
+        error.errors.forEach((err) => {
+          const path =
+            typeof err === "object" &&
+            err !== null &&
+            "path" in err &&
+            Array.isArray(err.path)
+              ? err.path.join(".")
+              : "_form";
+          const message =
+            typeof err === "object" &&
+            err !== null &&
+            "message" in err &&
+            typeof err.message === "string"
+              ? err.message
+              : "Invalid value";
+          formattedErrors[path] = [message];
         });
         setErrors(formattedErrors);
       } else {
+        const message = error instanceof Error ? error.message : null;
         setErrors({
           _form: [
-            error?.message ||
+            message ||
               (mode === "edit"
                 ? "Failed to update invoice"
                 : "Failed to create invoice"),
@@ -246,7 +253,16 @@ export function InvoiceForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="client">Client *</Label>
-          <Select value={clientId} onValueChange={setClientId}>
+          <Select
+            value={clientId}
+            onValueChange={(value) => {
+              setClientId(value);
+              if (!(mode === "edit" && initialValues)) {
+                setPropertyId("none");
+                setItems([createInitialItem()]);
+              }
+            }}
+          >
             <SelectTrigger id="client">
               <SelectValue placeholder="Select client" />
             </SelectTrigger>
@@ -291,7 +307,13 @@ export function InvoiceForm({
             id="issue-date"
             type="date"
             value={issueDate}
-            onChange={(e) => setIssueDate(e.target.value)}
+            onChange={(e) => {
+              const nextIssueDate = e.target.value;
+              setIssueDate(nextIssueDate);
+              if (mode === "create") {
+                setDueDate(addDays(nextIssueDate, 14));
+              }
+            }}
           />
         </div>
 

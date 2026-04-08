@@ -53,6 +53,38 @@ function formatAddress(data: {
 type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 type DocumentType = "invoice" | "credit_note";
 
+type BankRow = {
+  id: string;
+  name: string | null;
+  swift_code: string | null;
+};
+
+type PaymentRow = {
+  id: string;
+  invoice_id: string;
+  bank_id: string | null;
+  amount_cents: number;
+  payment_method: string;
+  payment_date: string;
+  reference_number: string | null;
+  notes: string | null;
+  created_at: string | null;
+};
+
+type PaymentDisplayRow = PaymentRow & {
+  bank: BankRow | null;
+};
+
+type InvoiceItemRow = {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number | string | null;
+  unit_price_cents: number | null;
+  total_cents: number | null;
+  created_at: string | null;
+};
+
 function getDocumentTypeBadgeVariant(documentType: DocumentType) {
   return documentType === "credit_note" ? "danger" : "info";
 }
@@ -274,13 +306,15 @@ export default async function InvoiceDetailPage({
     throw new Error(originalInvoiceError.message);
   }
 
-  const bankMap = new Map((banksRaw || []).map((bank: any) => [bank.id, bank]));
+  const bankMap = new Map(
+    ((banksRaw || []) as BankRow[]).map((bank) => [bank.id, bank])
+  );
 
   const payments =
-    (paymentsRaw || []).map((payment: any) => ({
+    ((paymentsRaw || []) as PaymentRow[]).map((payment) => ({
       ...payment,
       bank: payment.bank_id ? bankMap.get(payment.bank_id) || null : null,
-    })) || [];
+    })) satisfies PaymentDisplayRow[];
 
   const creditNotes = (creditNotesRaw || []) as Array<{
     id: string;
@@ -620,7 +654,7 @@ export default async function InvoiceDetailPage({
             </thead>
             <tbody>
               {(invoiceItems || []).length ? (
-                (invoiceItems || []).map((item: any) => (
+                ((invoiceItems || []) as InvoiceItemRow[]).map((item) => (
                   <tr key={item.id} className={tableRowClasses()}>
                     <td className="px-4 py-3 text-foreground">
                       {item.description}
@@ -753,7 +787,7 @@ export default async function InvoiceDetailPage({
                 </thead>
                 <tbody>
                   {payments.length ? (
-                    payments.map((payment: any) => (
+                    payments.map((payment) => (
                       <tr key={payment.id} className={tableRowClasses()}>
                         <td className="px-4 py-3 text-muted-foreground">
                           {formatDate(payment.payment_date)}

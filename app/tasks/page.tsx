@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
-import { Label } from "@/components/ui/Label";
 
 const PAGE_SIZE = 20;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Label } from "@/components/ui/Label";
 
 type Municipality = {
@@ -39,21 +39,6 @@ export default function ClientLocationFields({
     );
   }, [locations, municipalityId]);
 
-  useEffect(() => {
-    if (!municipalityId) {
-      setLocationId("");
-      return;
-    }
-
-    const existsInMunicipality = filteredLocations.some(
-      (location) => location.id === locationId
-    );
-
-    if (!existsInMunicipality) {
-      setLocationId("");
-    }
-  }, [municipalityId, locationId, filteredLocations]);
-
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
@@ -62,7 +47,10 @@ export default function ClientLocationFields({
           id="municipality_id"
           name="municipality_id"
           value={municipalityId}
-          onChange={(e) => setMunicipalityId(e.target.value)}
+          onChange={(e) => {
+            setMunicipalityId(e.target.value);
+            setLocationId("");
+          }}
           className="input"
         >
           <option value="">Select municipality</option>
@@ -79,7 +67,11 @@ export default function ClientLocationFields({
         <select
           id="location_id"
           name="location_id"
-          value={locationId}
+          value={
+            filteredLocations.some((location) => location.id === locationId)
+              ? locationId
+              : ""
+          }
           onChange={(e) => setLocationId(e.target.value)}
           disabled={!municipalityId}
           className="input"

@@ -184,9 +184,8 @@ async function drawHeader(ctx: PdfContext): Promise<PdfContext> {
   const { page, pdfDoc, document, fontBold, fontRegular, pageNumber } = ctx;
   const leftX = PAGE.marginX;
   const rightX = PAGE.width - PAGE.marginX;
-  const contentWidth = rightX - leftX;
 
-  let topY = ctx.cursorY;
+  const topY = ctx.cursorY;
   const logo = await embedLogoFromUrl(pdfDoc, document.company.logo_url);
 
   let leftBlockBottomY = topY;
@@ -982,7 +981,7 @@ export async function generateBillingPdf({
   ctx = await ensureRoom(ctx, 180);
   ctx = drawTotalsBox(ctx);
   ctx = drawBottomSections(ctx);
-  ctx = drawFooter(ctx);
+  drawFooter(ctx);
 
   const bytes = await pdfDoc.save();
 
