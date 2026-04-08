@@ -1,196 +1,152 @@
-"use client";
-
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
-type TaskUser = {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-};
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
+import TaskForm from "@/components/tasks/TaskForm";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
-type TaskProperty = {
+type PropertyRow = {
   id: string;
   property_code: string | null;
   title: string | null;
   address_line_1: string | null;
 };
 
-type TaskFormTask = {
+type AppUserRow = {
   id: string;
-  title: string | null;
-  description: string | null;
-  status: string | null;
-  priority: string | null;
-  due_date: string | null;
-  assigned_user_id: string | null;
-  property_id: string | null;
-  subscription_id?: string | null;
+  email: string | null;
+  full_name: string | null;
 };
 
-type TaskFormProps = {
-  action: (formData: FormData) => void | Promise<void>;
-  users: TaskUser[];
-  properties: TaskProperty[];
-  cancelHref: string;
-  submitLabel: string;
-  task?: TaskFormTask;
-  lockProperty?: boolean;
-};
+async function createTask(formData: FormData) {
+  "use server";
 
-const selectClass =
-  "w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const { authUser, appUser } = await requireRole(["admin", "office"]);
+  const supabase = await createClient();
 
-export default function TaskForm({
-  action,
-  users,
-  properties,
-  cancelHref,
-  submitLabel,
-  task,
-  lockProperty = false,
-}: TaskFormProps) {
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const status = String(formData.get("status") || "").trim();
+  const priority = String(formData.get("priority") || "").trim();
+  const dueDateRaw = String(formData.get("due_date") || "").trim();
+  const assignedUserIdRaw = String(formData.get("assigned_user_id") || "").trim();
+  const propertyIdRaw = String(formData.get("property_id") || "").trim();
+
+  if (!title) throw new Error("Title is required.");
+  if (!status) throw new Error("Status is required.");
+  if (!priority) throw new Error("Priority is required.");
+  if (!propertyIdRaw) throw new Error("Property is required.");
+
+  const { data: property, error: propertyError } = await supabase
+    .from("properties")
+    .select("id, property_code")
+    .eq("id", propertyIdRaw)
+    .single();
+
+  if (propertyError || !property) {
+    throw new Error("Selected property was not found.");
+  }
+
+  let assignedUserSnapshot: string | null = null;
+
+  if (assignedUserIdRaw) {
+    const { data: assignedUser, error: assignedUserError } = await supabase
+      .from("app_users")
+      .select("id, full_name, email")
+      .eq("id", assignedUserIdRaw)
+      .single();
+
+    if (assignedUserError || !assignedUser) {
+      throw new Error("Selected assignee was not found.");
+    }
+
+    assignedUserSnapshot =
+      assignedUser.full_name?.trim() || assignedUser.email || assignedUser.id;
+  }
+
+  const payload = {
+    title,
+    description: description || null,
+    status,
+    priority,
+    due_date: dueDateRaw || null,
+    assigned_user_id: assignedUserIdRaw || null,
+    assigned_user_name_snapshot: assignedUserSnapshot,
+    created_by_user_id: authUser.id,
+    created_by_user_name_snapshot:
+      appUser.full_name?.trim() || appUser.email || authUser.id,
+    property_id: propertyIdRaw,
+    property_code_snapshot: property.property_code || null,
+  };
+
+  const { error } = await supabase.from("tasks").insert(payload);
+
+  if (error) {
+    throw new Error(`Failed to create task: ${error.message}`);
+  }
+
+  revalidatePath("/tasks");
+  redirect("/tasks");
+}
+
+export default async function CreateTaskPage() {
+  await requireRole(["admin", "office"]);
+
+  const supabase = await createClient();
+
+  const [
+    { data: users, error: usersError },
+    { data: properties, error: propertiesError },
+  ] = await Promise.all([
+    supabase
+      .from("app_users")
+      .select("id, email, full_name")
+      .eq("is_active", true)
+      .order("full_name", { ascending: true }),
+    supabase
+      .from("properties")
+      .select("id, property_code, title, address_line_1")
+      .order("property_code", { ascending: true }),
+  ]);
+
+  if (usersError) {
+    throw new Error(`Failed to load users: ${usersError.message}`);
+  }
+
+  if (propertiesError) {
+    throw new Error(`Failed to load properties: ${propertiesError.message}`);
+  }
+
+  const typedUsers: AppUserRow[] = (users || []) as AppUserRow[];
+  const typedProperties: PropertyRow[] = (properties || []) as PropertyRow[];
+
   return (
-    <form action={action} className="space-y-6">
-      {task ? <input type="hidden" name="taskId" value={task.id} /> : null}
+    <div className="space-y-6">
+      <PageHeader
+        title="Create Task"
+        description="Create and assign a new task"
+        actions={
+          <Link href="/tasks">
+            <Button variant="ghost">Back to Tasks</Button>
+          </Link>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-6">
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1.5">
-            Title
-          </label>
-          <input
-            id="title"
-            name="title"
-            required
-            defaultValue={task?.title ?? ""}
-            className="input"
+      <Card>
+        <div className="p-6">
+          <TaskForm
+            action={createTask}
+            users={typedUsers}
+            properties={typedProperties}
+            cancelHref="/tasks"
+            submitLabel="Create Task"
           />
         </div>
-
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1.5">
-            Description
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            rows={5}
-            defaultValue={task?.description ?? ""}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1.5">
-            Status
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={task?.status ?? "open"}
-            className={selectClass}
-          >
-            <option value="open">Open</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="priority" className="block text-sm font-medium text-gray-300 mb-1.5">
-            Priority
-          </label>
-          <select
-            id="priority"
-            name="priority"
-            defaultValue={task?.priority ?? "medium"}
-            className={selectClass}
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="assigned_user_id" className="block text-sm font-medium text-gray-300 mb-1.5">
-            Assign To
-          </label>
-          <select
-            id="assigned_user_id"
-            name="assigned_user_id"
-            defaultValue={task?.assigned_user_id ?? ""}
-            className={selectClass}
-          >
-            <option value="">Unassigned</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.full_name?.trim() || user.email || "Unnamed User"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="due_date" className="block text-sm font-medium text-gray-300 mb-1.5">
-            Due Date
-          </label>
-          <input
-            id="due_date"
-            name="due_date"
-            type="date"
-            defaultValue={task?.due_date?.split("T")[0] ?? ""}
-            className="input"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="property_id" className="block text-sm font-medium text-gray-300 mb-1.5">
-          Property
-        </label>
-
-        <select
-          id="property_id"
-          name="property_id"
-          defaultValue={task?.property_id ?? ""}
-          required
-          disabled={lockProperty}
-          className={selectClass}
-        >
-          <option value="">Select property</option>
-          {properties.map((property) => (
-            <option key={property.id} value={property.id}>
-              {[property.property_code, property.title, property.address_line_1]
-                .filter(Boolean)
-                .join(" — ")}
-            </option>
-          ))}
-        </select>
-
-        {lockProperty ? (
-          <>
-            <input type="hidden" name="property_id" value={task?.property_id ?? ""} />
-            <p className="mt-2 text-xs text-amber-300">
-              Property is locked for auto-generated subscription tasks.
-            </p>
-          </>
-        ) : null}
-      </div>
-
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700">
-        <Link href={cancelHref} className="btn btn-secondary">
-          Cancel
-        </Link>
-
-        <button type="submit" className="btn">
-          {submitLabel}
-        </button>
-      </div>
-    </form>
+      </Card>
+    </div>
   );
 }
