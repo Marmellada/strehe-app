@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { ToastProvider } from "@/components/ui/toast";
+import { AppearanceThemeClient } from "@/components/ui/AppearanceThemeClient";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -49,57 +50,21 @@ export default async function RootLayout({
     >
       <body className="min-h-full">
         <ToastProvider>
+          <AppearanceThemeClient />
           <div className="layout">
-            <aside
-              className="sidebar"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                minHeight: "100vh",
-              }}
-            >
+            <aside className="sidebar flex min-h-screen flex-col">
               <div className="brand">
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    background: "#fff",
-                    border: "1px solid var(--border)",
-                  }}
-                />
+                <div className="brand-mark" />
                 <strong>STREHË Admin</strong>
               </div>
 
-              <nav
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                  marginTop: "24px",
-                }}
-              >
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-                >
+              <nav className="shell-nav">
+                <div className="shell-nav-group">
                   <Link href="/">Dashboard</Link>
                 </div>
 
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-                >
-                  <p
-                    style={{
-                      margin: "8px 0 2px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--muted-foreground, #94a3b8)",
-                    }}
-                  >
-                    Operations
-                  </p>
+                <div className="shell-nav-group">
+                  <p className="shell-nav-label">Operations</p>
 
                   <Link href="/clients">Clients</Link>
                   <Link href="/properties">Properties</Link>
@@ -117,46 +82,16 @@ export default async function RootLayout({
                   ) : null}
                 </div>
 
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-                >
-                  <p
-                    style={{
-                      margin: "8px 0 2px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--muted-foreground, #94a3b8)",
-                    }}
-                  >
-                    Configuration
-                  </p>
+                <div className="shell-nav-group">
+                  <p className="shell-nav-label">Configuration</p>
 
                   <Link href="/services">Services</Link>
                   <Link href="/packages">Packages</Link>
                 </div>
 
                 {role === "admin" ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: "8px 0 2px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "var(--muted-foreground, #94a3b8)",
-                      }}
-                    >
-                      System
-                    </p>
+                  <div className="shell-nav-group">
+                    <p className="shell-nav-label">System</p>
 
                     <Link href="/settings">Settings</Link>
                   </div>
@@ -169,7 +104,7 @@ export default async function RootLayout({
             <div className="main">
               <div className="topbar">
                 <div className="row">
-                  <h1 style={{ margin: 0 }}>STREHË Admin</h1>
+                  <h1 className="topbar-title">STREHË Admin</h1>
                 </div>
               </div>
 

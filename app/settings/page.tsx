@@ -37,6 +37,13 @@ export default async function SettingsPage() {
       href: "/settings/vendors",
       cta: "Manage Vendors",
     },
+    {
+      title: "Appearance",
+      description:
+        "Open the shared UI preview and adjust visual tokens for buttons, fields, cards, tables, and shell colors.",
+      href: "/ui-preview",
+      cta: "Open Appearance Editor",
+    },
   ];
 
   return (

@@ -8,16 +8,11 @@ type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
 };
 
 const variantClasses: Record<BadgeVariant, string> = {
-  success:
-    "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  warning:
-    "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  danger:
-    "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
-  neutral:
-    "border-border bg-muted text-muted-foreground",
-  info:
-    "border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  success: "border-[color:var(--badge-success-bg)] bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]",
+  warning: "border-[color:var(--badge-warning-bg)] bg-[var(--badge-warning-bg)] text-[var(--badge-warning-text)]",
+  danger: "border-[color:var(--badge-danger-bg)] bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)]",
+  neutral: "border-border bg-muted text-muted-foreground",
+  info: "border-[color:var(--badge-info-bg)] bg-[var(--badge-info-bg)] text-[var(--badge-info-text)]",
 };
 
 export function Badge({

@@ -1,0 +1,39 @@
+Area,Current Source,Status,Keep or Replace,Observed Risk,Action Needed First,Notes
+Theme tokens,"assets/css/tokens.css",Legacy token layer,Merge/Replace,"Uses old brand/surface token system separate from app/globals.css",Decide final token source,Do not keep two token systems long-term
+Theme tokens,"app/globals.css",Active token layer,Keep and consolidate,"Has newer background/card/input/sidebar tokens plus older utility classes",Make this the likely source of truth,Needs cleanup of old helper classes
+Global helper CSS,"assets/css/components.css",Legacy helper system,Replace gradually,"Defines .btn/.card/.input/layout/sidebar/topbar alongside newer UI primitives",Map usages and phase out,Still actively used by layout and older pages
+App shell,"app/layout.tsx",Mixed shell implementation,Refactor to standard,"Heavy inline styles and older shell composition",Standardize sidebar/topbar/nav components,High leverage file
+Dashboard,"app/page.tsx",Legacy/Mixed,Refactor early,"Inline styles + .card/.btn without shared PageHeader/Card primitives",Move to shared shell/card/button/stat system,High visibility
+Unauthorized page,"app/unauthorized/page.tsx",Legacy,Refactor later,"Uses .card/.btn and inline styles",Move to shared empty/error page pattern,Low-medium priority
+Settings landing,"app/settings/page.tsx",New shared style,Mostly keep,"Uses PageHeader/Card/Button cleanly",Use as reference page,Good baseline but currently omits vendors/categories cards
+Settings banking landing,"app/settings/banking/page.tsx",Wrong/duplicated,Fix,"Looks like duplicate settings landing content, not a real banking index",Audit and rebuild as true banking page,Known oddity
+Settings bank account form (legacy duplicate),"app/settings/BankAccountForm.tsx",Legacy duplicate,Quarantine/Remove from standard,"Old field-label/.input/.btn form with inline transforms",Do not standardize this file,Keep components/banking/BankAccountForm instead
+Company settings form,"components/settings/CompanySettingsForm.tsx",Mixed shared/legacy,Refactor,"Uses Card/Button/FormInput but FormInput itself is legacy and labels are not wired",Fix FormInput and align field stack,High priority
+Form input primitive,"components/ui/FormInput.tsx",Legacy in shared folder,Refactor or replace,"Label not bound to input, hardcoded gray palette, not aligned to Input component",Unify with Input/Label/field wrapper system,Critical
+Input primitive,"components/ui/Input.tsx",New shared style,Keep,"Good tokenized base",Use as base input source,Should absorb FormInput role
+Textarea primitive,"components/ui/Textarea.tsx",New shared style,Keep,"Good shared base",Use broadly,Check consistency with Input
+Select primitive,"components/ui/Select.tsx",New shared style,Keep,"Good Radix-based select",Define when to use vs native select,Token comments still present
+Button primitive,"components/ui/Button.tsx",New shared style,Keep,"Strong base with variants",Use as only button source wherever possible,Primary standard candidate
+Card primitive,"components/ui/Card.tsx",New shared style,Keep,"Strong base card structure",Use as only card source wherever possible,SectionCard/StatCard should build on this
+SectionCard,"components/ui/SectionCard.tsx",Shared,Keep,"Clean composition",Use for titled sections,Good standard piece
+Badge primitive,"components/ui/Badge.tsx",Shared,Keep,"Clear variant set",Use for statuses instead of custom spans,Need status mapping rules
+ExpenseCategoryStatusBadge,"components/expenses/ExpenseCategoryStatusBadge.tsx",Narrow custom,Replace with shared Badge,"Module-specific duplicate badge styling",Map to Badge success/warning,Easy cleanup
+Alert primitive,"components/ui/Alert.tsx",Shared,Keep,"Good shared feedback surface",Use as standard alert pattern,Should replace red custom error boxes
+Modal/dialog,"components/ui/Modal.tsx + components/ui/alert-dialog.tsx + native confirm dialogs",Mixed,Standardize,"Three confirmation approaches coexist",Pick one primary strategy,High priority for UX consistency
+Clients pages,"app/clients/*",Mixed,Refactor,"Mixture of new shared and old helper classes",Standardize after shared fields/buttons,High-traffic module
+Properties pages,"app/properties/*",Mixed/Legacy,Refactor,"Older forms/pages and helper panels remain",Standardize early,High-traffic module
+Keys pages,"app/keys/*",Mixed/Legacy,Refactor,"Detail and action form still custom/older",Move to shared detail/action patterns,Operational importance
+Tasks pages,"app/tasks/*",Mixed,Refactor,"High-traffic with some newer tokens but still custom detail/action layout",Standardize after field system,Operational importance
+Subscriptions pages,"app/subscriptions/*",Mixed,Refactor,"List/detail/create/edit not yet unified around one form/card/header system",Standardize after field system,Operational importance
+Billing pages,"app/billing/* + components/billing/*",Mixed,Refactor carefully,"Functionally active but visually inconsistent and complex",Dedicated hardening phase after shared fields,Critical module
+Expenses pages,"app/expenses/* + components/expenses/ExpenseForm.tsx",Mixed,Refactor,"Reasonably stable but uses mixed form/list patterns",Standardize after shared fields,Good candidate after billing
+Workers pages,"app/workers/* + components/workers/WorkerForm.tsx",Mixed,Refactor,"Module still needs consolidation and visual consistency",Do after shared fields + billing,Planned next module
+Services pages,"app/services/*",Mixed,Refactor,"Mix of PageHeader/Card and older classes",Standardize later,Configuration module
+Packages pages,"app/packages/*",Legacy-heavy,Refactor,"Still many .card patterns and older style choices",Standardize later,Configuration module
+Users settings page,"app/settings/users/page.tsx",Legacy-heavy active page,Refactor,"Large active admin page still uses page-title/btn/input/related-item + inline style",Needs migration to shared form/list/card system,High priority because admin-only but important
+Sidebar auth box,"components/auth/SidebarAuthBox.tsx",Legacy/Mixed,Refactor,"Part of shell visual language",Align with final shell system,Medium priority
+Auth login page,"app/auth/login/page.tsx",Mixed,Refactor,"Needs inclusion in standardized auth surface",Standardize before final auth tightening,High priority
+Legacy scaffold routes,"app/tenants,page.tsx; app/leases/page.tsx; app/units/page.tsx; app/users/*",Quarantined/Legacy,Do not standardize,"Redirect or obsolete surfaces",Keep out of active UI plan,Only mention as quarantine
+Finance page,"app/finance/page.tsx",Deferred/Visible by direct route,Do not prioritize,"Not in active sidebar but still exists",Exclude from first UI standardization batches,Defer unless reactivated
+PDF views,"app/billing/[id]/pdf/route.ts; app/subscriptions/[id]/pdf/route.ts",Custom print layer,Standardize later,"Separate print system but user-visible",Need brand token mapping after on-screen system,Important but later than shared forms
+

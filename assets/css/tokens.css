@@ -1,35 +1,69 @@
 /* Strehë Admin — Design Tokens (Light + Dark) */
 :root {
-  --brand-blue: #1F4E79;
-  --brand-ochre: #C48A2E;
-  --brand-green: #5E9C49;
-  --brand-danger: #C23B22;
+  --brand-blue: var(--primary);
+  --brand-ochre: #c48a2e;
+  --brand-green: #5e9c49;
+  --brand-danger: var(--destructive);
 
-  --neutral-900: #333333;
-  --neutral-700: #6B5F52;
-  --neutral-300: #D9CFBF;
-  --neutral-200: #E9DFCF;
-  --neutral-100: #F8F1E7;
+  --bg: var(--background);
+  --surface: var(--card);
+  --text: var(--foreground);
+  --muted: var(--muted-foreground);
+  --border: var(--border);
+  --link: var(--primary);
+  --sidebar-bg: var(--card);
+  --sidebar-text: var(--foreground);
+  --sidebar-label-text: var(--muted-foreground);
+  --sidebar-link-text: var(--foreground);
+  --sidebar-link-hover-bg: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --topbar-bg: var(--card);
+  --topbar-text: var(--foreground);
+  --table-header-bg: color-mix(in srgb, var(--muted) 40%, transparent);
+  --table-header-text: var(--foreground);
+  --table-body-text: var(--foreground);
+  --table-row-border: var(--border);
+  --button-primary-bg: var(--primary);
+  --button-primary-text: var(--primary-foreground);
+  --button-secondary-bg: var(--secondary);
+  --button-secondary-text: var(--secondary-foreground);
+  --button-outline-bg: var(--background);
+  --button-outline-text: var(--foreground);
+  --button-outline-border: var(--input);
+  --button-ghost-text: var(--foreground);
+  --button-ghost-hover-bg: var(--accent);
+  --button-ghost-hover-text: var(--accent-foreground);
+  --button-destructive-bg: var(--destructive);
+  --button-destructive-text: #ffffff;
+  --input-bg: var(--background);
+  --input-text: var(--foreground);
+  --input-border: var(--input);
+  --input-placeholder: var(--muted-foreground);
+  --input-ring-color: var(--ring);
+  --textarea-bg: color-mix(in srgb, var(--input) 30%, var(--background) 70%);
+  --textarea-text: var(--foreground);
+  --textarea-border: var(--input);
+  --textarea-placeholder: var(--muted-foreground);
+  --textarea-ring-color: var(--ring);
+  --select-bg: color-mix(in srgb, var(--input) 30%, var(--background) 70%);
+  --select-text: var(--foreground);
+  --select-border: var(--input);
+  --select-placeholder: var(--muted-foreground);
+  --select-ring-color: var(--ring);
+  --badge-success-bg: rgba(16, 185, 129, 0.12);
+  --badge-success-text: #6ee7b7;
+  --badge-warning-bg: rgba(245, 158, 11, 0.12);
+  --badge-warning-text: #fcd34d;
+  --badge-danger-bg: rgba(239, 68, 68, 0.12);
+  --badge-danger-text: #fca5a5;
+  --badge-info-bg: rgba(14, 165, 233, 0.12);
+  --badge-info-text: #7dd3fc;
 
-  --bg: var(--neutral-100);
-  --surface: #FFFFFF;
-  --text: var(--neutral-900);
-  --muted: var(--neutral-700);
-  --border: var(--neutral-200);
-  --link: var(--brand-blue);
-
-  --radius-lg: 12px;
-  --radius-md: 8px;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,.06);
-  --focus-ring: 2px solid var(--brand-blue);
+  --radius-lg: calc(var(--radius) * 1.4);
+  --radius-md: calc(var(--radius) * 0.8);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --focus-ring: 2px solid var(--ring);
 }
 
 .theme-dark {
-  --bg: #111315;
-  --surface: #17191C;
-  --text: #ECECEC;
-  --muted: #B9B3A8;
-  --border: #2A2E33;
-  --link: #7FB7E0;
   --shadow-sm: none;
 }
