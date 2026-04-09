@@ -81,14 +81,21 @@ test.describe.serial("STREHE smoke suite", () => {
     await expect(
       page.getByRole("heading", { name: "Contract" })
     ).toBeVisible();
-    await expect(page.getByText(clientName)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Cancel Contract" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open PDF" })
+    ).toBeVisible();
 
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Cancel Contract" }).click();
     await page.waitForURL(/\/subscriptions$/);
 
     await page.goto(subscriptionUrl);
-    await expect(page.getByText("Cancelled")).toBeVisible();
+    await expect(
+      page.locator("div").filter({ hasText: /^StatusCancelled$/ }).first()
+    ).toBeVisible();
   });
 
   test("create, report, and cancel task", async ({ page }) => {
