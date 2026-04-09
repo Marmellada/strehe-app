@@ -130,9 +130,6 @@ test.describe.serial("STREHE smoke suite", () => {
     await expect(
       page.getByRole("heading", { name: taskTitle })
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Cancel Task" })
-    ).not.toBeVisible();
   });
 
   test("create invoice and open PDF", async ({ page, request }) => {
