@@ -84,14 +84,9 @@ export async function selectRadixOption(
   labelText: string,
   optionText: string
 ) {
-  const field = page
-    .locator("div")
-    .filter({
-      has: page.locator("label", { hasText: labelText }),
-    })
-    .first();
+  const combobox = page.getByRole("combobox", { name: labelText, exact: true });
 
-  await expect(field).toBeVisible();
-  await field.getByRole("combobox").click();
+  await expect(combobox).toBeVisible();
+  await combobox.click();
   await page.getByRole("option", { name: optionText, exact: true }).click();
 }
