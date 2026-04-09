@@ -27,7 +27,16 @@ export default defineConfig({
     {
       name: "smoke-chromium",
       dependencies: ["setup"],
-      testMatch: /smoke\.spec\.ts/,
+      testMatch: /(^|[\\/])smoke\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+      },
+    },
+    {
+      name: "settings-smoke-chromium",
+      dependencies: ["setup"],
+      testMatch: /(^|[\\/])settings-smoke\.spec\.ts$/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "playwright/.auth/user.json",
