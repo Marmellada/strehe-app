@@ -36,10 +36,10 @@ select
   email,
   full_name,
   case
-    when role in ('admin', 'owner', 'manager', 'finance') then 'admin'::public.app_role
-    when role in ('staff', 'operator', 'operations') then 'office'::public.app_role
-    when role = 'contractor' then 'contractor'::public.app_role
-    else 'field'::public.app_role
+    when role in ('admin', 'owner', 'manager', 'finance') then 'admin'
+    when role in ('staff', 'operator', 'operations') then 'office'
+    when role = 'contractor' then 'contractor'
+    else 'field'
   end,
   coalesce(is_active, true),
   coalesce(created_at, now()),
@@ -47,6 +47,7 @@ select
 from public.users
 where auth_id is not null
 on conflict (id) do nothing;
+
 create table if not exists public.expense_categories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
