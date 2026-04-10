@@ -2,7 +2,17 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/Button";
-import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  DetailField,
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+} from "@/components/ui";
 import DeletePropertyButton from "./DeletePropertyButton";
 import { requireRole } from "@/lib/auth/require-role";
 
@@ -118,51 +128,6 @@ function formatLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (l: string) => l.toUpperCase());
 }
 
-function getPropertyStatusBadge(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-      return "badge-success";
-    case "vacant":
-      return "badge-warning";
-    case "inactive":
-      return "badge-outline";
-    default:
-      return "badge-outline";
-  }
-}
-
-function getContractStatusBadge(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-      return "badge-success";
-    case "paused":
-      return "badge-warning";
-    case "cancelled":
-      return "badge-danger";
-    default:
-      return "badge-outline";
-  }
-}
-
-function getTaskStatusBadge(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "open":
-    case "pending":
-    case "todo":
-      return "badge-warning";
-    case "in_progress":
-    case "in progress":
-      return "badge-outline";
-    case "completed":
-    case "done":
-      return "badge-success";
-    case "cancelled":
-      return "badge-danger";
-    default:
-      return "badge-outline";
-  }
-}
-
 type PropertyPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -272,13 +237,9 @@ export default async function PropertyDetailPage({
 
   return (
     <main className="space-y-6">
-      <div className="status-row">
-        <span className="badge badge-outline">
-          {property.property_type || "Property"}
-        </span>
-        <span className={`badge ${getPropertyStatusBadge(property.status)}`}>
-          {formatLabel(property.status)}
-        </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge status={property.property_type || "property"} />
+        <StatusBadge status={property.status} />
       </div>
 
       <PageHeader
@@ -315,257 +276,159 @@ export default async function PropertyDetailPage({
         }
       />
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="card">
-          <span className="field-label">Owner</span>
-          <span className="field-value">{owner}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Municipality</span>
-          <span className="field-value">{municipality?.name || "-"}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Location</span>
-          <span className="field-value">{location?.name || "-"}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Tracked Keys</span>
-          <span className="field-value">{keysCount}</span>
-        </div>
-
-        <div className="card">
-          <span className="field-label">Open Work Orders</span>
-          <span className="field-value">{openTasksCount}</span>
-        </div>
+        <Card size="sm"><CardContent><DetailField label="Owner" value={owner} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Municipality" value={municipality?.name || "-"} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Location" value={location?.name || "-"} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Tracked Keys" value={keysCount} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Open Work Orders" value={openTasksCount} /></CardContent></Card>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <div className="card">
-          <h2 className="section-title">Property Information</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Property Information</CardTitle>
+            <CardDescription>Core registration and address details.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <DetailField label="Property Code" value={property.property_code || "-"} />
+            <DetailField label="Title" value={property.title || "-"} />
+            <DetailField label="Property Type" value={property.property_type || "-"} />
+            <DetailField label="Status" value={formatLabel(property.status)} />
+            <DetailField label="Address Line 1" value={property.address_line_1 || "-"} />
+            <DetailField label="Address Line 2" value={property.address_line_2 || "-"} />
+            <DetailField label="Country" value={property.country || "-"} />
+          </CardContent>
+        </Card>
 
-          <div className="info-stack">
-            <div className="info-row">
-              <span className="field-label">Property Code</span>
-              <span className="field-value">{property.property_code || "-"}</span>
-            </div>
-
-            <div className="info-row">
-              <span className="field-label">Title</span>
-              <span className="field-value">{property.title || "-"}</span>
-            </div>
-
-            <div className="info-row">
-              <span className="field-label">Property Type</span>
-              <span className="field-value">{property.property_type || "-"}</span>
-            </div>
-
-            <div className="info-row">
-              <span className="field-label">Status</span>
-              <span className="field-value">{formatLabel(property.status)}</span>
-            </div>
-
-            <div className="info-row pt-2">
-              <span className="section-title !mb-0 !text-base">Address</span>
-            </div>
-
-            <div className="info-row">
-              <span className="field-label">Address Line 1</span>
-              <span className="field-value">{property.address_line_1 || "-"}</span>
-            </div>
-
-            <div className="info-row">
-              <span className="field-label">Address Line 2</span>
-              <span className="field-value">{property.address_line_2 || "-"}</span>
-            </div>
-
-            <div className="info-row">
-              <span className="field-label">Country</span>
-              <span className="field-value">{property.country || "-"}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="section-title">Operational Summary</h2>
-
-          <div className="summary-stack">
-            <div className="summary-item">
-              <span className="field-label">Assigned Owner</span>
-              <span className="field-value">{owner}</span>
-            </div>
-
-            <div className="summary-item">
-              <span className="field-label">Municipality</span>
-              <span className="field-value">{municipality?.name || "-"}</span>
-            </div>
-
-            <div className="summary-item">
-              <span className="field-label">Location Type</span>
-              <span className="field-value">{location?.type || "-"}</span>
-            </div>
-
-            <div className="summary-item">
-              <span className="field-label">Active Contract</span>
-              <span className="field-value">
-                {activePlan?.name || (activeContract ? "Active" : "None")}
-              </span>
-            </div>
-
-            <div className="summary-item">
-              <span className="field-label">Monthly Value</span>
-              <span className="field-value">
-                {activeContract ? `${formatPrice(activeContract.monthly_price)} / mo` : "-"}
-              </span>
-            </div>
-
+        <Card>
+          <CardHeader>
+            <CardTitle>Operational Summary</CardTitle>
+            <CardDescription>Day-to-day context for this property.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Assigned Owner" value={owner} />
+            <DetailField label="Municipality" value={municipality?.name || "-"} />
+            <DetailField label="Location Type" value={location?.type || "-"} />
+            <DetailField
+              label="Active Contract"
+              value={activePlan?.name || (activeContract ? "Active" : "None")}
+            />
+            <DetailField
+              label="Monthly Value"
+              value={activeContract ? `${formatPrice(activeContract.monthly_price)} / mo` : "-"}
+            />
             {ownerClient?.id ? (
-              <div className="summary-item pt-2">
-                <Link href={`/clients/${ownerClient.id}`} className="btn btn-ghost">
-                  View Owner
-                </Link>
+              <div>
+                <Button asChild variant="ghost">
+                  <Link href={`/clients/${ownerClient.id}`}>View Owner</Link>
+                </Button>
               </div>
             ) : null}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-        <div className="card">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
-              <h2 className="section-title !mb-0">Contracts</h2>
-              <p className="page-subtitle mt-1">
-                Service agreements linked to this property.
-              </p>
+              <CardTitle>Contracts</CardTitle>
+              <CardDescription>Service agreements linked to this property.</CardDescription>
             </div>
-
-            <Link href={`/subscriptions/create?property_id=${id}`} className="btn btn-primary">
-              + Add Contract
-            </Link>
-          </div>
-
-          {contracts.length === 0 ? (
-            <p className="field-value-muted">No contracts assigned yet.</p>
-          ) : (
-            <div className="related-list">
-              {contracts.map((contract) => {
+            <Button asChild>
+              <Link href={`/subscriptions/create?property_id=${id}`}>Add Contract</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {contracts.length === 0 ? (
+              <EmptyState
+                title="No contracts assigned yet"
+                description="Create the first service agreement for this property."
+              />
+            ) : (
+              contracts.map((contract) => {
                 const plan = getSingleRelation(contract.packages);
-
                 return (
-                  <div key={contract.id} className="related-item">
+                  <div key={contract.id} className="flex items-center justify-between gap-4 rounded-xl border p-4">
                     <div>
-                      <div className="related-item-title">
-                        {plan?.name || "Unnamed Plan"}
-                      </div>
-                      <div className="related-item-subtitle">
-                        {formatPrice(contract.monthly_price)} / mo •{" "}
-                        {formatDate(contract.start_date)} → {formatDate(contract.end_date)}
+                      <div className="font-medium text-foreground">{plan?.name || "Unnamed Plan"}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {formatPrice(contract.monthly_price)} / mo • {formatDate(contract.start_date)} → {formatDate(contract.end_date)}
                       </div>
                     </div>
-
                     <div className="flex items-center gap-3">
-                      <span
-                        className={`badge ${getContractStatusBadge(contract.status)}`}
-                      >
-                        {formatLabel(contract.status)}
-                      </span>
-
-                      <Link
-                        href={`/subscriptions/${contract.id}`}
-                        className="btn btn-ghost"
-                      >
-                        Open
-                      </Link>
+                      <StatusBadge status={contract.status} />
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/subscriptions/${contract.id}`}>Open</Link>
+                      </Button>
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </div>
+              })
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
-              <h2 className="section-title !mb-0">Recent Work Orders</h2>
-              <p className="page-subtitle mt-1">
-                Latest operational activity for this property.
-              </p>
+              <CardTitle>Recent Work Orders</CardTitle>
+              <CardDescription>Latest operational activity for this property.</CardDescription>
             </div>
-
-            <Link href={`/tasks/create?property_id=${id}`} className="btn btn-primary">
-              + Add Task
-            </Link>
-          </div>
-
-          {tasks.length === 0 ? (
-            <p className="field-value-muted">No tasks created yet.</p>
-          ) : (
-            <div className="related-list">
-              {tasks.map((task) => (
-                <div key={task.id} className="related-item">
+            <Button asChild>
+              <Link href={`/tasks/create?property_id=${id}`}>Add Task</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {tasks.length === 0 ? (
+              <EmptyState
+                title="No tasks created yet"
+                description="Create the first task for this property."
+              />
+            ) : (
+              tasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between gap-4 rounded-xl border p-4">
                   <div>
-                    <div className="related-item-title">
-                      {task.title || "Untitled Task"}
-                    </div>
-                    <div className="related-item-subtitle">
+                    <div className="font-medium text-foreground">{task.title || "Untitled Task"}</div>
+                    <div className="text-sm text-muted-foreground">
                       Due: {formatDate(task.due_date)} • Priority: {formatLabel(task.priority)}
                     </div>
                   </div>
-
                   <div className="flex items-center gap-3">
-                    <span className={`badge ${getTaskStatusBadge(task.status)}`}>
-                      {formatLabel(task.status)}
-                    </span>
-
-                    <Link href={`/tasks/${task.id}`} className="btn btn-ghost">
-                      Open
-                    </Link>
+                    <StatusBadge status={task.status} />
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/tasks/${task.id}`}>Open</Link>
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </section>
 
-      <section className="card">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <Card>
+        <CardHeader className="flex-row items-start justify-between gap-4">
           <div>
-            <h2 className="section-title !mb-0">Key Access</h2>
-            <p className="page-subtitle mt-1">
-              Secure access assets linked to this property.
-            </p>
+            <CardTitle>Key Access</CardTitle>
+            <CardDescription>Secure access assets linked to this property.</CardDescription>
           </div>
-
-          <Link href={`/properties/${id}/keys`} className="btn btn-primary">
-            Manage Keys
-          </Link>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="summary-item">
-            <span className="field-label">Tracked Keys</span>
-            <span className="field-value">{keysCount}</span>
-          </div>
-
-          <div className="summary-item">
-            <span className="field-label">Access Risk</span>
-            <span className="field-value">
-              {keysCount > 0 ? "Tracked" : "No keys registered"}
-            </span>
-          </div>
-
-          <div className="summary-item">
-            <span className="field-label">Action</span>
-            <span className="field-value">
-              {keysCount > 0 ? "Review handovers regularly" : "Add first key"}
-            </span>
-          </div>
-        </div>
-      </section>
+          <Button asChild>
+            <Link href={`/properties/${id}/keys`}>Manage Keys</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <DetailField label="Tracked Keys" value={keysCount} />
+          <DetailField
+            label="Access Risk"
+            value={keysCount > 0 ? "Tracked" : "No keys registered"}
+          />
+          <DetailField
+            label="Action"
+            value={keysCount > 0 ? "Review handovers regularly" : "Add first key"}
+          />
+        </CardContent>
+      </Card>
     </main>
   );
 }

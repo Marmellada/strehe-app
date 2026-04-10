@@ -2,6 +2,17 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  DetailField,
+  EmptyState,
+  PageHeader,
+} from "@/components/ui";
 import PropertyEditForm from "./PropertyEditForm";
 
 async function updateProperty(formData: FormData) {
@@ -167,37 +178,25 @@ export default async function EditPropertyPage({
     "No owner assigned";
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>Edit Property</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
-            Update property details for{" "}
-            {property.property_code || property.title || property.id}
-          </p>
-        </div>
+    <main className="grid gap-6">
+      <PageHeader
+        title="Edit Property"
+        description={`Update property details for ${property.property_code || property.title || property.id}.`}
+        actions={
+          <Button asChild variant="ghost">
+            <Link href={`/properties/${property.id}`}>Back to Property</Link>
+          </Button>
+        }
+      />
 
-        <Link href={`/properties/${property.id}`} className="btn btn-ghost">
-          Back to Property
-        </Link>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 0.8fr",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <div className="card">
+      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card>
+          <CardContent className="pt-6">
           {loadError ? (
-            <p style={{ color: "crimson", margin: 0 }}>
-              Failed to load form data: {loadError.message}
-            </p>
+            <EmptyState
+              title="Failed to load form data"
+              description={loadError.message}
+            />
           ) : (
             <PropertyEditForm
               property={property}
@@ -207,100 +206,54 @@ export default async function EditPropertyPage({
               updateProperty={updateProperty}
             />
           )}
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="card" style={{ display: "grid", gap: 16 }}>
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Current Summary</h3>
+        <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <DetailField label="Property Code" value={property.property_code || "-"} />
+              <DetailField label="Title" value={property.title || "-"} />
+              <DetailField label="Current Owner" value={currentOwnerName} />
+              <DetailField label="Status" value={property.status || "-"} />
+            </CardContent>
+          </Card>
 
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Property Code</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {property.property_code || "-"}
-                </div>
-              </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Editing Tips</CardTitle>
+              <CardDescription>Keep related records aligned while updating the property.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 text-sm text-muted-foreground">
+              <div><strong className="text-foreground">1. Change owner carefully.</strong> Reassigning the owner changes the relationship shown on both the property and client pages.</div>
+              <div><strong className="text-foreground">2. Keep municipality and location aligned.</strong> The location must belong to the selected municipality.</div>
+              <div><strong className="text-foreground">3. Update status when needed.</strong> Use Active, Vacant, or Inactive to reflect the current state of the property.</div>
+            </CardContent>
+          </Card>
 
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Title</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {property.title || "-"}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Current Owner</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {currentOwnerName}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Status</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {property.status || "-"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Editing Tips</h3>
-
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  1. Change owner carefully
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  Reassigning the owner changes the relationship shown on both
-                  the property and client pages.
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  2. Keep municipality and location aligned
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  The location must belong to the selected municipality.
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  3. Update status when needed
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  Use Active, Vacant, or Inactive to reflect the current state
-                  of the property.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Quick Actions</h3>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <Link href={`/properties/${property.id}`} className="btn btn-primary">
-                View Property
-              </Link>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              <Button asChild>
+                <Link href={`/properties/${property.id}`}>View Property</Link>
+              </Button>
 
               {property.owner_client_id ? (
-                <Link
-                  href={`/clients/${property.owner_client_id}`}
-                  className="btn btn-ghost"
-                >
-                  View Current Owner
-                </Link>
+                <Button asChild variant="ghost">
+                  <Link href={`/clients/${property.owner_client_id}`}>View Current Owner</Link>
+                </Button>
               ) : null}
 
-              <Link href="/properties" className="btn btn-ghost">
-                Back to Property List
-              </Link>
-            </div>
-          </div>
+              <Button asChild variant="ghost">
+                <Link href="/properties">Back to Property List</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </section>
     </main>

@@ -1,4 +1,13 @@
 import Link from "next/link";
+import {
+  Button,
+  Card,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+} from "@/components/ui";
 import { requireRole } from "@/lib/auth/require-role";
 
 export default async function SettingsPage() {
@@ -27,7 +36,7 @@ export default async function SettingsPage() {
     },
     {
       title: "Expense Categories",
-      description: "Manage active/inactive expense categories used by expenses.",
+      description: "Manage active and inactive expense categories used by expenses.",
       href: "/settings/expense-categories",
       cta: "Manage Categories",
     },
@@ -40,7 +49,7 @@ export default async function SettingsPage() {
     {
       title: "Appearance",
       description:
-        "Open the shared UI preview and adjust visual tokens for buttons, fields, cards, tables, and shell colors.",
+        "Open the shared UI preview and adjust visual tokens for buttons, fields, cards, tables, alerts, and shell colors.",
       href: "/ui-preview",
       cta: "Open Appearance Editor",
     },
@@ -48,32 +57,24 @@ export default async function SettingsPage() {
 
   return (
     <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">System Settings</h1>
-          <p className="page-subtitle mt-2">
-            Configure company settings, banking, and user access.
-          </p>
-          <p className="page-subtitle mt-1">
-            Signed in as: <strong>{appUser.role}</strong>
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="System Settings"
+        description={`Configure company settings, banking, and user access. Signed in as ${appUser.role}.`}
+      />
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
-          <article key={card.href} className="card p-6 flex flex-col gap-4">
-            <div>
-              <h2 className="section-title !mb-1">{card.title}</h2>
-              <p className="page-subtitle">{card.description}</p>
-            </div>
-
-            <div className="mt-auto">
-              <Link href={card.href} className="btn btn-primary">
-                {card.cta}
-              </Link>
-            </div>
-          </article>
+          <Card key={card.href} className="h-full">
+            <CardHeader>
+              <CardTitle>{card.title}</CardTitle>
+              <CardDescription>{card.description}</CardDescription>
+            </CardHeader>
+            <CardFooter className="mt-auto">
+              <Button asChild>
+                <Link href={card.href}>{card.cta}</Link>
+              </Button>
+            </CardFooter>
+          </Card>
         ))}
       </section>
     </main>

@@ -1,10 +1,25 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  FormField,
+  PageHeader,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 import { getFinanceOverview } from "@/lib/finance/overview";
 
 type FinancePageSearchParams = Promise<{
@@ -50,63 +65,50 @@ export default async function FinancePage({
         description="Read-only operational finance view built from invoice settlement data."
       />
 
-      <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-        <div>
+      <Alert variant="info">
+        <AlertTitle>How the filters work</AlertTitle>
+        <AlertDescription className="space-y-1">
+          <div>
           <strong className="text-foreground">Invoice metrics</strong> are filtered by{" "}
           <span className="font-medium text-foreground">issue date</span>.
-        </div>
-        <div>
+          </div>
+          <div>
           <strong className="text-foreground">Payment metrics</strong> are filtered by{" "}
           <span className="font-medium text-foreground">payment date</span>.
-        </div>
-      </div>
+          </div>
+        </AlertDescription>
+      </Alert>
 
-      <form method="GET" className="rounded-2xl border bg-card p-5">
+      <Card>
+        <CardContent className="pt-6">
+        <form method="GET" className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="space-y-2">
-            <label
-              htmlFor="dateFrom"
-              className="text-sm font-medium text-foreground"
-            >
-              Date From
-            </label>
+          <FormField id="dateFrom" label="Date From">
             <input
               id="dateFrom"
               name="dateFrom"
               type="date"
               defaultValue={filters.dateFrom}
-              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+              className="input w-full"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="dateTo"
-              className="text-sm font-medium text-foreground"
-            >
-              Date To
-            </label>
+          <FormField id="dateTo" label="Date To">
             <input
               id="dateTo"
               name="dateTo"
               type="date"
               defaultValue={filters.dateTo}
-              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+              className="input w-full"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="clientId"
-              className="text-sm font-medium text-foreground"
-            >
-              Client
-            </label>
+          <FormField id="clientId" label="Client">
             <select
               id="clientId"
               name="clientId"
               defaultValue={filters.clientId}
-              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+              className="input w-full"
             >
               <option value="">All clients</option>
               {filterOptions.clients.map((client) => (
@@ -115,20 +117,14 @@ export default async function FinancePage({
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="propertyId"
-              className="text-sm font-medium text-foreground"
-            >
-              Property
-            </label>
+          <FormField id="propertyId" label="Property">
             <select
               id="propertyId"
               name="propertyId"
               defaultValue={filters.propertyId}
-              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+              className="input w-full"
             >
               <option value="">All properties</option>
               {filterOptions.properties.map((property) => (
@@ -137,16 +133,18 @@ export default async function FinancePage({
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button type="submit">Apply Filters</Button>
           <Button asChild type="button" variant="outline">
             <Link href="/finance">Reset</Link>
           </Button>
         </div>
       </form>
+      </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Card size="sm">
@@ -211,8 +209,8 @@ export default async function FinancePage({
         </Card>
       </div>
 
-      <div className="rounded-2xl border bg-card">
-        <div className="border-b px-5 py-4">
+      <Card>
+        <CardHeader className="border-b">
           <h2 className="text-lg font-semibold text-foreground">
             Open Receivables
           </h2>
@@ -220,7 +218,7 @@ export default async function FinancePage({
             Invoice dataset includes only <span className="font-medium text-foreground">document_type = invoice</span>.
             Credit notes affect settlement only through the shared settlement helper.
           </p>
-        </div>
+        </CardHeader>
 
         {receivables.length === 0 ? (
           <div className="p-6">
@@ -230,99 +228,79 @@ export default async function FinancePage({
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr className="border-b">
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Invoice
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Client
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Property
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Issue Date
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Total
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Paid
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Credit Notes
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Remaining
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+          <TableShell className="rounded-none border-x-0 border-b-0">
+            <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Property</TableHead>
+                  <TableHead>Issue Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Paid</TableHead>
+                  <TableHead className="text-right">Credit Notes</TableHead>
+                  <TableHead className="text-right">Remaining</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
 
-              <tbody>
+              <TableBody>
                 {receivables.map((row) => (
-                  <tr
+                  <TableRow
                     key={row.id}
-                    className="border-b last:border-none transition-colors hover:bg-muted/30"
+                    className="transition-colors hover:bg-muted/30"
                   >
-                    <td className="px-4 py-3 font-medium text-foreground">
+                    <TableCell className="font-medium text-foreground">
                       {row.invoiceNumber || "Draft Invoice"}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {row.clientName}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {row.propertyTitle}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {formatDate(row.issueDate)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3">
-                      <Badge variant={getStatusVariant(row.status)}>
-                        {formatStatusLabel(row.status)}
-                      </Badge>
-                    </td>
+                    <TableCell>
+                      <StatusBadge status={row.status} />
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right font-medium text-foreground">
+                    <TableCell className="text-right font-medium text-foreground">
                       {formatMoney(row.totalCents)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground">
                       {formatMoney(row.paidCents)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground">
                       {formatMoney(row.issuedCreditNotesCents)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right font-semibold text-foreground">
+                    <TableCell className="text-right font-semibold text-foreground">
                       {formatMoney(row.remainingCents)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right">
+                    <TableCell className="text-right">
                       <Button asChild variant="outline" size="sm">
                         <Link href={`/billing/${row.id}`}>View</Link>
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+            </div>
+          </TableShell>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

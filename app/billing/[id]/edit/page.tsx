@@ -172,16 +172,16 @@ export default async function EditInvoicePage({
     base_price: Number(row.base_price || 0),
   }));
 
-
   return (
     <div className="space-y-4">
-      <Button asChild variant="ghost">
-        <Link href={`/billing/${id}`}>Back</Link>
-      </Button>
-
       <PageHeader
         title="Edit Invoice"
         description="Update draft invoice"
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/billing/${id}`}>Back to Invoice</Link>
+          </Button>
+        }
       />
 
       <InvoiceForm

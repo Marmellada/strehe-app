@@ -1,7 +1,14 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import {
+  CircleAlert,
+  Eye,
+  EyeOff,
+  Info,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import {
   Alert,
   AppearancePreviewPanel,
@@ -55,6 +62,11 @@ const globalControlRows = [
       "input, textarea, and select families separately",
   },
   {
+    element: "Checkbox",
+    controls:
+      "checkbox background, border, focus ring, checked fill, checked border, and checkmark",
+  },
+  {
     element: "Cards",
     controls: "surface color, border color, title color, muted text color, radius, shadow",
   },
@@ -66,6 +78,16 @@ const globalControlRows = [
   {
     element: "Badges / status pills",
     controls: "success, warning, danger, info, neutral palette",
+  },
+  {
+    element: "Alerts / helper surfaces",
+    controls:
+      "default, info, success, warning, and destructive alert families separately",
+  },
+  {
+    element: "Empty states",
+    controls:
+      "empty-state background, dashed border, icon surface, and icon color",
   },
   {
     element: "Typography",
@@ -325,7 +347,7 @@ export function UiPreviewClient() {
             </PreviewHint>
 
             <PreviewHint
-              controls="Primary Button Background, Primary Button Text, Primary Text"
+              controls="Checkbox Background, Checkbox Border, Checkbox Focus Ring, Checkbox Checked Background, Checkbox Checked Border, Checkbox Checkmark"
               className="block"
               onHoverChange={setHoveredControls}
             >
@@ -440,7 +462,7 @@ export function UiPreviewClient() {
             </PreviewHint>
 
             <PreviewHint
-              controls="Card Background, Border Color, Primary Text, Muted Text"
+              controls="Empty State Background, Empty State Border, Empty State Icon Background, Empty State Icon Color, Primary Text, Muted Text"
               className="block"
               onHoverChange={setHoveredControls}
             >
@@ -483,11 +505,12 @@ export function UiPreviewClient() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <PreviewHint
-              controls="Card Background, Border Color, Primary Text"
+              controls="Default Alert Background, Default Alert Border, Default Alert Text, Default Alert Icon"
               className="block"
               onHoverChange={setHoveredControls}
             >
               <Alert>
+                <CircleAlert className="h-4 w-4" />
                 <div>
                   <div className="mb-1 font-medium">Default Alert</div>
                   <p className="text-sm">
@@ -498,16 +521,61 @@ export function UiPreviewClient() {
             </PreviewHint>
 
             <PreviewHint
-              controls="Destructive Button, Border Color"
+              controls="Destructive Alert Background, Destructive Alert Border, Destructive Alert Text, Destructive Alert Icon"
               className="block"
               onHoverChange={setHoveredControls}
             >
               <Alert variant="destructive">
+                <CircleAlert className="h-4 w-4" />
                 <div>
                   <div className="mb-1 font-medium">Destructive Alert</div>
                   <p className="text-sm">
                     Shared destructive or error-state message.
                   </p>
+                </div>
+              </Alert>
+            </PreviewHint>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <PreviewHint
+              controls="Info Alert Background, Info Alert Border, Info Alert Text, Info Alert Icon"
+              className="block"
+              onHoverChange={setHoveredControls}
+            >
+              <Alert variant="info">
+                <Info className="h-4 w-4" />
+                <div>
+                  <div className="mb-1 font-medium">Info Alert</div>
+                  <p className="text-sm">Shared guidance or helper-state surface.</p>
+                </div>
+              </Alert>
+            </PreviewHint>
+
+            <PreviewHint
+              controls="Success Alert Background, Success Alert Border, Success Alert Text, Success Alert Icon"
+              className="block"
+              onHoverChange={setHoveredControls}
+            >
+              <Alert variant="success">
+                <ShieldCheck className="h-4 w-4" />
+                <div>
+                  <div className="mb-1 font-medium">Success Alert</div>
+                  <p className="text-sm">Positive confirmation or healthy-state surface.</p>
+                </div>
+              </Alert>
+            </PreviewHint>
+
+            <PreviewHint
+              controls="Warning Alert Background, Warning Alert Border, Warning Alert Text, Warning Alert Icon"
+              className="block"
+              onHoverChange={setHoveredControls}
+            >
+              <Alert variant="warning">
+                <TriangleAlert className="h-4 w-4" />
+                <div>
+                  <div className="mb-1 font-medium">Warning Alert</div>
+                  <p className="text-sm">Cautionary state that is stronger than helper copy.</p>
                 </div>
               </Alert>
             </PreviewHint>
@@ -701,7 +769,7 @@ export function UiPreviewClient() {
       >
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40">
+            <thead className="bg-[var(--table-header-bg)] text-[var(--table-header-text)]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Element</th>
                 <th className="px-4 py-3 text-left font-medium">Globally Changeable</th>
@@ -709,7 +777,10 @@ export function UiPreviewClient() {
             </thead>
             <tbody>
               {globalControlRows.map((row) => (
-                <tr key={row.element} className="border-t align-top">
+                <tr
+                  key={row.element}
+                  className="border-t border-[var(--table-row-border)] align-top text-[var(--table-body-text)]"
+                >
                   <td className="px-4 py-3 font-medium">{row.element}</td>
                   <td className="px-4 py-3 text-muted-foreground">{row.controls}</td>
                 </tr>

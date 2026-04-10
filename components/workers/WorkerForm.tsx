@@ -1,6 +1,16 @@
 import Link from "next/link";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  FormField,
+  Input,
+  Label,
+  Textarea,
+} from "@/components/ui";
 
 type WorkerFormAction = (formData: FormData) => void | Promise<void>;
 
@@ -40,160 +50,213 @@ export default function WorkerForm({
   return (
     <form action={action} className="space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Core */}
-        <div className="space-y-4 rounded-2xl border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Core</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Core</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField id="full_name" label="Full name" required>
+              <Input
+                id="full_name"
+                name="full_name"
+                defaultValue={worker?.full_name ?? ""}
+                required
+              />
+            </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="full_name">Full name</Label>
-            <Input id="full_name" name="full_name" defaultValue={worker?.full_name ?? ""} required />
-          </div>
+            <FormField id="personal_id" label="Personal ID">
+              <Input
+                id="personal_id"
+                name="personal_id"
+                defaultValue={worker?.personal_id ?? ""}
+              />
+            </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="personal_id">Personal ID</Label>
-            <Input id="personal_id" name="personal_id" defaultValue={worker?.personal_id ?? ""} />
-          </div>
+            <FormField id="email" label="Email">
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={worker?.email ?? ""}
+              />
+            </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" defaultValue={worker?.email ?? ""} />
-          </div>
+            <FormField id="phone" label="Phone">
+              <Input
+                id="phone"
+                name="phone"
+                defaultValue={worker?.phone ?? ""}
+              />
+            </FormField>
+          </CardContent>
+        </Card>
 
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" name="phone" defaultValue={worker?.phone ?? ""} />
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Employment</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField id="role_title" label="Role title" required>
+              <Input
+                id="role_title"
+                name="role_title"
+                defaultValue={worker?.role_title ?? ""}
+                required
+              />
+            </FormField>
 
-        {/* Employment */}
-        <div className="space-y-4 rounded-2xl border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Employment</h2>
+            <FormField id="worker_type" label="Worker type" required>
+              <select
+                id="worker_type"
+                name="worker_type"
+                defaultValue={worker?.worker_type ?? "employee"}
+                required
+                className="input"
+              >
+                <option value="employee">Employee</option>
+                <option value="contractor">Contractor</option>
+                <option value="temporary">Temporary</option>
+              </select>
+            </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="role_title">Role title</Label>
-            <Input id="role_title" name="role_title" defaultValue={worker?.role_title ?? ""} required />
-          </div>
+            <FormField id="status" label="Status" required>
+              <select
+                id="status"
+                name="status"
+                defaultValue={worker?.status ?? "active"}
+                required
+                className="input"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="worker_type">Worker type</Label>
-            <select
-              id="worker_type"
-              name="worker_type"
-              defaultValue={worker?.worker_type ?? "employee"}
-              required
-              className="input"
-            >
-              <option value="employee">Employee</option>
-              <option value="contractor">Contractor</option>
-              <option value="temporary">Temporary</option>
-            </select>
-          </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField id="start_date" label="Start date" required>
+                <Input
+                  id="start_date"
+                  name="start_date"
+                  type="date"
+                  defaultValue={worker?.start_date ?? ""}
+                  required
+                />
+              </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={worker?.status ?? "active"}
-              required
-              className="input"
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
+              <FormField id="end_date" label="End date">
+                <Input
+                  id="end_date"
+                  name="end_date"
+                  type="date"
+                  defaultValue={worker?.end_date ?? ""}
+                />
+              </FormField>
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="start_date">Start date</Label>
-              <Input id="start_date" name="start_date" type="date" defaultValue={worker?.start_date ?? ""} required />
+        <Card>
+          <CardHeader>
+            <CardTitle>Compensation</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField id="base_salary" label="Base salary">
+              <Input
+                id="base_salary"
+                name="base_salary"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={
+                  worker?.base_salary === null || worker?.base_salary === undefined
+                    ? ""
+                    : String(worker.base_salary)
+                }
+              />
+            </FormField>
+
+            <FormField id="payment_frequency" label="Payment frequency">
+              <select
+                id="payment_frequency"
+                name="payment_frequency"
+                defaultValue={worker?.payment_frequency ?? ""}
+                className="input"
+              >
+                <option value="">Not set</option>
+                <option value="monthly">Monthly</option>
+                <option value="hourly">Hourly</option>
+                <option value="weekly">Weekly</option>
+                <option value="daily">Daily</option>
+                <option value="per_task">Per task</option>
+                <option value="one_time">One time</option>
+                <option value="other">Other</option>
+              </select>
+            </FormField>
+
+            <FormField id="payment_method" label="Payment method">
+              <select
+                id="payment_method"
+                name="payment_method"
+                defaultValue={worker?.payment_method ?? ""}
+                className="input"
+              >
+                <option value="">Not set</option>
+                <option value="bank">Bank</option>
+                <option value="cash">Cash</option>
+              </select>
+            </FormField>
+
+            <FormField id="bank_account" label="Bank account">
+              <Input
+                id="bank_account"
+                name="bank_account"
+                defaultValue={worker?.bank_account ?? ""}
+              />
+            </FormField>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Flags and notes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="subject_to_tax"
+                name="subject_to_tax"
+                defaultChecked={worker?.subject_to_tax ?? true}
+              />
+              <Label htmlFor="subject_to_tax">Subject to tax</Label>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="end_date">End date</Label>
-              <Input id="end_date" name="end_date" type="date" defaultValue={worker?.end_date ?? ""} />
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="subject_to_pension"
+                name="subject_to_pension"
+                defaultChecked={worker?.subject_to_pension ?? true}
+              />
+              <Label htmlFor="subject_to_pension">Subject to pension</Label>
             </div>
-          </div>
-        </div>
 
-        {/* Compensation */}
-        <div className="space-y-4 rounded-2xl border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Compensation</h2>
-
-          <div className="space-y-2">
-            <Label htmlFor="base_salary">Base salary</Label>
-            <Input
-              id="base_salary"
-              name="base_salary"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={
-                worker?.base_salary === null || worker?.base_salary === undefined
-                  ? ""
-                  : String(worker.base_salary)
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="payment_frequency">Payment frequency</Label>
-            <select id="payment_frequency" name="payment_frequency" defaultValue={worker?.payment_frequency ?? ""} className="input">
-              <option value="">Not set</option>
-              <option value="monthly">Monthly</option>
-              <option value="hourly">Hourly</option>
-              <option value="weekly">Weekly</option>
-              <option value="daily">Daily</option>
-              <option value="per_task">Per task</option>
-              <option value="one_time">One time</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="payment_method">Payment method</Label>
-            <select id="payment_method" name="payment_method" defaultValue={worker?.payment_method ?? ""} className="input">
-              <option value="">Not set</option>
-              <option value="bank">Bank</option>
-              <option value="cash">Cash</option>
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="bank_account">Bank account</Label>
-            <Input id="bank_account" name="bank_account" defaultValue={worker?.bank_account ?? ""} />
-          </div>
-        </div>
-
-        {/* Flags */}
-        <div className="space-y-4 rounded-2xl border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Flags and notes</h2>
-
-          <div className="flex items-center gap-3">
-            <input type="checkbox" id="subject_to_tax" name="subject_to_tax" defaultChecked={worker?.subject_to_tax ?? true} />
-            <Label htmlFor="subject_to_tax">Subject to tax</Label>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input type="checkbox" id="subject_to_pension" name="subject_to_pension" defaultChecked={worker?.subject_to_pension ?? true} />
-            <Label htmlFor="subject_to_pension">Subject to pension</Label>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <textarea id="notes" name="notes" defaultValue={worker?.notes ?? ""} className="input min-h-[140px]" />
-          </div>
-        </div>
+            <FormField id="notes" label="Notes">
+              <Textarea
+                id="notes"
+                name="notes"
+                defaultValue={worker?.notes ?? ""}
+                rows={6}
+              />
+            </FormField>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex items-center gap-3">
-        <button type="submit" className="btn">
-          {submitLabel}
-        </button>
+        <Button type="submit">{submitLabel}</Button>
 
-        <Link href={cancelHref} className="btn btn-secondary">
-          Cancel
-        </Link>
+        <Button asChild variant="outline" type="button">
+          <Link href={cancelHref}>Cancel</Link>
+        </Button>
       </div>
     </form>
   );

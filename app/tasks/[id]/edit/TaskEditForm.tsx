@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Button, FormField, Input, Textarea } from "@/components/ui";
 import type { User } from "@/lib/users";
 
 type TaskEditRow = {
@@ -66,6 +67,9 @@ export default function TaskEditForm({
   services,
   subscriptions,
 }: TaskEditFormProps) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     task.property_id || ""
   );
@@ -93,32 +97,25 @@ export default function TaskEditForm({
       <input type="hidden" name="id" value={task.id} />
 
       <div className="grid grid-2 gap-4">
-        <div>
-          <label htmlFor="title" className="field-label">
-            Title *
-          </label>
-          <input
+        <FormField label="Title *">
+          <Input
             id="title"
             name="title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
-            className="input"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="property_id" className="field-label">
-            Property *
-          </label>
+        <FormField label="Property *">
           <select
             id="property_id"
             name="property_id"
             required
             value={selectedPropertyId}
             onChange={(e) => setSelectedPropertyId(e.target.value)}
-            className="input"
+            className={nativeSelectClassName}
           >
             <option value="" disabled>
               Select property
@@ -130,17 +127,14 @@ export default function TaskEditForm({
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="reported_by_user_id" className="field-label">
-            Reported By
-          </label>
+        <FormField label="Reported By">
           <select
             id="reported_by_user_id"
             name="reported_by_user_id"
             defaultValue={task.reported_by_user_id || ""}
-            className="input"
+            className={nativeSelectClassName}
           >
             <option value="">Select user</option>
             {users.map((user) => (
@@ -149,17 +143,14 @@ export default function TaskEditForm({
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="assigned_user_id" className="field-label">
-            Assigned To
-          </label>
+        <FormField label="Assigned To">
           <select
             id="assigned_user_id"
             name="assigned_user_id"
             defaultValue={task.assigned_user_id || ""}
-            className="input"
+            className={nativeSelectClassName}
           >
             <option value="">Select user</option>
             {users.map((user) => (
@@ -168,12 +159,9 @@ export default function TaskEditForm({
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="service_id" className="field-label">
-            Service
-          </label>
+        <FormField label="Service">
           <select
             id="service_id"
             name="service_id"
@@ -208,7 +196,7 @@ export default function TaskEditForm({
                 setPriority(nextService.default_priority);
               }
             }}
-            className="input"
+            className={nativeSelectClassName}
           >
             <option value="">Select service</option>
             {services.map((service) => (
@@ -218,19 +206,16 @@ export default function TaskEditForm({
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="subscription_id" className="field-label">
-            Subscription
-          </label>
+        <FormField label="Subscription">
           <select
             id="subscription_id"
             name="subscription_id"
             defaultValue={
               currentSubscriptionStillValid ? task.subscription_id || "" : ""
             }
-            className="input"
+            className={nativeSelectClassName}
             disabled={!selectedPropertyId}
           >
             <option value="">
@@ -255,80 +240,66 @@ export default function TaskEditForm({
                 <option key={subscription.id} value={subscription.id}>
                   {clientName} / {propertyName} / {packageName}
                 </option>
-              );
-            })}
+                );
+              })}
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="status" className="field-label">
-            Status
-          </label>
+        <FormField label="Status">
           <select
             id="status"
             name="status"
             defaultValue={task.status || "open"}
-            className="input"
+            className={nativeSelectClassName}
           >
             <option value="open">Open</option>
             <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="priority" className="field-label">
-            Priority
-          </label>
+        <FormField label="Priority">
           <select
             id="priority"
             name="priority"
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            className="input"
+            className={nativeSelectClassName}
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label htmlFor="due_date" className="field-label">
-            Due Date
-          </label>
-          <input
+        <FormField label="Due Date">
+          <Input
             id="due_date"
             name="due_date"
             type="date"
             defaultValue={task.due_date || ""}
-            className="input"
           />
-        </div>
+        </FormField>
 
         <div className="col-span-2">
-          <label htmlFor="description" className="field-label">
-            Description
-          </label>
-          <textarea
+          <FormField label="Description">
+          <Textarea
             id="description"
             name="description"
             rows={6}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="input"
           />
+          </FormField>
         </div>
       </div>
 
       <div className="flex gap-2">
-        <Link href={`/tasks/${task.id}`} className="btn">
-          Cancel
-        </Link>
-        <button type="submit" className="btn">
-          Save Changes
-        </button>
+        <Button asChild variant="ghost">
+          <Link href={`/tasks/${task.id}`}>Cancel</Link>
+        </Button>
+        <Button type="submit">Save Changes</Button>
       </div>
     </form>
   );

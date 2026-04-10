@@ -4,13 +4,20 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4",
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground",
+        default:
+          "border-[var(--alert-default-border)] bg-[var(--alert-default-bg)] text-[var(--alert-default-text)] [&>svg]:text-[var(--alert-default-icon)]",
+        info:
+          "border-[var(--alert-info-border)] bg-[var(--alert-info-bg)] text-[var(--alert-info-text)] [&>svg]:text-[var(--alert-info-icon)]",
+        success:
+          "border-[var(--alert-success-border)] bg-[var(--alert-success-bg)] text-[var(--alert-success-text)] [&>svg]:text-[var(--alert-success-icon)]",
+        warning:
+          "border-[var(--alert-warning-border)] bg-[var(--alert-warning-bg)] text-[var(--alert-warning-text)] [&>svg]:text-[var(--alert-warning-icon)]",
         destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+          "border-[var(--alert-destructive-border)] bg-[var(--alert-destructive-bg)] text-[var(--alert-destructive-text)] [&>svg]:text-[var(--alert-destructive-icon)]",
       },
     },
     defaultVariants: {

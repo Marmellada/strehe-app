@@ -2,9 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+  StatCard,
+} from "@/components/ui";
 import { PaymentForm } from "@/components/billing/PaymentForm";
 import { recordPayment } from "@/app/billing/actions";
 import {
@@ -160,58 +166,30 @@ export default async function PaymentPage({
       <PageHeader
         title="Record Payment"
         description={`Invoice ${invoice.invoice_number}`}
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/billing/${invoice.id}`}>Back to Invoice</Link>
+          </Button>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              €{centsToEur(settlement.totalCents).toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Paid</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="text-2xl font-semibold"
-              style={{ color: "var(--brand-green)" }}
-            >
-              €{centsToEur(settlement.paymentsCents).toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Credit Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold text-foreground">
-              €{centsToEur(settlement.issuedCreditNotesCents).toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Balance Due</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="text-2xl font-semibold"
-              style={{ color: "var(--brand-red)" }}
-            >
-              €{centsToEur(settlement.remainingCents).toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Total"
+          value={`€${centsToEur(settlement.totalCents).toFixed(2)}`}
+        />
+        <StatCard
+          title="Paid"
+          value={<span className="text-[var(--status-success-text)]">€{centsToEur(settlement.paymentsCents).toFixed(2)}</span>}
+        />
+        <StatCard
+          title="Credit Notes"
+          value={`€${centsToEur(settlement.issuedCreditNotesCents).toFixed(2)}`}
+        />
+        <StatCard
+          title="Balance Due"
+          value={<span className="text-[var(--status-danger-text)]">€{centsToEur(settlement.remainingCents).toFixed(2)}</span>}
+        />
       </div>
 
       <Card>

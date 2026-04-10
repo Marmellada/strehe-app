@@ -1,11 +1,24 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { requireWorkersAccess } from "@/lib/auth/require-workers-access";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
-import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
-import { Label } from "@/components/ui/Label";
+import { formatStatusLabel } from "@/lib/ui/status";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  FormField,
+  PageHeader,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 
 type SearchParams = Promise<{
   status?: string;
@@ -54,6 +67,10 @@ export default async function StaffPage({
   }
 
   const hasData = workers && workers.length > 0;
+  const activeWorkers = (workers || []).filter((worker) => worker.status === "active").length;
+  const contractors = (workers || []).filter(
+    (worker) => worker.worker_type === "contractor"
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -67,59 +84,82 @@ export default async function StaffPage({
         }
       />
 
-      {/* Filters */}
-      <div className="rounded-2xl border bg-card p-5">
-        <form method="get" className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="status">
-              Status
-            </Label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={status}
-              className="input"
-            >
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Total Staff</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              {(workers || []).length}
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="worker_type"
-              className="text-sm font-medium text-foreground"
-            >
-              Staff type
-            </label>
-            <select
-              id="worker_type"
-              name="worker_type"
-              defaultValue={workerType}
-              className="input"
-            >
-              <option value="">All</option>
-              <option value="employee">Employee</option>
-              <option value="contractor">Contractor</option>
-              <option value="temporary">Temporary</option>
-            </select>
-          </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Active</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              {activeWorkers}
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="flex items-center gap-3 md:col-span-2">
-            <Button type="submit">
-              Apply Filters
-            </Button>
-
-            <Link href="/workers">
-  <Button variant="outline">Reset</Button>
-</Link>
-            
-          </div>
-        </form>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Contractors</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              {contractors}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Table / Empty */}
+      <Card>
+        <CardContent className="pt-6">
+          <form method="get" className="grid gap-4 md:grid-cols-2">
+            <FormField id="status" label="Status">
+              <select
+                id="status"
+                name="status"
+                defaultValue={status}
+                className="input"
+              >
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </FormField>
+
+            <FormField id="worker_type" label="Staff type">
+              <select
+                id="worker_type"
+                name="worker_type"
+                defaultValue={workerType}
+                className="input"
+              >
+                <option value="">All</option>
+                <option value="employee">Employee</option>
+                <option value="contractor">Contractor</option>
+                <option value="temporary">Temporary</option>
+              </select>
+            </FormField>
+
+            <div className="flex items-center gap-3 md:col-span-2">
+              <Button type="submit">Apply Filters</Button>
+
+              <Link href="/workers">
+                <Button variant="outline">Reset</Button>
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
       {!hasData ? (
         <EmptyState
           title="No staff records yet"
@@ -131,81 +171,66 @@ export default async function StaffPage({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left">
-              <tr className="border-b">
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Name
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Role
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Type
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Email
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Phone
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Start
-                </th>
-              </tr>
-            </thead>
+        <TableShell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Start</TableHead>
+              </TableRow>
+            </TableHeader>
 
-            <tbody>
+            <TableBody>
               {workers.map((worker) => (
-                <tr
+                <TableRow
                   key={worker.id}
-                  className="border-b last:border-none hover:bg-muted/30 transition-colors"
+                  className="transition-colors hover:bg-muted/30"
                 >
-                  <td className="px-4 py-3 font-medium">
+                  <TableCell className="font-medium">
                     <Link
                       href={`/workers/${worker.id}`}
                       className="hover:underline"
                     >
                       {worker.full_name}
                     </Link>
-                  </td>
+                  </TableCell>
 
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <TableCell className="text-muted-foreground">
                     {worker.role_title}
-                  </td>
+                  </TableCell>
 
-                  <td className="px-4 py-3">
-                    <Badge variant="neutral">
-                      {formatStatusLabel(worker.worker_type)}
-                    </Badge>
-                  </td>
+                  <TableCell>
+                    <StatusBadge
+                      status={worker.worker_type}
+                      fallbackLabel={formatStatusLabel(worker.worker_type)}
+                    />
+                  </TableCell>
 
-                  <td className="px-4 py-3">
-                    <Badge variant={getStatusVariant(worker.status)}>
-                      {formatStatusLabel(worker.status)}
-                    </Badge>
-                  </td>
+                  <TableCell>
+                    <StatusBadge status={worker.status} />
+                  </TableCell>
 
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <TableCell className="text-muted-foreground">
                     {worker.email || "—"}
-                  </td>
+                  </TableCell>
 
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <TableCell className="text-muted-foreground">
                     {worker.phone || "—"}
-                  </td>
+                  </TableCell>
 
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <TableCell className="text-muted-foreground">
                     {worker.start_date || "—"}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableShell>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Input, Label } from "@/components/ui";
 
 type Municipality = {
   id: string;
@@ -35,6 +36,9 @@ export default function AddressFields({
   defaultAddressLine2 = "",
   defaultCountry = "Kosovo",
 }: AddressFieldsProps) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
   const [selectedLocationId, setSelectedLocationId] = useState(defaultLocationId);
 
   const filteredLocations = useMemo(() => {
@@ -48,12 +52,12 @@ export default function AddressFields({
   return (
     <>
       <div className="grid grid-2 gap-4">
-        <div className="field">
-          <label htmlFor="municipality_id">Municipality</label>
+        <div className="space-y-2">
+          <Label htmlFor="municipality_id">Municipality</Label>
           <select
             id="municipality_id"
             name="municipality_id"
-            className="input"
+            className={nativeSelectClassName}
             required
             value={selectedMunicipalityId}
             onChange={(e) => {
@@ -72,12 +76,12 @@ export default function AddressFields({
           </select>
         </div>
 
-        <div className="field">
-          <label htmlFor="location_id">Neighborhood / Village</label>
+        <div className="space-y-2">
+          <Label htmlFor="location_id">Neighborhood / Village</Label>
           <select
             id="location_id"
             name="location_id"
-            className="input"
+            className={nativeSelectClassName}
             required
             value={
               filteredLocations.some((location) => location.id === selectedLocationId)
@@ -103,35 +107,32 @@ export default function AddressFields({
       </div>
 
       <div className="grid grid-2 gap-4">
-        <div className="field">
-          <label htmlFor="address_line_1">Address Line 1</label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="address_line_1">Address Line 1</Label>
+          <Input
             id="address_line_1"
             name="address_line_1"
-            className="input"
             placeholder="Street name / building"
             defaultValue={defaultAddressLine1}
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="address_line_2">Address Line 2</label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="address_line_2">Address Line 2</Label>
+          <Input
             id="address_line_2"
             name="address_line_2"
-            className="input"
             placeholder="Apartment / floor / unit"
             defaultValue={defaultAddressLine2}
           />
         </div>
       </div>
 
-      <div className="field">
-        <label htmlFor="country">Country</label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="country">Country</Label>
+        <Input
           id="country"
           name="country"
-          className="input"
           defaultValue={defaultCountry}
           readOnly
         />

@@ -2,6 +2,18 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { ExpenseCategoryStatusBadge } from "@/components/expenses/ExpenseCategoryStatusBadge";
+import {
+  Button,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 
 function formatCurrencyFromCents(amountCents: number) {
   return new Intl.NumberFormat("en-GB", {
@@ -51,35 +63,29 @@ export default async function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Expenses</h1>
-          <p className="text-sm text-muted-foreground">
-            Manual operational expense records. Historical records keep their original category reference even if the category is later disabled.
-          </p>
-        </div>
+      <PageHeader
+        title="Expenses"
+        description="Manual operational expense records. Historical records keep their original category reference even if the category is later disabled."
+        actions={
+          <Button asChild>
+            <Link href="/expenses/new">New Expense</Link>
+          </Button>
+        }
+      />
 
-        <Link
-          href="/expenses/new"
-          className="inline-flex items-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-        >
-          New expense
-        </Link>
-      </div>
-
-      <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Date</th>
-              <th className="px-4 py-3 text-left font-medium">Description</th>
-              <th className="px-4 py-3 text-left font-medium">Category</th>
-              <th className="px-4 py-3 text-left font-medium">Vendor</th>
-              <th className="px-4 py-3 text-left font-medium">Property</th>
-              <th className="px-4 py-3 text-right font-medium">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableShell>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead>Property</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {expenses?.map((expense) => {
               const category = Array.isArray(expense.expense_categories)
                 ? expense.expense_categories[0]
@@ -94,14 +100,14 @@ export default async function ExpensesPage() {
                 expense.property_code_snapshot || property?.property_code || property?.title || "—";
 
               return (
-                <tr key={expense.id} className="border-t">
-                  <td className="px-4 py-3">{expense.expense_date}</td>
-                  <td className="px-4 py-3">
+                <TableRow key={expense.id}>
+                  <TableCell>{expense.expense_date}</TableCell>
+                  <TableCell>
                     <Link href={`/expenses/${expense.id}`} className="font-medium hover:underline">
                       {expense.description}
                     </Link>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     {categoryLabel !== "—" ? (
                       <div className="flex items-center gap-2">
                         <span>{categoryLabel}</span>
@@ -110,29 +116,37 @@ export default async function ExpensesPage() {
                     ) : (
                       "—"
                     )}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     {vendorLabel}
                     {!expense.vendor_name_snapshot && vendor && !vendor.is_active ? " (inactive)" : ""}
-                  </td>
-                  <td className="px-4 py-3">{propertyLabel}</td>
-                  <td className="px-4 py-3 text-right font-medium">
+                  </TableCell>
+                  <TableCell>{propertyLabel}</TableCell>
+                  <TableCell className="text-right font-medium">
                     {formatCurrencyFromCents(expense.amount_cents)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
 
             {!expenses?.length ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                  No expenses found.
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={6} className="py-8">
+                  <EmptyState
+                    title="No expenses found"
+                    description="Create your first expense record to start tracking operational costs."
+                    action={
+                      <Button asChild>
+                        <Link href="/expenses/new">New Expense</Link>
+                      </Button>
+                    }
+                  />
+                </TableCell>
+              </TableRow>
             ) : null}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableShell>
     </div>
   );
 }

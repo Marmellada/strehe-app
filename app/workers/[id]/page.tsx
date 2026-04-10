@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
+import {
+  DetailField,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+} from "@/components/ui";
 import WorkerForm from "@/components/workers/WorkerForm";
 import { updateWorker } from "@/lib/actions/workers";
 import { requireWorkersAccess } from "@/lib/auth/require-workers-access";
-import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
+import { formatStatusLabel } from "@/lib/ui/status";
 
 type Params = Promise<{ id: string }>;
 
@@ -49,72 +53,31 @@ export default async function StaffDetailPage({
       />
 
       <div className="grid gap-6 md:grid-cols-3">
-        <div className="space-y-4 rounded-2xl border bg-card p-5 md:col-span-1">
+        <SectionCard title="Summary" contentClassName="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-foreground">Summary</h2>
-            <Badge variant={getStatusVariant(worker.status)}>
-              {formatStatusLabel(worker.status)}
-            </Badge>
+            <StatusBadge status={worker.status} />
           </div>
 
-          <div className="space-y-3 text-sm">
-            <div>
-              <span className="font-medium text-foreground">Staff type:</span>{" "}
-              <span className="text-muted-foreground">
-                {formatStatusLabel(worker.worker_type)}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">Role:</span>{" "}
-              <span className="text-muted-foreground">
-                {worker.role_title || "—"}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">Email:</span>{" "}
-              <span className="text-muted-foreground">
-                {worker.email || "—"}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">Phone:</span>{" "}
-              <span className="text-muted-foreground">
-                {worker.phone || "—"}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">Start date:</span>{" "}
-              <span className="text-muted-foreground">
-                {worker.start_date || "—"}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">End date:</span>{" "}
-              <span className="text-muted-foreground">
-                {worker.end_date || "—"}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">Created at:</span>{" "}
-              <span className="text-muted-foreground">
-                {formatDateTime(worker.created_at)}
-              </span>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">Updated at:</span>{" "}
-              <span className="text-muted-foreground">
-                {formatDateTime(worker.updated_at)}
-              </span>
-            </div>
+          <div className="grid gap-4 text-sm">
+            <DetailField
+              label="Staff type"
+              value={formatStatusLabel(worker.worker_type)}
+            />
+            <DetailField label="Role" value={worker.role_title || "—"} />
+            <DetailField label="Email" value={worker.email || "—"} />
+            <DetailField label="Phone" value={worker.phone || "—"} />
+            <DetailField label="Start date" value={worker.start_date || "—"} />
+            <DetailField label="End date" value={worker.end_date || "—"} />
+            <DetailField
+              label="Created at"
+              value={formatDateTime(worker.created_at)}
+            />
+            <DetailField
+              label="Updated at"
+              value={formatDateTime(worker.updated_at)}
+            />
           </div>
-        </div>
+        </SectionCard>
 
         <div className="md:col-span-2">
           <WorkerForm

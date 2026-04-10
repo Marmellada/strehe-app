@@ -2,10 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
-import { Textarea } from "@/components/ui/Textarea";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  FormField,
+  Input,
+  Textarea,
+} from "@/components/ui";
 import { LineItemsEditor } from "@/components/billing/LineItemsEditor";
 import { createCreditNote } from "@/lib/actions/billing";
 import { computeInvoiceTotals } from "@/lib/billing-helpers";
@@ -90,25 +97,27 @@ export function CreditNoteForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {errors._form && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-          {errors._form[0]}
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Unable to create credit note</AlertTitle>
+          <AlertDescription>{errors._form[0]}</AlertDescription>
+        </Alert>
       )}
 
-      <div className="rounded-lg border bg-muted/30 p-4">
-        <div className="text-sm text-muted-foreground">Original Invoice</div>
-        <div className="text-lg font-semibold">{originalInvoiceNumber}</div>
-      </div>
+      <Card size="sm">
+        <CardContent className="space-y-1 pt-0">
+          <div className="text-sm text-muted-foreground">Original Invoice</div>
+          <div className="text-lg font-semibold">{originalInvoiceNumber}</div>
+        </CardContent>
+      </Card>
 
-      <div className="space-y-2">
-        <Label htmlFor="issue-date">Credit Note Date *</Label>
+      <FormField id="issue-date" label="Credit Note Date" required>
         <Input
           id="issue-date"
           type="date"
           value={issueDate}
           onChange={(e) => setIssueDate(e.target.value)}
         />
-      </div>
+      </FormField>
 
       <LineItemsEditor
         items={items}
@@ -120,8 +129,7 @@ export function CreditNoteForm({
         services={[]}
       />
 
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
+      <FormField id="notes" label="Notes">
         <Textarea
           id="notes"
           value={notes}
@@ -129,22 +137,24 @@ export function CreditNoteForm({
           placeholder="Reason for credit note..."
           rows={3}
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
-        <div className="flex justify-between text-sm">
-          <span>Subtotal</span>
-          <span>€{subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span>VAT</span>
-          <span>€{totalVat.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between border-t pt-2 text-lg font-semibold">
-          <span>Credit Total</span>
-          <span>-€{total.toFixed(2)}</span>
-        </div>
-      </div>
+      <Card size="sm">
+        <CardContent className="space-y-2 pt-0">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>€{subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">VAT</span>
+            <span>€{totalVat.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between border-t pt-2 text-lg font-semibold">
+            <span>Credit Total</span>
+            <span>-€{total.toFixed(2)}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex gap-3 pt-2">
         <Button type="submit" disabled={isLoading}>

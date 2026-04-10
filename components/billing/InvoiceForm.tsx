@@ -2,10 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
-import { Textarea } from "@/components/ui/Textarea";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  FormField,
+  Input,
+  Textarea,
+} from "@/components/ui";
 import {
   Select,
   SelectContent,
@@ -245,14 +252,16 @@ export function InvoiceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {errors._form && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-          {errors._form[0]}
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>
+            {mode === "edit" ? "Unable to update invoice" : "Unable to create invoice"}
+          </AlertTitle>
+          <AlertDescription>{errors._form[0]}</AlertDescription>
+        </Alert>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="client">Client *</Label>
+        <FormField id="client" label="Client" required error={errors.client_id?.[0]}>
           <Select
             value={clientId}
             onValueChange={(value) => {
@@ -274,13 +283,14 @@ export function InvoiceForm({
               ))}
             </SelectContent>
           </Select>
-          {errors.client_id && (
-            <p className="text-sm text-red-600">{errors.client_id[0]}</p>
-          )}
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <Label htmlFor="property">Property *</Label>
+        <FormField
+          id="property"
+          label="Property"
+          required
+          hint="Only properties with an active subscription for this client are shown."
+        >
           <Select value={propertyId} onValueChange={setPropertyId} disabled={!clientId}>
             <SelectTrigger id="property">
               <SelectValue placeholder="Select active property" />
@@ -294,15 +304,11 @@ export function InvoiceForm({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            Only properties with an active subscription for this client are shown.
-          </p>
-        </div>
+        </FormField>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="issue-date">Invoice Date *</Label>
+        <FormField id="issue-date" label="Invoice Date" required>
           <Input
             id="issue-date"
             type="date"
@@ -315,10 +321,18 @@ export function InvoiceForm({
               }
             }}
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <Label htmlFor="due-date">Due Date *</Label>
+        <FormField
+          id="due-date"
+          label="Due Date"
+          required
+          hint={
+            mode === "create"
+              ? "Automatically set to 14 days after the invoice date."
+              : undefined
+          }
+        >
           <Input
             id="due-date"
             type="date"
@@ -326,12 +340,7 @@ export function InvoiceForm({
             onChange={(e) => setDueDate(e.target.value)}
             readOnly={mode === "create"}
           />
-          {mode === "create" && (
-            <p className="text-xs text-muted-foreground">
-              Automatically set to 14 days after the invoice date.
-            </p>
-          )}
-        </div>
+        </FormField>
       </div>
 
       <LineItemsEditor
@@ -344,8 +353,7 @@ export function InvoiceForm({
         services={services}
       />
 
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
+      <FormField id="notes" label="Notes">
         <Textarea
           id="notes"
           value={notes}
@@ -353,22 +361,24 @@ export function InvoiceForm({
           placeholder="Additional notes or instructions..."
           rows={3}
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
-        <div className="flex justify-between text-sm">
-          <span>Subtotal</span>
-          <span>€{subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span>VAT</span>
-          <span>€{totalVat.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between border-t pt-2 text-lg font-semibold">
-          <span>Total</span>
-          <span>€{total.toFixed(2)}</span>
-        </div>
-      </div>
+      <Card size="sm">
+        <CardContent className="space-y-2 pt-0">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>€{subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">VAT</span>
+            <span>€{totalVat.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between border-t pt-2 text-lg font-semibold">
+            <span>Total</span>
+            <span>€{total.toFixed(2)}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex gap-3 pt-2">
         <Button type="submit" disabled={isLoading}>

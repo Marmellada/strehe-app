@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Button, FormField, Input } from "@/components/ui";
 import AddressFields from "../../components/AddressFields";
 
 type Municipality = {
@@ -49,6 +50,9 @@ export default function PropertyEditForm({
   property,
   updateProperty,
 }: PropertyEditFormProps) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState(
     property.municipality_id || ""
   );
@@ -58,34 +62,29 @@ export default function PropertyEditForm({
       <input type="hidden" name="id" value={property.id} />
 
       <div className="grid-2">
-        <div className="field">
-          <label htmlFor="property_code">Property Code</label>
-          <input
+        <FormField label="Property Code">
+          <Input
             id="property_code"
-            className="input"
             value={property.property_code || ""}
             disabled
           />
-        </div>
+        </FormField>
 
-        <div className="field">
-          <label htmlFor="title">Title</label>
-          <input
+        <FormField label="Title">
+          <Input
             id="title"
             name="title"
-            className="input"
             defaultValue={property.title || ""}
             required
           />
-        </div>
+        </FormField>
       </div>
 
-      <div className="field">
-        <label htmlFor="owner_client_id">Owner</label>
+      <FormField label="Owner">
         <select
           id="owner_client_id"
           name="owner_client_id"
-          className="input"
+          className={nativeSelectClassName}
           required
           defaultValue={property.owner_client_id || ""}
         >
@@ -102,7 +101,7 @@ export default function PropertyEditForm({
             );
           })}
         </select>
-      </div>
+      </FormField>
 
       <AddressFields
         municipalities={municipalities}
@@ -116,12 +115,11 @@ export default function PropertyEditForm({
       />
 
       <div className="grid-2">
-        <div className="field">
-          <label htmlFor="property_type">Property Type</label>
+        <FormField label="Property Type">
           <select
             id="property_type"
             name="property_type"
-            className="input"
+            className={nativeSelectClassName}
             defaultValue={property.property_type || ""}
           >
             <option value="">Select type</option>
@@ -131,14 +129,13 @@ export default function PropertyEditForm({
             <option value="shop">Shop</option>
             <option value="land">Land</option>
           </select>
-        </div>
+        </FormField>
 
-        <div className="field">
-          <label htmlFor="status">Status</label>
+        <FormField label="Status">
           <select
             id="status"
             name="status"
-            className="input"
+            className={nativeSelectClassName}
             defaultValue={property.status || "active"}
           >
             <option value="active">Active</option>
@@ -146,17 +143,15 @@ export default function PropertyEditForm({
             <option value="inactive">Inactive</option>
             <option value="under_maintenance">Under Maintenance</option>
           </select>
-        </div>
+        </FormField>
       </div>
 
       <div className="flex gap-3">
-        <button type="submit" className="btn btn-primary">
-          Save Changes
-        </button>
+        <Button type="submit">Save Changes</Button>
 
-        <Link href={`/properties/${property.id}`} className="btn btn-ghost">
-          Cancel
-        </Link>
+        <Button asChild variant="ghost">
+          <Link href={`/properties/${property.id}`}>Cancel</Link>
+        </Button>
       </div>
     </form>
   );

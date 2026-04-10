@@ -6,6 +6,18 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui/Table";
 import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
 
 const PAGE_SIZE = 20;
@@ -128,9 +140,8 @@ function getKpiCardClasses(
   return "rounded-2xl border bg-card p-4 transition hover:border-muted-foreground/30 hover:bg-muted/20";
 }
 
-function getSavedViewClasses(active: boolean) {
-  return active ? "btn" : "btn btn-secondary";
-}
+const nativeSelectClassName =
+  "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default async function TasksPage({
   searchParams,
@@ -462,45 +473,29 @@ export default async function TasksPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Link href={operationsHref} className={getSavedViewClasses(operationsActive)}>
-            Operations
-          </Link>
+          <Button asChild variant={operationsActive ? "default" : "secondary"} size="sm">
+            <Link href={operationsHref}>Operations</Link>
+          </Button>
 
-          <Link href={myWorkHref} className={getSavedViewClasses(myWorkActive)}>
-            My Work
-          </Link>
+          <Button asChild variant={myWorkActive ? "default" : "secondary"} size="sm">
+            <Link href={myWorkHref}>My Work</Link>
+          </Button>
 
-          <Link href={backlogHref} className={getSavedViewClasses(backlogActive)}>
-            Backlog
-          </Link>
+          <Button asChild variant={backlogActive ? "default" : "secondary"} size="sm">
+            <Link href={backlogHref}>Backlog</Link>
+          </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Link href="/tasks" className="btn btn-secondary">
-          All
-        </Link>
-        <Link href="/tasks?status=open" className="btn btn-secondary">
-          Open
-        </Link>
-        <Link href="/tasks?due=overdue" className="btn btn-secondary">
-          Overdue
-        </Link>
-        <Link href="/tasks?status=completed" className="btn btn-secondary">
-          Completed
-        </Link>
-        <Link href="/tasks?source=manual" className="btn btn-secondary">
-          Manual
-        </Link>
-        <Link href="/tasks?source=subscription" className="btn btn-secondary">
-          Subscription
-        </Link>
-        <Link href="/tasks?assigned=me" className="btn btn-secondary">
-          My Tasks
-        </Link>
-        <Link href="/tasks?assigned=unassigned" className="btn btn-secondary">
-          Unassigned
-        </Link>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks">All</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?status=open">Open</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?due=overdue">Overdue</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?status=completed">Completed</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?source=manual">Manual</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?source=subscription">Subscription</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?assigned=me">My Tasks</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/tasks?assigned=unassigned">Unassigned</Link></Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -601,36 +596,30 @@ export default async function TasksPage({
         </Link>
       </div>
 
-      <div className="rounded-2xl border bg-card p-4">
+      <Card>
+        <CardContent className="pt-6">
         <form className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-7">
           <div className="xl:col-span-2">
-            <label
-              htmlFor="search"
-              className="mb-1.5"
-            >
+            <Label htmlFor="search" className="mb-1.5 block">
               Search
-            </label>
-            <input
+            </Label>
+            <Input
               id="search"
               name="search"
               placeholder="Search title..."
               defaultValue={params.search || ""}
-              className="input"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="status"
-              className="mb-1.5"
-            >
+            <Label htmlFor="status" className="mb-1.5 block">
               Status
-            </label>
+            </Label>
             <select
               id="status"
               name="status"
               defaultValue={params.status || ""}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All Status</option>
               <option value="open">Open</option>
@@ -641,17 +630,14 @@ export default async function TasksPage({
           </div>
 
           <div>
-            <label
-              htmlFor="priority"
-              className="mb-1.5"
-            >
+            <Label htmlFor="priority" className="mb-1.5 block">
               Priority
-            </label>
+            </Label>
             <select
               id="priority"
               name="priority"
               defaultValue={params.priority || ""}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All Priority</option>
               <option value="low">Low</option>
@@ -662,17 +648,14 @@ export default async function TasksPage({
           </div>
 
           <div>
-            <label
-              htmlFor="due"
-              className="mb-1.5"
-            >
+            <Label htmlFor="due" className="mb-1.5 block">
               Due
-            </label>
+            </Label>
             <select
               id="due"
               name="due"
               defaultValue={params.due || ""}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All Due</option>
               <option value="overdue">Overdue</option>
@@ -682,17 +665,14 @@ export default async function TasksPage({
           </div>
 
           <div>
-            <label
-              htmlFor="source"
-              className="mb-1.5"
-            >
+            <Label htmlFor="source" className="mb-1.5 block">
               Source
-            </label>
+            </Label>
             <select
               id="source"
               name="source"
               defaultValue={params.source || ""}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All Sources</option>
               <option value="manual">Manual</option>
@@ -701,17 +681,14 @@ export default async function TasksPage({
           </div>
 
           <div>
-            <label
-              htmlFor="property"
-              className="mb-1.5"
-            >
+            <Label htmlFor="property" className="mb-1.5 block">
               Property
-            </label>
+            </Label>
             <select
               id="property"
               name="property"
               defaultValue={params.property || ""}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All Properties</option>
               {allProperties.map((property) => (
@@ -726,17 +703,14 @@ export default async function TasksPage({
 
           {canUseAdminAssigneeFilter ? (
             <div>
-              <label
-                htmlFor="assignee_id"
-                className="mb-1.5"
-              >
+              <Label htmlFor="assignee_id" className="mb-1.5 block">
                 Assignee
-              </label>
+              </Label>
               <select
                 id="assignee_id"
                 name="assignee_id"
                 defaultValue={params.assignee_id || ""}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">All Assignees</option>
                 {allUsers.map((user) => (
@@ -748,17 +722,14 @@ export default async function TasksPage({
             </div>
           ) : (
             <div>
-              <label
-                htmlFor="assigned"
-                className="mb-1.5"
-              >
+              <Label htmlFor="assigned" className="mb-1.5 block">
                 Assigned
-              </label>
+              </Label>
               <select
                 id="assigned"
                 name="assigned"
                 defaultValue={params.assigned || ""}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">All</option>
                 <option value="me">My Tasks</option>
@@ -770,17 +741,16 @@ export default async function TasksPage({
           <input type="hidden" name="page" value="1" />
 
           <div className="flex items-end gap-3 xl:col-span-7">
-            <button type="submit">
-              Apply Filters
-            </button>
-            <Link href="/tasks">
-  <Button variant="outline">Reset</Button>
-</Link>
+            <Button type="submit">Apply Filters</Button>
+            <Button asChild variant="outline">
+              <Link href="/tasks">Reset</Link>
+            </Button>
           </div>
         </form>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="overflow-hidden rounded-2xl border bg-card">
+      <TableShell>
         {typedTasks.length === 0 ? (
           <div className="p-6">
             <EmptyState
@@ -797,34 +767,20 @@ export default async function TasksPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr className="border-b">
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Title
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Property
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Source
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Assigned
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Priority
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Due
-                  </th>
+            <Table>
+              <TableHeader>
+                <tr>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Property</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Assigned</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Due</TableHead>
                 </tr>
-              </thead>
+              </TableHeader>
 
-              <tbody>
+              <TableBody>
                 {typedTasks.map((task) => {
                   const isMyTask = task.assigned_user_id === authUser.id;
                   const isAutoTask = Boolean(task.subscription_id);
@@ -846,13 +802,13 @@ export default async function TasksPage({
                     : "-";
 
                   return (
-                    <tr
+                    <TableRow
                       key={task.id}
-                      className={`border-b transition-colors hover:bg-muted/30 last:border-none ${
+                      className={`transition-colors hover:bg-muted/30 last:border-none ${
                         isOverdue ? "bg-red-50/30" : ""
                       }`}
                     >
-                      <td className="px-4 py-3">
+                      <TableCell>
                         <div className="flex flex-wrap items-center gap-2">
                           <Link
                             href={`/tasks/${task.id}`}
@@ -869,42 +825,42 @@ export default async function TasksPage({
                             <Badge variant="danger">Overdue</Badge>
                           ) : null}
                         </div>
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <TableCell className="text-muted-foreground">
                         {propertyLabel}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3">
+                      <TableCell>
                         <Badge variant={getSourceVariant(isAutoTask)}>
                           {isAutoTask ? "Subscription" : "Manual"}
                         </Badge>
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <TableCell className="text-muted-foreground">
                         {assignedTo}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3">
+                      <TableCell>
                         <Badge variant={getStatusVariant(task.status)}>
                           {formatStatusLabel(task.status)}
                         </Badge>
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3">
+                      <TableCell>
                         <Badge variant={getPriorityVariant(task.priority)}>
                           {formatLabel(task.priority)}
                         </Badge>
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <TableCell className="text-muted-foreground">
                         {formatDate(task.due_date)}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
 
@@ -917,18 +873,19 @@ export default async function TasksPage({
 
           <div className="flex items-center gap-2">
             {currentPage > 1 ? (
-              <Link
-                href={buildQueryString(params, {
-                  page: String(currentPage - 1),
-                })}
-                className="btn btn-secondary"
-              >
-                Prev
-              </Link>
+              <Button asChild variant="secondary" size="sm">
+                <Link
+                  href={buildQueryString(params, {
+                    page: String(currentPage - 1),
+                  })}
+                >
+                  Prev
+                </Link>
+              </Button>
             ) : (
-              <span className="pointer-events-none btn btn-secondary opacity-50">
+              <Button variant="secondary" size="sm" disabled>
                 Prev
-              </span>
+              </Button>
             )}
 
             <span className="text-sm text-muted-foreground">
@@ -936,22 +893,23 @@ export default async function TasksPage({
             </span>
 
             {currentPage < totalPages ? (
-              <Link
-                href={buildQueryString(params, {
-                  page: String(currentPage + 1),
-                })}
-                className="btn btn-secondary"
-              >
-                Next
-              </Link>
+              <Button asChild variant="secondary" size="sm">
+                <Link
+                  href={buildQueryString(params, {
+                    page: String(currentPage + 1),
+                  })}
+                >
+                  Next
+                </Link>
+              </Button>
             ) : (
-              <span className="pointer-events-none btn btn-secondary opacity-50">
+              <Button variant="secondary" size="sm" disabled>
                 Next
-              </span>
+              </Button>
             )}
           </div>
         </div>
-      </div>
+      </TableShell>
     </div>
   );
 }

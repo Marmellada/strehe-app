@@ -2,6 +2,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  DetailField,
+  EmptyState,
+  PageHeader,
+} from "@/components/ui";
 import PropertyForm from "./PropertyForm";
 
 async function createProperty(formData: FormData) {
@@ -117,36 +128,25 @@ export default async function NewPropertyPage({
   const inactiveClients = clients.filter((client) => client.status === "inactive");
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>New Property</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
-            Create a property and assign it to a client owner
-          </p>
-        </div>
+    <main className="grid gap-6">
+      <PageHeader
+        title="New Property"
+        description="Create a property and assign it to a client owner."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/properties">Back to Properties</Link>
+          </Button>
+        }
+      />
 
-        <Link href="/properties" className="btn btn-ghost">
-          Back to Properties
-        </Link>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 0.8fr",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <div className="card">
+      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card>
+          <CardContent className="pt-6">
           {loadError ? (
-            <p style={{ color: "crimson", margin: 0 }}>
-              Failed to load form data: {loadError.message}
-            </p>
+            <EmptyState
+              title="Failed to load form data"
+              description={loadError.message}
+            />
           ) : (
             <PropertyForm
               clients={activeClients}
@@ -156,104 +156,52 @@ export default async function NewPropertyPage({
               preselectedOwnerId={preselectedOwnerId}
             />
           )}
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="card" style={{ display: "grid", gap: 16 }}>
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Creation Tips</h3>
+        <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Creation Tips</CardTitle>
+              <CardDescription>Small things that keep property records clean.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 text-sm text-muted-foreground">
+              <div><strong className="text-foreground">1. Select the owner first.</strong> Every property should be connected to a client so ownership is clear from the start.</div>
+              <div><strong className="text-foreground">2. Match municipality and location.</strong> The selected location must belong to the chosen municipality.</div>
+              <div><strong className="text-foreground">3. Keep the title easy to recognize.</strong> Example: Apartment in Prishtina Center or House in Peja.</div>
+              <div><strong className="text-foreground">4. Start with Active.</strong> You can change the status later if the property becomes vacant or inactive.</div>
+            </CardContent>
+          </Card>
 
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  1. Select the owner first
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  Every property should be connected to a client so ownership is
-                  clear from the start.
-                </div>
-              </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Client Summary</CardTitle>
+              <CardDescription>Available supporting records for this property.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <DetailField label="Available Clients" value={activeClients.length} />
+              <DetailField label="Inactive Clients" value={inactiveClients.length} />
+              <DetailField label="Municipalities" value={municipalities.length} />
+              <DetailField label="Locations" value={locations.length} />
+            </CardContent>
+          </Card>
 
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  2. Choose the correct municipality and location
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  The selected location must belong to the chosen municipality.
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  3. Keep the title easy to recognize
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  Example: “Apartment in Prishtina Center” or “House in Peja”.
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  4. Use Active as the default status
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.75 }}>
-                  You can change the status later if the property becomes vacant
-                  or inactive.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Client Summary</h3>
-
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Available Clients</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {activeClients.length}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Inactive Clients</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {inactiveClients.length}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Municipalities</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {municipalities.length}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>Locations</div>
-                <div style={{ marginTop: 4, fontWeight: 600 }}>
-                  {locations.length}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Quick Actions</h3>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <Link href="/clients/new" className="btn btn-ghost">
-                + Add New Client First
-              </Link>
-
-              <Link href="/clients" className="btn btn-ghost">
-                View Clients
-              </Link>
-
-              <Link href="/properties" className="btn btn-ghost">
-                Back to Property List
-              </Link>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              <Button asChild variant="ghost">
+                <Link href="/clients/new">Add New Client First</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/clients">View Clients</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/properties">Back to Property List</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </section>
     </main>

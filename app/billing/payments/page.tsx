@@ -2,11 +2,25 @@ import Link from "next/link";
 import { ArrowLeft, Filter } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 import { centsToEur } from "@/types/billing";
 
 type PaymentsPageSearchParams = Promise<{
@@ -67,9 +81,9 @@ function formatMethod(method: string) {
 
 function PaymentMethodBadge({ method }: { method: string }) {
   return (
-    <Badge variant="neutral" className="capitalize">
+    <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium capitalize leading-none whitespace-nowrap border-border bg-muted text-muted-foreground">
       {formatMethod(method)}
-    </Badge>
+    </span>
   );
 }
 
@@ -122,13 +136,10 @@ export default async function PaymentsPage({
           }
         />
 
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              Error loading payments: {error.message}
-            </p>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load payments</AlertTitle>
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -246,7 +257,7 @@ export default async function PaymentsPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-card">
+      <TableShell>
         {typedPayments.length === 0 ? (
           <div className="p-6">
             <EmptyState
@@ -256,87 +267,73 @@ export default async function PaymentsPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr className="border-b">
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Payment Date
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Invoice
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Method
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Bank
-                  </th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Reference
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Amount
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Payment Date</TableHead>
+                  <TableHead>Invoice</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead>Bank</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
 
-              <tbody>
+              <TableBody>
                 {typedPayments.map((payment) => {
                   const invoice = getSingle(payment.invoices);
                   const bank = getSingle(payment.banks);
 
                   return (
-                    <tr
+                    <TableRow
                       key={payment.id}
-                      className="border-b last:border-none transition-colors hover:bg-muted/30"
+                      className="transition-colors hover:bg-muted/30"
                     >
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <TableCell className="text-muted-foreground">
                         {new Date(payment.payment_date).toLocaleDateString()}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3">
+                      <TableCell>
                         <Link
                           href={`/billing/${payment.invoice_id}`}
                           className="font-medium text-foreground hover:underline"
                         >
                           {invoice?.invoice_number || "N/A"}
                         </Link>
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3">
+                      <TableCell>
                         <PaymentMethodBadge method={payment.payment_method} />
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <TableCell className="text-muted-foreground">
                         {bank?.name || "N/A"}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 font-mono text-sm text-muted-foreground">
+                      <TableCell className="font-mono text-sm text-muted-foreground">
                         {payment.reference_number || "—"}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 text-right font-medium text-foreground">
+                      <TableCell className="text-right font-medium text-foreground">
                         €{centsToEur(payment.amount_cents).toFixed(2)}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-4 py-3 text-right">
+                      <TableCell className="text-right">
                         <Link href={`/billing/${payment.invoice_id}`}>
                           <Button variant="outline" size="sm">
                             View Invoice
                           </Button>
                         </Link>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
-      </div>
+      </TableShell>
     </div>
   );
 }

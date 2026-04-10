@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
-import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 
 function centsToEur(cents: number | null | undefined) {
   return (cents || 0) / 100;
@@ -74,9 +86,15 @@ export default async function BillingPage() {
 
   const invoices = (data || []) as BillingListRow[];
   const hasData = invoices.length > 0;
+  const issuedInvoices = invoices.filter((invoice) => invoice.status === "issued").length;
+  const draftInvoices = invoices.filter((invoice) => invoice.status === "draft").length;
+  const totalVolume = invoices.reduce(
+    (sum, invoice) => sum + (invoice.total_cents || 0),
+    0
+  );
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Invoices"
         subtitle="Manage billing documents"
@@ -86,6 +104,44 @@ export default async function BillingPage() {
           </Link>
         }
       />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Total Documents</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              {invoices.length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Issued</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              {issuedInvoices}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Drafts: {draftInvoices}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Total Volume</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-foreground">
+              €{centsToEur(totalVolume).toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {!hasData ? (
         <EmptyState
@@ -98,35 +154,21 @@ export default async function BillingPage() {
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left">
-              <tr className="border-b">
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Document
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Client
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Type
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Amount
-                </th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+        <TableShell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Document</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
 
-            <tbody>
+            <TableBody>
               {invoices.map((invoice) => {
                 const client = getSingleRelation(invoice.client);
                 const clientName =
@@ -136,61 +178,60 @@ export default async function BillingPage() {
                   "—";
 
                 return (
-                  <tr
+                  <TableRow
                     key={invoice.id}
-                    className="border-b last:border-none transition-colors hover:bg-muted/30"
+                    className="transition-colors hover:bg-muted/30"
                   >
-                    <td className="px-4 py-3 font-medium">
+                    <TableCell className="font-medium">
                       {getDocumentLabel(invoice)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {clientName}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3">
-                      <Badge
-                        variant={
+                    <TableCell>
+                      <StatusBadge
+                        status={
                           invoice.document_type === "credit_note"
-                            ? "danger"
-                            : "info"
+                            ? "cancelled"
+                            : "issued"
                         }
-                      >
-                        {invoice.document_type === "credit_note"
-                          ? "Credit Note"
-                          : "Invoice"}
-                      </Badge>
-                    </td>
+                        fallbackLabel={
+                          invoice.document_type === "credit_note"
+                            ? "Credit Note"
+                            : "Invoice"
+                        }
+                      />
+                    </TableCell>
 
-                    <td className="px-4 py-3">
-                      <Badge variant={getStatusVariant(invoice.status || "draft")}>
-                        {formatStatusLabel(invoice.status || "draft")}
-                      </Badge>
-                    </td>
+                    <TableCell>
+                      <StatusBadge status={invoice.status || "draft"} />
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right font-medium">
+                    <TableCell className="text-right font-medium">
                       €{centsToEur(invoice.total_cents).toFixed(2)}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <TableCell className="text-muted-foreground">
                       {invoice.created_at
                         ? new Date(invoice.created_at).toLocaleDateString("en-GB")
                         : "—"}
-                    </td>
+                    </TableCell>
 
-                    <td className="px-4 py-3 text-right">
+                    <TableCell className="text-right">
                       <Link href={`/billing/${invoice.id}`}>
                         <Button variant="outline" size="sm">
                           View
                         </Button>
                       </Link>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableShell>
       )}
     </div>
   );

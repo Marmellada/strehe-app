@@ -30,6 +30,12 @@ export type PreviewTheme = {
   inputBorder: string;
   inputPlaceholder: string;
   inputRing: string;
+  checkboxBg: string;
+  checkboxBorder: string;
+  checkboxRing: string;
+  checkboxCheckedBg: string;
+  checkboxCheckedBorder: string;
+  checkboxCheck: string;
   textareaBg: string;
   textareaText: string;
   textareaBorder: string;
@@ -52,6 +58,30 @@ export type PreviewTheme = {
   badgeDangerText: string;
   badgeInfoBg: string;
   badgeInfoText: string;
+  alertDefaultBg: string;
+  alertDefaultBorder: string;
+  alertDefaultText: string;
+  alertDefaultIcon: string;
+  alertInfoBg: string;
+  alertInfoBorder: string;
+  alertInfoText: string;
+  alertInfoIcon: string;
+  alertSuccessBg: string;
+  alertSuccessBorder: string;
+  alertSuccessText: string;
+  alertSuccessIcon: string;
+  alertWarningBg: string;
+  alertWarningBorder: string;
+  alertWarningText: string;
+  alertWarningIcon: string;
+  alertDestructiveBg: string;
+  alertDestructiveBorder: string;
+  alertDestructiveText: string;
+  alertDestructiveIcon: string;
+  emptyStateBg: string;
+  emptyStateBorder: string;
+  emptyStateIconBg: string;
+  emptyStateIconFg: string;
   radius: number;
 };
 
@@ -110,6 +140,12 @@ export const previewDefaults: PreviewTheme = {
   inputBorder: "#d4d4d8",
   inputPlaceholder: "#71717a",
   inputRing: "#a1a1aa",
+  checkboxBg: "#ffffff",
+  checkboxBorder: "#d4d4d8",
+  checkboxRing: "#a1a1aa",
+  checkboxCheckedBg: "#171717",
+  checkboxCheckedBorder: "#171717",
+  checkboxCheck: "#fafafa",
   textareaBg: "#f8f8f8",
   textareaText: "#171717",
   textareaBorder: "#d4d4d8",
@@ -132,6 +168,30 @@ export const previewDefaults: PreviewTheme = {
   badgeDangerText: "#991b1b",
   badgeInfoBg: "#e0f2fe",
   badgeInfoText: "#075985",
+  alertDefaultBg: "#ffffff",
+  alertDefaultBorder: "#e4e4e7",
+  alertDefaultText: "#171717",
+  alertDefaultIcon: "#171717",
+  alertInfoBg: "#eff6ff",
+  alertInfoBorder: "#bfdbfe",
+  alertInfoText: "#1e3a8a",
+  alertInfoIcon: "#2563eb",
+  alertSuccessBg: "#ecfdf5",
+  alertSuccessBorder: "#a7f3d0",
+  alertSuccessText: "#065f46",
+  alertSuccessIcon: "#10b981",
+  alertWarningBg: "#fffbeb",
+  alertWarningBorder: "#fde68a",
+  alertWarningText: "#92400e",
+  alertWarningIcon: "#f59e0b",
+  alertDestructiveBg: "#fef2f2",
+  alertDestructiveBorder: "#fecaca",
+  alertDestructiveText: "#991b1b",
+  alertDestructiveIcon: "#ef4444",
+  emptyStateBg: "#fafafa",
+  emptyStateBorder: "#d4d4d8",
+  emptyStateIconBg: "#f4f4f5",
+  emptyStateIconFg: "#71717a",
   radius: 10,
 };
 
@@ -340,6 +400,48 @@ export const previewTokenFields: PreviewField[] = [
     section: "Input Fields",
   },
   {
+    key: "checkboxBg",
+    label: "Checkbox Background",
+    cssVar: "--checkbox-bg",
+    type: "text",
+    section: "Checkbox",
+  },
+  {
+    key: "checkboxBorder",
+    label: "Checkbox Border",
+    cssVar: "--checkbox-border",
+    type: "text",
+    section: "Checkbox",
+  },
+  {
+    key: "checkboxRing",
+    label: "Checkbox Focus Ring",
+    cssVar: "--checkbox-ring",
+    type: "text",
+    section: "Checkbox",
+  },
+  {
+    key: "checkboxCheckedBg",
+    label: "Checkbox Checked Background",
+    cssVar: "--checkbox-checked-bg",
+    type: "text",
+    section: "Checkbox",
+  },
+  {
+    key: "checkboxCheckedBorder",
+    label: "Checkbox Checked Border",
+    cssVar: "--checkbox-checked-border",
+    type: "text",
+    section: "Checkbox",
+  },
+  {
+    key: "checkboxCheck",
+    label: "Checkbox Checkmark",
+    cssVar: "--checkbox-check",
+    type: "text",
+    section: "Checkbox",
+  },
+  {
     key: "textareaBg",
     label: "Textarea Background",
     cssVar: "--textarea-bg",
@@ -492,6 +594,174 @@ export const previewTokenFields: PreviewField[] = [
     cssVar: "--badge-info-text",
     type: "text",
     section: "Badges",
+  },
+  {
+    key: "alertDefaultBg",
+    label: "Default Alert Background",
+    cssVar: "--alert-default-bg",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDefaultBorder",
+    label: "Default Alert Border",
+    cssVar: "--alert-default-border",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDefaultText",
+    label: "Default Alert Text",
+    cssVar: "--alert-default-text",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDefaultIcon",
+    label: "Default Alert Icon",
+    cssVar: "--alert-default-icon",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertInfoBg",
+    label: "Info Alert Background",
+    cssVar: "--alert-info-bg",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertInfoBorder",
+    label: "Info Alert Border",
+    cssVar: "--alert-info-border",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertInfoText",
+    label: "Info Alert Text",
+    cssVar: "--alert-info-text",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertInfoIcon",
+    label: "Info Alert Icon",
+    cssVar: "--alert-info-icon",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertSuccessBg",
+    label: "Success Alert Background",
+    cssVar: "--alert-success-bg",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertSuccessBorder",
+    label: "Success Alert Border",
+    cssVar: "--alert-success-border",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertSuccessText",
+    label: "Success Alert Text",
+    cssVar: "--alert-success-text",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertSuccessIcon",
+    label: "Success Alert Icon",
+    cssVar: "--alert-success-icon",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertWarningBg",
+    label: "Warning Alert Background",
+    cssVar: "--alert-warning-bg",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertWarningBorder",
+    label: "Warning Alert Border",
+    cssVar: "--alert-warning-border",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertWarningText",
+    label: "Warning Alert Text",
+    cssVar: "--alert-warning-text",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertWarningIcon",
+    label: "Warning Alert Icon",
+    cssVar: "--alert-warning-icon",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDestructiveBg",
+    label: "Destructive Alert Background",
+    cssVar: "--alert-destructive-bg",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDestructiveBorder",
+    label: "Destructive Alert Border",
+    cssVar: "--alert-destructive-border",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDestructiveText",
+    label: "Destructive Alert Text",
+    cssVar: "--alert-destructive-text",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "alertDestructiveIcon",
+    label: "Destructive Alert Icon",
+    cssVar: "--alert-destructive-icon",
+    type: "text",
+    section: "Alerts",
+  },
+  {
+    key: "emptyStateBg",
+    label: "Empty State Background",
+    cssVar: "--empty-state-bg",
+    type: "text",
+    section: "Empty States",
+  },
+  {
+    key: "emptyStateBorder",
+    label: "Empty State Border",
+    cssVar: "--empty-state-border",
+    type: "text",
+    section: "Empty States",
+  },
+  {
+    key: "emptyStateIconBg",
+    label: "Empty State Icon Background",
+    cssVar: "--empty-state-icon-bg",
+    type: "text",
+    section: "Empty States",
+  },
+  {
+    key: "emptyStateIconFg",
+    label: "Empty State Icon Color",
+    cssVar: "--empty-state-icon-fg",
+    type: "text",
+    section: "Empty States",
   },
   {
     key: "radius",

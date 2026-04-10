@@ -3,6 +3,18 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  FormField,
+  Input,
+  PageHeader,
+  Textarea,
+} from "@/components/ui";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -237,38 +249,37 @@ export default async function TaskReportPage({ params }: PageProps) {
     redirect(`/tasks/${typedTask.id}`);
   }
 
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="page-title">Add Task Report</h1>
-          <p className="page-subtitle">
-            Submit an operational update, visit note, issue report, or completion report.
-          </p>
-          <p className="page-subtitle mt-1">
-            Task: <strong>{typedTask.title || typedTask.id}</strong>
-          </p>
-        </div>
+      <PageHeader
+        title="Add Task Report"
+        description={`Submit an operational update, visit note, issue report, or completion report. Task: ${typedTask.title || typedTask.id}`}
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/tasks/${typedTask.id}`}>Back to Task</Link>
+          </Button>
+        }
+      />
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link href={`/tasks/${typedTask.id}`} className="btn btn-secondary">
-            Back to Task
-          </Link>
-        </div>
-      </div>
-
-      <div className="card max-w-3xl">
-        <form action={submitTaskReport} className="p-6 space-y-6">
+      <Card className="max-w-3xl">
+        <CardHeader>
+          <CardTitle>Report Details</CardTitle>
+          <CardDescription>
+            Add notes and optional photos. Completion reports automatically finish the task.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+        <form action={submitTaskReport} className="space-y-6">
           <input type="hidden" name="taskId" value={typedTask.id} />
 
-          <div className="field">
-            <label htmlFor="report_type" className="label">
-              Report Type
-            </label>
+          <FormField label="Report Type" required>
             <select
               id="report_type"
               name="report_type"
-              className="input"
+              className={nativeSelectClassName}
               defaultValue="update"
               required
             >
@@ -277,52 +288,40 @@ export default async function TaskReportPage({ params }: PageProps) {
               <option value="issue">Issue</option>
               <option value="completion">Completion (finishes task)</option>
             </select>
-          </div>
+          </FormField>
 
-          <div className="field">
-            <label htmlFor="notes" className="label">
-              Notes
-            </label>
-            <textarea
+          <FormField label="Notes">
+            <Textarea
               id="notes"
               name="notes"
               rows={8}
-              className="input"
               placeholder="Write the report details here..."
             />
-          </div>
+          </FormField>
 
-          <div className="field">
-            <label htmlFor="photos" className="label">
-              Photos
-            </label>
-            <input
+          <FormField
+            label="Photos"
+            hint="Up to 10 images. Allowed: JPG, PNG, WEBP. Max 10 MB each."
+          >
+            <Input
               id="photos"
               name="photos"
               type="file"
               accept="image/png,image/jpeg,image/webp"
               multiple
-              className="input"
             />
-            <p className="mt-2 text-sm text-gray-500">
-              Up to 10 images. Allowed: JPG, PNG, WEBP. Max 10 MB each.
-            </p>
-          </div>
+          </FormField>
 
           <div className="flex items-center justify-end gap-3 pt-2">
-            <Link
-              href={`/tasks/${typedTask.id}`}
-              className="btn btn-secondary"
-            >
-              Cancel
-            </Link>
+            <Button asChild variant="outline">
+              <Link href={`/tasks/${typedTask.id}`}>Cancel</Link>
+            </Button>
 
-            <button type="submit" className="btn">
-              Submit Report
-            </button>
+            <Button type="submit">Submit Report</Button>
           </div>
         </form>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,4 +1,15 @@
 import Link from "next/link";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  StatCard,
+} from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 
 export default async function DashboardPage() {
@@ -41,95 +52,51 @@ export default async function DashboardPage() {
   const recentProperties = recentPropertiesResult.data || [];
 
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <section
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 30 }}>Dashboard</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.75 }}>
-            Quick overview of clients and properties
-          </p>
-        </div>
+    <main className="grid gap-6">
+      <PageHeader
+        title="Dashboard"
+        description="Quick overview of clients and properties."
+        actions={
+          <>
+            <Button asChild>
+              <Link href="/clients/new">New Client</Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link href="/properties/new">New Property</Link>
+            </Button>
+          </>
+        }
+      />
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link href="/clients/new" className="btn btn-primary">
-            + New Client
-          </Link>
-          <Link href="/properties/new" className="btn btn-ghost">
-            + New Property
-          </Link>
-        </div>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard title="Total Clients" value={totalClientsResult.count ?? 0} />
+        <StatCard title="Active Clients" value={activeClientsResult.count ?? 0} />
+        <StatCard title="Total Properties" value={totalPropertiesResult.count ?? 0} />
+        <StatCard title="Active Properties" value={activePropertiesResult.count ?? 0} />
+        <StatCard title="Vacant Properties" value={vacantPropertiesResult.count ?? 0} />
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Total Clients</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {totalClientsResult.count ?? 0}
-          </div>
-        </div>
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Recent Clients</CardTitle>
+              <CardDescription>Latest additions to the client register.</CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/clients">View All</Link>
+            </Button>
+          </CardHeader>
 
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Active Clients</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {activeClientsResult.count ?? 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Total Properties</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {totalPropertiesResult.count ?? 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Active Properties</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {activePropertiesResult.count ?? 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontSize: 13, opacity: 0.7 }}>Vacant Properties</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {vacantPropertiesResult.count ?? 0}
-          </div>
-        </div>
-      </section>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <div className="card" style={{ display: "grid", gap: 14 }}>
-          <div
-            className="row"
-            style={{ justifyContent: "space-between", alignItems: "center" }}
-          >
-            <h3 style={{ margin: 0 }}>Recent Clients</h3>
-            <Link href="/clients" className="btn btn-ghost">
-              View All
-            </Link>
-          </div>
-
-          {recentClients.length === 0 ? (
-            <p style={{ margin: 0, opacity: 0.75 }}>No clients yet.</p>
-          ) : (
-            <div style={{ display: "grid" }}>
-              {recentClients.map((client, index) => {
+          <CardContent className="grid gap-0">
+            {recentClients.length === 0 ? (
+              <EmptyState
+                title="No clients yet"
+                description="Once clients are added, the newest ones will appear here."
+              />
+            ) : (
+              <div className="grid">
+                {recentClients.map((client, index) => {
                 const name =
                   client.client_type === "business"
                     ? client.company_name || "Unnamed business"
@@ -138,19 +105,14 @@ export default async function DashboardPage() {
                 return (
                   <div
                     key={client.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr auto",
-                      gap: 12,
-                      padding: "12px 0",
-                      borderTop:
-                        index === 0 ? "none" : "1px solid var(--border)",
-                      alignItems: "center",
+                      borderTop: index === 0 ? "none" : "1px solid var(--table-row-border)",
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 600 }}>{name}</div>
-                      <div style={{ fontSize: 13, opacity: 0.7 }}>
+                      <div className="font-medium text-foreground">{name}</div>
+                      <div className="text-sm text-muted-foreground">
                         {client.client_type === "business"
                           ? "Business"
                           : "Individual"}{" "}
@@ -158,98 +120,93 @@ export default async function DashboardPage() {
                       </div>
                     </div>
 
-                    <Link
-                      href={`/clients/${client.id}`}
-                      className="btn btn-ghost"
-                    >
-                      View
-                    </Link>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/clients/${client.id}`}>View</Link>
+                    </Button>
                   </div>
                 );
               })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Recent Properties</CardTitle>
+              <CardDescription>Latest properties added to the register.</CardDescription>
             </div>
-          )}
-        </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/properties">View All</Link>
+            </Button>
+          </CardHeader>
 
-        <div className="card" style={{ display: "grid", gap: 14 }}>
-          <div
-            className="row"
-            style={{ justifyContent: "space-between", alignItems: "center" }}
-          >
-            <h3 style={{ margin: 0 }}>Recent Properties</h3>
-            <Link href="/properties" className="btn btn-ghost">
-              View All
-            </Link>
-          </div>
-
-          {recentProperties.length === 0 ? (
-            <p style={{ margin: 0, opacity: 0.75 }}>No properties yet.</p>
-          ) : (
-            <div style={{ display: "grid" }}>
-              {recentProperties.map((property, index) => (
+          <CardContent className="grid gap-0">
+            {recentProperties.length === 0 ? (
+              <EmptyState
+                title="No properties yet"
+                description="Once properties are added, the newest ones will appear here."
+              />
+            ) : (
+              <div className="grid">
+                {recentProperties.map((property, index) => (
                 <div
                   key={property.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto",
-                    gap: 12,
-                    padding: "12px 0",
-                    borderTop:
-                      index === 0 ? "none" : "1px solid var(--border)",
-                    alignItems: "center",
+                    borderTop: index === 0 ? "none" : "1px solid var(--table-row-border)",
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600 }}>
+                    <div className="font-medium text-foreground">
                       {property.title || "Untitled property"}
                     </div>
-                    <div style={{ fontSize: 13, opacity: 0.7 }}>
+                    <div className="text-sm text-muted-foreground">
                       {property.property_code || "No code"} •{" "}
                       {property.status || "Unknown"}
                     </div>
                   </div>
 
-                  <Link
-                    href={`/properties/${property.id}`}
-                    className="btn btn-ghost"
-                  >
-                    View
-                  </Link>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={`/properties/${property.id}`}>View</Link>
+                  </Button>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <Link
-          href="/clients"
-          className="card"
-          style={{ textDecoration: "none", color: "inherit" }}
-        >
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Clients</h3>
-          <p style={{ margin: 0, opacity: 0.75 }}>
-            View, search, edit, and manage all clients.
-          </p>
-        </Link>
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Clients</CardTitle>
+            <CardDescription>
+              View, search, edit, and manage all clients.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="ghost">
+              <Link href="/clients">Open Clients</Link>
+            </Button>
+          </CardContent>
+        </Card>
 
-        <Link
-          href="/properties"
-          className="card"
-          style={{ textDecoration: "none", color: "inherit" }}
-        >
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Properties</h3>
-          <p style={{ margin: 0, opacity: 0.75 }}>
-            Track properties, locations, and ownership details.
-          </p>
-        </Link>
+        <Card>
+          <CardHeader>
+            <CardTitle>Properties</CardTitle>
+            <CardDescription>
+              Track properties, locations, and ownership details.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="ghost">
+              <Link href="/properties">Open Properties</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </section>
     </main>
   );

@@ -1,5 +1,19 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  DetailField,
+  EmptyState,
+  FormField,
+  Input,
+  PageHeader,
+  StatusBadge,
+} from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { APP_ROLES, type AppRole } from "@/lib/auth/roles";
@@ -13,6 +27,9 @@ type AppUserRow = {
   is_active: boolean;
   created_at: string;
 };
+
+const nativeSelectClassName =
+  "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -200,197 +217,141 @@ export default async function SettingsUsersPage() {
 
   return (
     <main className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">User Access Management</h1>
-          <p className="page-subtitle mt-2">
-            Manage internal user roles and account access.
-          </p>
-        </div>
+      <PageHeader
+        title="User Access Management"
+        description="Manage internal user roles and account access."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/settings">Back to Settings</Link>
+          </Button>
+        }
+      />
 
-        <Link href="/settings" className="btn btn-ghost">
-          Back to Settings
-        </Link>
-      </div>
-
-      <section className="card">
-        <div className="mb-6 border-b border-border pb-6">
-          <h2 className="section-title !mb-0">Create Test User</h2>
-          <p className="page-subtitle mt-1">
+      <Card>
+        <CardHeader>
+          <CardTitle>Create Test User</CardTitle>
+          <CardDescription>
             Temporary admin-only user creation for testing. This creates both the
             auth account and the matching app user record.
-          </p>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={createTestUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <FormField label="Full Name" required>
+              <Input name="full_name" type="text" required placeholder="Test User" />
+            </FormField>
 
-          <form
-            action={createTestUser}
-            className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-          >
-            <label className="field">
-              Full Name
-              <input
-                name="full_name"
-                type="text"
-                required
-                className="input"
-                placeholder="Test User"
-              />
-            </label>
-
-            <label className="field">
-              Email
-              <input
+            <FormField label="Email" required>
+              <Input
                 name="email"
                 type="email"
                 required
-                className="input"
                 placeholder="test.user@example.com"
               />
-            </label>
+            </FormField>
 
-            <label className="field">
-              Password
-              <input
+            <FormField label="Password" required hint="Minimum 8 characters.">
+              <Input
                 name="password"
                 type="password"
                 required
                 minLength={8}
-                className="input"
                 placeholder="Minimum 8 characters"
               />
-            </label>
+            </FormField>
 
-            <label className="field">
-              Role
-              <select name="role" required defaultValue="office" className="input">
+            <FormField label="Role" required>
+              <select name="role" defaultValue="office" className={nativeSelectClassName}>
                 {APP_ROLES.map((role) => (
                   <option key={role} value={role}>
                     {role}
                   </option>
                 ))}
               </select>
-            </label>
+            </FormField>
 
-            <div className="md:col-span-2 xl:col-span-4 flex justify-end">
-              <button type="submit" className="btn btn-primary">
-                Create Test User
-              </button>
+            <div className="flex justify-end md:col-span-2 xl:col-span-4">
+              <Button type="submit">Create Test User</Button>
             </div>
           </form>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Users</h2>
-          <p className="page-subtitle mt-1">
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-medium text-foreground">Users</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Assign roles and control who can access the system.
           </p>
         </div>
 
         {users.length === 0 ? (
-          <p className="field-value-muted">No users found.</p>
+          <EmptyState
+            title="No users found"
+            description="Once users exist, you will be able to review their role, status, and account details here."
+          />
         ) : (
-          <div className="related-list">
+          <div className="grid gap-4">
             {users.map((user) => (
-              <div
-                key={user.id}
-                className="related-item"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr) auto",
-                  gap: 20,
-                  alignItems: "start",
-                }}
-              >
-                <div>
-                  <div className="related-item-title">
-                    {user.full_name || "Unnamed User"}
+              <Card key={user.id}>
+                <CardHeader className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
+                  <div className="space-y-1">
+                    <CardTitle>{user.full_name || "Unnamed User"}</CardTitle>
+                    <CardDescription>{user.email || "No email"}</CardDescription>
                   </div>
-
-                  <div className="related-item-subtitle">
-                    {user.email || "No email"}
+                  <div className="flex items-center justify-start sm:justify-end">
+                    <StatusBadge status={user.is_active ? "active" : "inactive"} />
                   </div>
+                </CardHeader>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 8,
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(180px, 1fr))",
-                      marginTop: 12,
-                    }}
-                  >
-                    <div>
-                      <div className="field-label">Role</div>
-                      <div className="field-value">{user.role}</div>
-                    </div>
-
-                    <div>
-                      <div className="field-label">Status</div>
-                      <div className="field-value">
-                        {user.is_active ? "Active" : "Inactive"}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="field-label">Created</div>
-                      <div className="field-value">
-                        {formatDate(user.created_at)}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="field-label">User ID</div>
-                      <div className="field-value" style={{ wordBreak: "break-all" }}>
-                        {user.id}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                    minWidth: 240,
-                  }}
-                >
-                  <form action={updateUserRole} className="space-y-2">
-                    <input type="hidden" name="user_id" value={user.id} />
-
-                    <label className="field">
-                      Role
-                      <select
-                        name="role"
-                        defaultValue={user.role}
-                        className="input"
-                      >
-                        {APP_ROLES.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <button type="submit" className="btn btn-primary w-full">
-                      Save Role
-                    </button>
-                  </form>
-
-                  <form action={toggleUserActive}>
-                    <input type="hidden" name="user_id" value={user.id} />
-                    <input
-                      type="hidden"
-                      name="current"
-                      value={String(!!user.is_active)}
+                <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <DetailField label="Role" value={user.role} />
+                    <DetailField
+                      label="Status"
+                      value={user.is_active ? "Active" : "Inactive"}
                     />
+                    <DetailField label="Created" value={formatDate(user.created_at)} />
+                    <DetailField
+                      label="User ID"
+                      value={<span className="break-all">{user.id}</span>}
+                    />
+                  </div>
 
-                    <button type="submit" className="btn btn-ghost w-full">
-                      {user.is_active ? "Deactivate User" : "Activate User"}
-                    </button>
-                  </form>
-                </div>
-              </div>
+                  <div className="space-y-3">
+                    <form action={updateUserRole} className="space-y-3">
+                      <input type="hidden" name="user_id" value={user.id} />
+
+                      <FormField label="Role">
+                        <select
+                          name="role"
+                          defaultValue={user.role}
+                          className={nativeSelectClassName}
+                        >
+                          {APP_ROLES.map((role) => (
+                            <option key={role} value={role}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+
+                      <Button type="submit" className="w-full">
+                        Save Role
+                      </Button>
+                    </form>
+
+                    <form action={toggleUserActive}>
+                      <input type="hidden" name="user_id" value={user.id} />
+                      <input type="hidden" name="current" value={String(!!user.is_active)} />
+
+                      <Button type="submit" variant="ghost" className="w-full">
+                        {user.is_active ? "Deactivate User" : "Activate User"}
+                      </Button>
+                    </form>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}

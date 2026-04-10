@@ -3,12 +3,27 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Edit, FileText, Plus, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  DetailField,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 import { DeleteInvoiceButton } from "@/components/billing/DeleteInvoiceButton";
 import { UpdateInvoiceStatusButton } from "@/components/billing/UpdateInvoiceStatusButton";
-import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
+import { formatStatusLabel } from "@/lib/ui/status";
 import {
   computeSettlement,
   sumAmountCents,
@@ -87,22 +102,6 @@ type InvoiceItemRow = {
 
 function getDocumentTypeBadgeVariant(documentType: DocumentType) {
   return documentType === "credit_note" ? "danger" : "info";
-}
-
-function sectionCardClasses() {
-  return "space-y-4 rounded-2xl border bg-card p-6";
-}
-
-function tableHeaderCellClasses() {
-  return "px-4 py-3 text-left text-sm font-medium text-muted-foreground";
-}
-
-function tableHeaderCellRightClasses() {
-  return "px-4 py-3 text-right text-sm font-medium text-muted-foreground";
-}
-
-function tableRowClasses() {
-  return "border-t transition-colors hover:bg-muted/20";
 }
 
 export default async function InvoiceDetailPage({
@@ -461,30 +460,28 @@ export default async function InvoiceDetailPage({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={getStatusVariant(status)}>
-          {formatStatusLabel(status)}
-        </Badge>
+        <StatusBadge status={status} />
         <Badge variant={getDocumentTypeBadgeVariant(documentType)}>
           {documentType === "credit_note" ? "Credit Note" : "Invoice"}
         </Badge>
       </div>
 
       {status === "draft" && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <p className="mb-3 text-sm text-blue-900">
+        <Alert variant="info">
+          <AlertTitle>Draft document</AlertTitle>
+          <AlertDescription className="mb-3">
             This {documentType === "credit_note" ? "credit note" : "invoice"} is
             in draft status. Issue it when it is ready.
-          </p>
+          </AlertDescription>
           <UpdateInvoiceStatusButton
             invoiceId={invoice.id}
             newStatus="issued"
           />
-        </div>
+        </Alert>
       )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className={sectionCardClasses()}>
-          <h2 className="text-lg font-semibold text-foreground">From</h2>
+        <SectionCard title="From">
           <div className="space-y-2 text-sm">
             <p className="font-medium text-foreground">{displayCompanyName}</p>
             <p className="text-muted-foreground">{displayCompanyAddress}</p>
@@ -505,10 +502,9 @@ export default async function InvoiceDetailPage({
               </p>
             )}
           </div>
-        </div>
+        </SectionCard>
 
-        <div className={sectionCardClasses()}>
-          <h2 className="text-lg font-semibold text-foreground">Bill To</h2>
+        <SectionCard title="Bill To">
           <div className="space-y-2 text-sm">
             <p className="font-medium text-foreground">{clientName}</p>
             <p className="text-muted-foreground">{clientAddress || "N/A"}</p>
@@ -519,68 +515,49 @@ export default async function InvoiceDetailPage({
               <p className="text-muted-foreground">{displayClientPhone}</p>
             )}
           </div>
-        </div>
+        </SectionCard>
 
-        <div className={sectionCardClasses()}>
-          <h2 className="text-lg font-semibold text-foreground">
-            Document Details
-          </h2>
+        <SectionCard title="Document Details">
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Number</p>
-              <p className="font-medium text-foreground">
-                {invoice.invoice_number || "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Date</p>
-              <p className="font-medium text-foreground">
-                {formatDate(invoice.issue_date)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Due Date</p>
-              <p className="font-medium text-foreground">
-                {formatDate(invoice.due_date)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Status</p>
-              <p className="font-medium text-foreground">
-                {formatStatusLabel(status)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Type</p>
-              <p className="font-medium text-foreground">
-                {documentType === "credit_note" ? "Credit Note" : "Invoice"}
-              </p>
-            </div>
+            <DetailField label="Number" value={invoice.invoice_number || "—"} />
+            <DetailField label="Date" value={formatDate(invoice.issue_date)} />
+            <DetailField label="Due Date" value={formatDate(invoice.due_date)} />
+            <DetailField label="Status" value={formatStatusLabel(status)} />
+            <DetailField
+              label="Type"
+              value={documentType === "credit_note" ? "Credit Note" : "Invoice"}
+            />
             {documentType === "credit_note" && originalInvoice && (
-              <div>
-                <p className="text-muted-foreground">Original Invoice</p>
-                <Link
-                  href={`/billing/${originalInvoice.id}`}
-                  className="font-medium text-foreground underline"
-                >
-                  {originalInvoice.invoice_number || "Open invoice"}
-                </Link>
-              </div>
+              <DetailField
+                label="Original Invoice"
+                value={
+                  <Link
+                    href={`/billing/${originalInvoice.id}`}
+                    className="font-medium text-foreground underline"
+                  >
+                    {originalInvoice.invoice_number || "Open invoice"}
+                  </Link>
+                }
+              />
             )}
-            <div className="col-span-2">
-              <p className="text-muted-foreground">Property</p>
-              <p className="font-medium text-foreground">{displayPropertyLabel}</p>
-              {(property || invoice.property_address_snapshot) && (
-                <p className="text-muted-foreground">{displayPropertyAddress}</p>
-              )}
-            </div>
+            <DetailField
+              label="Property"
+              className="col-span-2"
+              value={
+                <div className="space-y-1">
+                  <div className="font-medium text-foreground">{displayPropertyLabel}</div>
+                  {(property || invoice.property_address_snapshot) && (
+                    <div className="text-sm text-muted-foreground">
+                      {displayPropertyAddress}
+                    </div>
+                  )}
+                </div>
+              }
+            />
           </div>
-        </div>
+        </SectionCard>
 
-        <div className={sectionCardClasses()}>
-          <h2 className="text-lg font-semibold text-foreground">
-            Financial Summary
-          </h2>
+        <SectionCard title="Financial Summary">
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
@@ -636,66 +613,66 @@ export default async function InvoiceDetailPage({
               </>
             )}
           </div>
-        </div>
+        </SectionCard>
       </div>
 
-      <div className={sectionCardClasses()}>
-        <h2 className="text-lg font-semibold text-foreground">Line Items</h2>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40">
-              <tr>
-                <th className={tableHeaderCellClasses()}>Description</th>
-                <th className={tableHeaderCellRightClasses()}>Quantity</th>
-                <th className={tableHeaderCellRightClasses()}>Unit Price</th>
-                <th className={tableHeaderCellRightClasses()}>Line Total</th>
-              </tr>
-            </thead>
-            <tbody>
+      <SectionCard title="Line Items" contentClassName="px-0">
+        <TableShell className="rounded-none border-x-0 border-b-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Line Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
               {(invoiceItems || []).length ? (
                 ((invoiceItems || []) as InvoiceItemRow[]).map((item) => (
-                  <tr key={item.id} className={tableRowClasses()}>
-                    <td className="px-4 py-3 text-foreground">
+                  <TableRow key={item.id} className="transition-colors hover:bg-muted/20">
+                    <TableCell className="text-foreground">
                       {item.description}
-                    </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
                       {item.quantity}
-                    </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
                       {documentType === "credit_note"
                         ? formatCreditMoney(item.unit_price_cents || 0)
                         : formatMoney(item.unit_price_cents || 0)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-foreground">
                       {documentType === "credit_note"
                         ? formatCreditMoney(item.total_cents || 0)
                         : formatMoney(item.total_cents || 0)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <tr>
-                  <td
+                <TableRow>
+                  <TableCell
                     colSpan={4}
-                    className="px-4 py-8 text-center text-muted-foreground"
+                    className="py-8 text-center text-muted-foreground"
                   >
                     No line items found.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </TableBody>
+            </Table>
+          </div>
+        </TableShell>
+      </SectionCard>
 
       {documentType === "invoice" && (
         <>
-          <div className={sectionCardClasses()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">
-                Credit Notes
-              </h2>
+          <SectionCard
+            title="Credit Notes"
+            contentClassName="space-y-0 px-0"
+          >
+            <div className="flex items-center justify-between px-6">
               {(status === "issued" || status === "paid") && (
                 <Button asChild variant="outline">
                   <Link href={`/billing/${invoice.id}/credit-note/new`}>
@@ -706,64 +683,61 @@ export default async function InvoiceDetailPage({
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40">
-                  <tr>
-                    <th className={tableHeaderCellClasses()}>Number</th>
-                    <th className={tableHeaderCellClasses()}>Date</th>
-                    <th className={tableHeaderCellClasses()}>Status</th>
-                    <th className={tableHeaderCellRightClasses()}>Amount</th>
-                    <th className={tableHeaderCellRightClasses()}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableShell className="rounded-none border-x-0 border-b-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Number</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                   {creditNotes.length ? (
                     creditNotes.map((creditNote) => (
-                      <tr key={creditNote.id} className={tableRowClasses()}>
-                        <td className="px-4 py-3 text-foreground">
+                      <TableRow key={creditNote.id} className="transition-colors hover:bg-muted/20">
+                        <TableCell className="text-foreground">
                           {creditNote.invoice_number || "Draft Credit Note"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {formatDate(creditNote.issue_date)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant={getStatusVariant(creditNote.status)}>
-                            {formatStatusLabel(creditNote.status)}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-foreground">
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={creditNote.status} />
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-foreground">
                           {formatCreditMoney(creditNote.total_cents || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <Button asChild variant="outline" size="sm">
                             <Link href={`/billing/${creditNote.id}`}>
                               View
                             </Link>
                           </Button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : (
-                    <tr>
-                      <td
+                    <TableRow>
+                      <TableCell
                         colSpan={5}
-                        className="px-4 py-8 text-center text-muted-foreground"
+                        className="py-8 text-center text-muted-foreground"
                       >
                         No credit notes found.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </TableShell>
+          </SectionCard>
 
-          <div className={sectionCardClasses()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">
-                Payments
-              </h2>
+          <SectionCard title="Payments" contentClassName="space-y-0 px-0">
+            <div className="flex items-center justify-between px-6">
               {status === "issued" && settlement.remainingCents > 0 && (
                 <Button asChild variant="outline">
                   <Link href={`/billing/${invoice.id}/payment`}>
@@ -774,31 +748,32 @@ export default async function InvoiceDetailPage({
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40">
-                  <tr>
-                    <th className={tableHeaderCellClasses()}>Date</th>
-                    <th className={tableHeaderCellClasses()}>Method</th>
-                    <th className={tableHeaderCellClasses()}>Reference</th>
-                    <th className={tableHeaderCellClasses()}>Bank</th>
-                    <th className={tableHeaderCellRightClasses()}>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableShell className="rounded-none border-x-0 border-b-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Reference</TableHead>
+                      <TableHead>Bank</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                   {payments.length ? (
                     payments.map((payment) => (
-                      <tr key={payment.id} className={tableRowClasses()}>
-                        <td className="px-4 py-3 text-muted-foreground">
+                      <TableRow key={payment.id} className="transition-colors hover:bg-muted/20">
+                        <TableCell className="text-muted-foreground">
                           {formatDate(payment.payment_date)}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground capitalize">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground capitalize">
                           {String(payment.payment_method).replace("_", " ")}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {payment.reference_number || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {payment.bank?.name
                             ? `${payment.bank.name}${
                                 payment.bank.swift_code
@@ -806,36 +781,36 @@ export default async function InvoiceDetailPage({
                                   : ""
                               }`
                             : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-foreground">
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-foreground">
                           {formatMoney(payment.amount_cents || 0)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : (
-                    <tr>
-                      <td
+                    <TableRow>
+                      <TableCell
                         colSpan={5}
-                        className="px-4 py-8 text-center text-muted-foreground"
+                        className="py-8 text-center text-muted-foreground"
                       >
                         No payments found.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </TableShell>
+          </SectionCard>
         </>
       )}
 
       {invoice.notes && (
-        <div className={sectionCardClasses()}>
-          <h2 className="text-lg font-semibold text-foreground">Notes</h2>
+        <SectionCard title="Notes">
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">
             {invoice.notes}
           </p>
-        </div>
+        </SectionCard>
       )}
     </div>
   );

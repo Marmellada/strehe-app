@@ -63,15 +63,14 @@ export default async function NewCreditNotePage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Button asChild variant="ghost">
-          <Link href={`/billing/${id}`}>← Back to Invoice</Link>
-        </Button>
-      </div>
-
       <PageHeader
         title="New Credit Note"
         description={`Create a credit note for ${invoice.invoice_number}`}
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/billing/${id}`}>Back to Invoice</Link>
+          </Button>
+        }
       />
 
       <CreditNoteForm
