@@ -9,6 +9,13 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Card, CardContent } from "@/components/ui/Card";
 import { resolveContractSnapshot } from "@/lib/actions/contract-setup";
 
+const SUBSCRIPTION_EDITABLE_STATUSES = [
+  "draft",
+  "prepared",
+  "paused",
+  "cancelled",
+] as const;
+
 async function updateSubscription(formData: FormData) {
   "use server";
 
@@ -22,7 +29,9 @@ async function updateSubscription(formData: FormData) {
 
   const start_date = String(formData.get("start_date") || "").trim();
   const end_date = String(formData.get("end_date") || "").trim();
-  const status = String(formData.get("status") || "active").trim();
+  const status = String(formData.get("status") || "draft")
+    .trim()
+    .toLowerCase();
   const monthly_price_raw = String(formData.get("monthly_price") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
 
@@ -39,6 +48,14 @@ async function updateSubscription(formData: FormData) {
 
   if (monthly_price_raw !== "" && Number.isNaN(monthly_price)) {
     throw new Error("Monthly price must be a valid number.");
+  }
+
+  if (
+    !SUBSCRIPTION_EDITABLE_STATUSES.includes(
+      status as (typeof SUBSCRIPTION_EDITABLE_STATUSES)[number]
+    )
+  ) {
+    throw new Error("Invalid contract status.");
   }
 
   const { data: property, error: propertyError } = await supabase
@@ -87,6 +104,10 @@ async function updateSubscription(formData: FormData) {
       status,
       monthly_price,
       notes: notes || null,
+      physical_contract_confirmed_at:
+        status === "draft" || status === "prepared" ? null : undefined,
+      physical_contract_confirmed_by_user_id:
+        status === "draft" || status === "prepared" ? null : undefined,
       ...snapshot,
     })
     .eq("id", id);
@@ -360,13 +381,17 @@ export default async function EditSubscriptionPage({
               <select
                 id="status"
                 name="status"
-                defaultValue={subscription.status || "active"}
+                defaultValue={subscription.status || "draft"}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="prepared">Prepared</option>
                 <option value="paused">Paused</option>
                 <option value="cancelled">Cancelled</option>
               </select>
+              <p className="text-sm text-muted-foreground">
+                Activate the contract from the detail page after the signed paper copy is filed.
+              </p>
             </div>
 
             <div className="space-y-2 md:col-span-2">

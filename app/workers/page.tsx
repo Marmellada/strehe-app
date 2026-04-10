@@ -30,6 +30,8 @@ export default async function StaffPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
   const { supabase } = await requireWorkersAccess();
   const filters = await searchParams;
 
@@ -127,7 +129,7 @@ export default async function StaffPage({
                 id="status"
                 name="status"
                 defaultValue={status}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">All</option>
                 <option value="active">Active</option>
@@ -140,7 +142,7 @@ export default async function StaffPage({
                 id="worker_type"
                 name="worker_type"
                 defaultValue={workerType}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">All</option>
                 <option value="employee">Employee</option>

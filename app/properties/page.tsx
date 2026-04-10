@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Label } from "@/components/ui/Label";
+import { Input } from "@/components/ui/Input";
 import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 
 type RelatedName = { name: string | null } | { name: string | null }[] | null;
@@ -50,6 +51,8 @@ export default async function PropertiesPage({
   const municipalityId = params.municipality_id || "";
   const status = params.status || "";
   const search = params.search || "";
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   let propertiesQuery = supabase.from("properties").select(`
       id,
@@ -202,12 +205,11 @@ export default async function PropertiesPage({
         <form method="GET" className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="search">Search</Label>
-            <input
+            <Input
               id="search"
               name="search"
               placeholder="Search title, code, or address..."
               defaultValue={search}
-              className="input"
             />
           </div>
 
@@ -217,7 +219,7 @@ export default async function PropertiesPage({
               id="municipality_id"
               name="municipality_id"
               defaultValue={municipalityId}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All municipalities</option>
               {municipalities.map((m) => (
@@ -234,7 +236,7 @@ export default async function PropertiesPage({
               id="status"
               name="status"
               defaultValue={status}
-              className="input"
+              className={nativeSelectClassName}
             >
               <option value="">All statuses</option>
               <option value="active">Active</option>

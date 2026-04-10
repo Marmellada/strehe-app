@@ -57,6 +57,8 @@ export default function NewClientForm({
   isEdit = false,
   clientId,
 }: Props) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
   const [clientType, setClientType] = useState(
     initialData?.client_type || "individual"
   );
@@ -98,7 +100,7 @@ export default function NewClientForm({
                 value={clientType}
                 onChange={(e) => setClientType(e.target.value)}
                 required
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="individual">Individual</option>
                 <option value="business">Business</option>
@@ -111,7 +113,7 @@ export default function NewClientForm({
                 id="status"
                 name="status"
                 defaultValue={initialData?.status || "active"}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>

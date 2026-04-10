@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -11,6 +15,8 @@ import {
   Label,
   Textarea,
 } from "@/components/ui";
+import { detectBankFromInput } from "@/lib/banking/detection";
+import type { BankIdentifierRule, BankRegistryBank } from "@/types/banking";
 
 type WorkerFormAction = (formData: FormData) => void | Promise<void>;
 
@@ -39,14 +45,41 @@ type Props = {
   submitLabel: string;
   worker?: WorkerFormValues;
   cancelHref?: string;
+  banks?: BankRegistryBank[];
+  identifiers?: BankIdentifierRule[];
 };
+
+function normalizeBankAccountInput(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
 
 export default function WorkerForm({
   action,
   submitLabel,
   worker,
   cancelHref = "/workers",
+  banks,
+  identifiers,
 }: Props) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  const [paymentMethod, setPaymentMethod] = useState<string>(
+    worker?.payment_method ?? ""
+  );
+  const [bankAccountValue, setBankAccountValue] = useState<string>(
+    worker?.bank_account ?? ""
+  );
+
+  const bankDetectionResult = useMemo(() => {
+    if (!bankAccountValue.trim()) return null;
+
+    return detectBankFromInput({
+      input: bankAccountValue,
+      identifiers: identifiers || [],
+      banks: banks || [],
+    });
+  }, [bankAccountValue, identifiers, banks]);
+
   return (
     <form action={action} className="space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
@@ -111,7 +144,7 @@ export default function WorkerForm({
                 name="worker_type"
                 defaultValue={worker?.worker_type ?? "employee"}
                 required
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="employee">Employee</option>
                 <option value="contractor">Contractor</option>
@@ -125,7 +158,7 @@ export default function WorkerForm({
                 name="status"
                 defaultValue={worker?.status ?? "active"}
                 required
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -180,7 +213,7 @@ export default function WorkerForm({
                 id="payment_frequency"
                 name="payment_frequency"
                 defaultValue={worker?.payment_frequency ?? ""}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">Not set</option>
                 <option value="monthly">Monthly</option>
@@ -197,8 +230,9 @@ export default function WorkerForm({
               <select
                 id="payment_method"
                 name="payment_method"
-                defaultValue={worker?.payment_method ?? ""}
-                className="input"
+                value={paymentMethod}
+                onChange={(event) => setPaymentMethod(event.target.value)}
+                className={nativeSelectClassName}
               >
                 <option value="">Not set</option>
                 <option value="bank">Bank</option>
@@ -206,13 +240,52 @@ export default function WorkerForm({
               </select>
             </FormField>
 
-            <FormField id="bank_account" label="Bank account">
+            <FormField
+              id="bank_account"
+              label="Bank account"
+              hint="Use IBAN or account number. Letters and numbers only."
+            >
               <Input
                 id="bank_account"
                 name="bank_account"
-                defaultValue={worker?.bank_account ?? ""}
+                value={bankAccountValue}
+                onChange={(event) =>
+                  setBankAccountValue(normalizeBankAccountInput(event.target.value))
+                }
+                className="uppercase"
               />
             </FormField>
+
+            {bankDetectionResult && bankAccountValue.trim() ? (
+              <Alert
+                variant={
+                  !bankDetectionResult.isValid
+                    ? "destructive"
+                    : bankDetectionResult.kind === "card_number"
+                    ? "destructive"
+                    : bankDetectionResult.matchedBank
+                    ? "success"
+                    : "warning"
+                }
+              >
+                <AlertTitle>Bank account validation</AlertTitle>
+                <AlertDescription>
+                  {!bankDetectionResult.isValid
+                    ? bankDetectionResult.validationMessage
+                    : bankDetectionResult.kind === "card_number"
+                    ? "This looks like a card number. For staff payment details, enter an IBAN or bank account number instead."
+                    : bankDetectionResult.matchedBank
+                    ? `Detected ${bankDetectionResult.matchedBank.bankName}${
+                        bankDetectionResult.matchedBank.swiftCode
+                          ? ` (${bankDetectionResult.matchedBank.swiftCode})`
+                          : ""
+                      }.`
+                    : bankDetectionResult.availableRuleCount > 0
+                    ? "The bank account format looks valid, but no active bank rule matched it yet."
+                    : "The bank account format looks valid, but there are no active detection rules for this type yet."}
+                </AlertDescription>
+              </Alert>
+            ) : null}
           </CardContent>
         </Card>
 

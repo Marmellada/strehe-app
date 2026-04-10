@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 
 export default async function SidebarAuthBox() {
@@ -27,9 +28,9 @@ export default async function SidebarAuthBox() {
         )}
 
         <form action="/auth/logout" method="post">
-          <button type="submit" className="btn btn-ghost w-full">
+          <Button type="submit" variant="ghost" className="w-full">
             Log out
-          </button>
+          </Button>
         </form>
       </div>
     </div>

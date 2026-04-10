@@ -1,5 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  FormField,
+  Input,
+  PageHeader,
+  SectionCard,
+  Textarea,
+} from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 
 async function createKey(propertyId: string, formData: FormData) {
@@ -66,88 +77,71 @@ export default async function NewPropertyKeyPage({ params }: PageProps) {
 
   return (
     <main className="space-y-6">
-      <div>
-        <h1 className="page-title">Add Key</h1>
-        <p className="page-subtitle mt-2">
-          {property.title || "Untitled Property"} • {property.property_code || "-"}
-        </p>
-      </div>
-
-      <div className="top-actions">
-        <Link href={`/properties/${id}/keys`} className="btn btn-ghost">
-          ← Back to Keys
-        </Link>
-      </div>
+      <PageHeader
+        title="Add Key"
+        subtitle={`${property.title || "Untitled Property"} • ${property.property_code || "-"}`}
+        actions={
+          <Button asChild variant="ghost">
+            <Link href={`/properties/${id}/keys`}>Back to Keys</Link>
+          </Button>
+        }
+      />
 
       <form
         action={createKeyWithPropertyId}
-        className="card"
-        style={{ display: "grid", gap: 16, maxWidth: 860 }}
+        className="space-y-6"
       >
-        <div
-          className="card"
-          style={{
-            padding: 14,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.02)",
-          }}
-        >
-          <div className="section-title" style={{ marginBottom: 8 }}>
-            Key code will be generated automatically
-          </div>
-          <p className="page-subtitle" style={{ margin: 0 }}>
+        <Alert>
+          <AlertTitle>Key code is generated automatically</AlertTitle>
+          <AlertDescription>
             The backend will assign the next available key tag when you save.
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
 
-        <div className="grid-2">
-          <label className="field">
-            Key Type
-            <input
-              name="key_type"
-              className="input"
-              placeholder="e.g. Main door / Bundle"
-            />
-          </label>
+        <SectionCard
+          title="New Key"
+          description="Register a new property key or key bundle with its storage details."
+        >
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="Key Type">
+                <Input
+                  name="key_type"
+                  placeholder="e.g. Main door / Bundle"
+                />
+              </FormField>
 
-          <label className="field">
-            Storage Location
-            <input
-              name="storage_location"
-              className="input"
-              placeholder="e.g. Office Safe / Box A / Slot 03"
-            />
-          </label>
-        </div>
+              <FormField label="Storage Location">
+                <Input
+                  name="storage_location"
+                  placeholder="e.g. Office Safe / Box A / Slot 03"
+                />
+              </FormField>
+            </div>
 
-        <label className="field">
-          Key Name
-          <input
-            name="name"
-            className="input"
-            placeholder="e.g. Main Door Key Set"
-            required
-          />
-        </label>
+            <FormField label="Key Name *">
+              <Input
+                name="name"
+                placeholder="e.g. Main Door Key Set"
+                required
+              />
+            </FormField>
 
-        <label className="field">
-          Description
-          <textarea
-            name="description"
-            className="input"
-            rows={4}
-            placeholder="Notes about this key or bundle..."
-          />
-        </label>
+            <FormField label="Description">
+              <Textarea
+                name="description"
+                rows={4}
+                placeholder="Notes about this key or bundle..."
+              />
+            </FormField>
+          </div>
+        </SectionCard>
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Link href={`/properties/${id}/keys`} className="btn btn-ghost">
-            Cancel
-          </Link>
-
-          <button type="submit" className="btn btn-primary">
-            Save Key
-          </button>
+        <div className="flex justify-end gap-2">
+          <Button asChild variant="ghost">
+            <Link href={`/properties/${id}/keys`}>Cancel</Link>
+          </Button>
+          <Button type="submit">Save Key</Button>
         </div>
       </form>
     </main>

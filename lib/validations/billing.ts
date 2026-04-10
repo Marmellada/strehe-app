@@ -33,6 +33,7 @@ export const createCreditNoteSchema = z.object({
 export const bankAccountSchema = z.object({
   bank_id: z.string().uuid().optional().nullable(),
   bank_name: z.string().min(1, "Bank name is required"),
+  bank_name_snapshot: z.string().min(1, "Display bank name is required").optional(),
   account_name: z.string().optional().nullable(),
   account_number: z.string().optional().nullable(),
   iban: z
@@ -40,6 +41,7 @@ export const bankAccountSchema = z.object({
     .min(1, "IBAN is required")
     .regex(/^XK\d{18}$/, "IBAN must be in format: XK followed by 18 digits"),
   swift_bic: z.string().optional().nullable(),
+  show_on_invoice: z.boolean().default(true),
   is_primary: z.boolean().default(false),
 });
 

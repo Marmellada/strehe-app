@@ -1,16 +1,27 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardContent } from "@/components/ui/Card";
 import { DetailField } from "@/components/ui/DetailField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import {
+  TableShell,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/Table";
 import { requireRole } from "@/lib/auth/require-role";
+import { formatStatusLabel } from "@/lib/ui/status";
 import CancelContractButton from "./CancelContractButton";
 
 type SubscriptionPageProps = {
@@ -102,6 +113,8 @@ type SubscriptionRow = {
   status: string | null;
   monthly_price: number | string | null;
   notes: string | null;
+  physical_contract_confirmed_at: string | null;
+  physical_contract_confirmed_by_user_id: string | null;
   created_at: string | null;
   updated_at: string | null;
   client: ClientRelation;
@@ -113,13 +126,6 @@ function getSingleRelation<T>(value: T | T[] | null): T | null {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] || null;
   return value;
-}
-
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "-";
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char: string) => char.toUpperCase());
 }
 
 function formatPrice(value: number | string | null | undefined) {
@@ -149,19 +155,6 @@ function formatDateTime(value: string | null | undefined) {
   });
 }
 
-function getBadgeVariant(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-      return "success" as const;
-    case "paused":
-      return "info" as const;
-    case "cancelled":
-      return "danger" as const;
-    default:
-      return "neutral" as const;
-  }
-}
-
 async function deleteSubscription(formData: FormData) {
   "use server";
 
@@ -188,6 +181,34 @@ async function deleteSubscription(formData: FormData) {
   redirect("/subscriptions");
 }
 
+async function confirmPhysicalContract(formData: FormData) {
+  "use server";
+
+  const { authUser } = await requireRole(["admin"]);
+  const supabase = await createClient();
+  const id = String(formData.get("id") || "").trim();
+
+  if (!id) {
+    throw new Error("Missing contract id.");
+  }
+
+  const { error } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "active",
+      physical_contract_confirmed_at: new Date().toISOString(),
+      physical_contract_confirmed_by_user_id: authUser.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  redirect(`/subscriptions/${id}`);
+}
+
 export default async function SubscriptionDetailPage({
   params,
 }: SubscriptionPageProps) {
@@ -212,6 +233,8 @@ export default async function SubscriptionDetailPage({
       status,
       monthly_price,
       notes,
+      physical_contract_confirmed_at,
+      physical_contract_confirmed_by_user_id,
       created_at,
       updated_at,
       client:clients!subscriptions_client_fk (
@@ -287,6 +310,21 @@ export default async function SubscriptionDetailPage({
     subscription.package_name_snapshot ||
     pkg?.name ||
     "-";
+  const canConfirmPhysicalContract =
+    subscription.status === "draft" || subscription.status === "prepared";
+
+  let physicalContractConfirmedBy = "-";
+
+  if (subscription.physical_contract_confirmed_by_user_id) {
+    const { data: confirmer } = await supabase
+      .from("app_users")
+      .select("full_name, email")
+      .eq("id", subscription.physical_contract_confirmed_by_user_id)
+      .maybeSingle();
+
+    physicalContractConfirmedBy =
+      confirmer?.full_name?.trim() || confirmer?.email || "-";
+  }
 
   return (
     <div className="space-y-6">
@@ -329,6 +367,13 @@ export default async function SubscriptionDetailPage({
               <input type="hidden" name="id" value={subscription.id} />
               <CancelContractButton />
             </form>
+
+            {canConfirmPhysicalContract ? (
+              <form action={confirmPhysicalContract}>
+                <input type="hidden" name="id" value={subscription.id} />
+                <Button type="submit">Confirm Signed & Filed</Button>
+              </form>
+            ) : null}
           </>
         }
       />
@@ -343,13 +388,28 @@ export default async function SubscriptionDetailPage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {canConfirmPhysicalContract ? (
+        <Alert>
+          <AlertTitle>Awaiting paper confirmation</AlertTitle>
+          <AlertDescription>
+            This contract stays in draft or prepared until someone confirms the physical signed copy was filed.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <StatCard
           title="Status"
           value={
-            <Badge variant={getBadgeVariant(subscription.status)}>
-              {formatLabel(subscription.status)}
-            </Badge>
+            <StatusBadge status={subscription.status} />
+          }
+        />
+        <StatCard
+          title="Paper Filed"
+          value={
+            subscription.physical_contract_confirmed_at
+              ? formatDate(subscription.physical_contract_confirmed_at)
+              : "Pending"
           }
         />
         <StatCard
@@ -374,7 +434,10 @@ export default async function SubscriptionDetailPage({
         <DetailField label="Client" value={clientName} />
         <DetailField label="Property" value={propertyLabel} />
         <DetailField label="Package" value={packageName} />
-        <DetailField label="Status" value={formatLabel(subscription.status)} />
+        <DetailField
+          label="Status"
+          value={formatStatusLabel(subscription.status)}
+        />
         <DetailField
           label="Monthly Price"
           value={formatPrice(subscription.monthly_price)}
@@ -390,6 +453,18 @@ export default async function SubscriptionDetailPage({
         <DetailField
           label="End Date"
           value={formatDate(subscription.end_date)}
+        />
+        <DetailField
+          label="Paper Contract Confirmed"
+          value={
+            subscription.physical_contract_confirmed_at
+              ? formatDateTime(subscription.physical_contract_confirmed_at)
+              : "Not yet confirmed"
+          }
+        />
+        <DetailField
+          label="Confirmed By"
+          value={physicalContractConfirmedBy}
         />
       </SectionCard>
 
@@ -435,66 +510,50 @@ export default async function SubscriptionDetailPage({
             description="This package does not have any included services yet."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Service
-                  </th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Category
-                  </th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Qty / Month
-                  </th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Base Price
-                  </th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Default Task Title
-                  </th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Default Priority
-                  </th>
-                  <th className="px-2 py-3 font-medium text-muted-foreground">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+          <TableShell>
+            <Table className="min-w-[860px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Qty / Month</TableHead>
+                  <TableHead>Base Price</TableHead>
+                  <TableHead>Default Task Title</TableHead>
+                  <TableHead>Default Priority</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {serviceRows.map((row) => {
                   const service = getSingleRelation(row.service);
 
                   return (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="px-2 py-4">{service?.name || "-"}</td>
-                      <td className="px-2 py-4">
-                        {formatLabel(service?.category)}
-                      </td>
-                      <td className="px-2 py-4">{row.included_quantity ?? "-"}</td>
-                      <td className="px-2 py-4">
+                    <TableRow key={row.id}>
+                      <TableCell>{service?.name || "-"}</TableCell>
+                      <TableCell>
+                        {formatStatusLabel(service?.category)}
+                      </TableCell>
+                      <TableCell>{row.included_quantity ?? "-"}</TableCell>
+                      <TableCell>
                         {formatPrice(service?.base_price)}
-                      </td>
-                      <td className="px-2 py-4">
+                      </TableCell>
+                      <TableCell>
                         {service?.default_title || "-"}
-                      </td>
-                      <td className="px-2 py-4">
-                        {formatLabel(service?.default_priority)}
-                      </td>
-                      <td className="px-2 py-4">
-                        <Badge
-                          variant={service?.is_active ? "success" : "neutral"}
-                        >
-                          {service?.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell>
+                        {formatStatusLabel(service?.default_priority)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          status={service?.is_active ? "active" : "inactive"}
+                        />
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableShell>
         )}
       </SectionCard>
 

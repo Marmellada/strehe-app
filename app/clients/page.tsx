@@ -6,9 +6,17 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Card, CardContent } from "@/components/ui/Card";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui/Table";
 
 type RelatedName = { name: string | null } | { name: string | null }[] | null;
 
@@ -96,59 +104,73 @@ export default async function ClientsPage() {
 
       <SectionCard title="Clients">
         {rows.length === 0 ? (
-         <EmptyState
-  title="No clients"
-  description="Create your first client to start managing owners, businesses, and related records."
-  action={
-    <Button asChild>
-      <Link href="/clients/new">Create Client</Link>
-    </Button>
-  }
-/>
+          <EmptyState
+            title="No clients"
+            description="Create your first client to start managing owners, businesses, and related records."
+            action={
+              <Button asChild>
+                <Link href="/clients/new">Create Client</Link>
+              </Button>
+            }
+          />
         ) : (
-          <div className="space-y-2">
+          <TableShell className="rounded-none border-x-0 border-b-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
             {rows.map((c) => {
               const location = [getSingle(c.locations), getSingle(c.municipalities)]
                 .filter(Boolean)
                 .join(", ");
 
               return (
-                <Card key={c.id}>
-                  <CardContent className="flex justify-between items-center">
-                    <div>
-                      <Link href={`/clients/${c.id}`}>
-                        <p className="font-medium">{getClientName(c)}</p>
-                      </Link>
-
-                      <p className="text-xs text-muted-foreground">
-                        {c.phone || ""} {c.phone && c.email ? "•" : ""} {c.email || ""}
-                      </p>
-
-                      {location && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {location}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Badge variant="neutral">
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">
+                    <Link href={`/clients/${c.id}`} className="hover:underline">
+                      {getClientName(c)}
+                    </Link>
+                    {c.contact_person ? (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Contact: {c.contact_person}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="neutral">
                         {c.client_type === "business" ? "Business" : "Individual"}
-                      </Badge>
-
-                      <Badge variant={c.status === "active" ? "success" : "neutral"}>
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={c.status === "active" ? "success" : "neutral"}>
                         {c.status || "unknown"}
-                      </Badge>
-
-                      <Button asChild size="sm" variant="ghost">
-                        <Link href={`/clients/${c.id}`}>Open</Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {[c.phone, c.email].filter(Boolean).join(" • ") || "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {location || "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild size="sm" variant="ghost">
+                      <Link href={`/clients/${c.id}`}>Open</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </div>
+              </TableBody>
+            </Table>
+          </TableShell>
         )}
       </SectionCard>
     </div>

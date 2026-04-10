@@ -1,19 +1,31 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { PageHeader } from "@/components/ui/PageHeader";
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Label } from "@/components/ui/Label";
-import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
+  EmptyState,
+  FormField,
+  PageHeader,
+  StatCard,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+  Input,
+} from "@/components/ui";
+import { formatStatusLabel } from "@/lib/ui/status";
 
 type SearchParams = Promise<{
   status?: string;
@@ -85,11 +97,6 @@ function formatDate(value: string | null) {
   }
 }
 
-function getKeyTypeVariant(keyType: string | null | undefined): "neutral" {
-  void keyType;
-  return "neutral";
-}
-
 function buildKeysPageHref({
   status,
   property_id,
@@ -122,6 +129,8 @@ export default async function KeysPage({
   const status = params.status || "";
   const property_id = params.property_id || "";
   const search = params.search || "";
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   const [
     { data: properties },
@@ -191,13 +200,10 @@ export default async function KeysPage({
           title="Keys"
           description="Operational overview of all keys across properties."
         />
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              Error loading keys: {error.message}
-            </p>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load keys</AlertTitle>
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -278,71 +284,12 @@ export default async function KeysPage({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <Card size="sm">
-          <CardContent>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              All Keys
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">
-              {counts.total}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardContent>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Available
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">
-              {counts.available}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardContent>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Assigned
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">
-              {counts.assigned}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardContent>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Lost
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">
-              {counts.lost}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardContent>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Damaged
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">
-              {counts.damaged}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardContent>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Retired
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">
-              {counts.retired}
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard title="All Keys" value={counts.total} />
+        <StatCard title="Available" value={counts.available} />
+        <StatCard title="Assigned" value={counts.assigned} />
+        <StatCard title="Lost" value={counts.lost} />
+        <StatCard title="Damaged" value={counts.damaged} />
+        <StatCard title="Retired" value={counts.retired} />
       </div>
 
       <Card>
@@ -388,13 +335,12 @@ export default async function KeysPage({
             className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
             method="get"
           >
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+            <FormField id="status" label="Status">
               <select
                 id="status"
                 name="status"
                 defaultValue={status}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">All statuses</option>
                 <option value="available">Available</option>
@@ -403,15 +349,14 @@ export default async function KeysPage({
                 <option value="damaged">Damaged</option>
                 <option value="retired">Retired</option>
               </select>
-            </div>
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="property_id">Property</Label>
+            <FormField id="property_id" label="Property">
               <select
                 id="property_id"
                 name="property_id"
                 defaultValue={property_id}
-                className="input"
+                className={nativeSelectClassName}
               >
                 <option value="">All properties</option>
                 {propertyOptions.map((property) => (
@@ -419,22 +364,20 @@ export default async function KeysPage({
                     {property.title || "Untitled Property"}
                     {property.property_code
                       ? ` (${property.property_code})`
-                      : ""}
+                    : ""}
                   </option>
                 ))}
               </select>
-            </div>
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="search">Search</Label>
-              <input
+            <FormField id="search" label="Search">
+              <Input
                 id="search"
                 name="search"
-                className="input"
                 defaultValue={search}
                 placeholder="Name, code, holder, storage..."
               />
-            </div>
+            </FormField>
 
             <div className="flex items-end gap-3">
               <Button type="submit">Apply Filters</Button>
@@ -461,7 +404,22 @@ export default async function KeysPage({
               description="No keys match the current filters."
             />
           ) : (
-            <div className="space-y-3">
+            <TableShell className="rounded-none border-x-0 border-b-0">
+              <div className="overflow-x-auto">
+                <Table className="min-w-[980px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Key</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Holder</TableHead>
+                      <TableHead>Storage</TableHead>
+                      <TableHead>Property</TableHead>
+                      <TableHead>Last Checked Out</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
               {keys.map((key) => {
                 const property = getSingleRelation(key.properties);
                 const holderUser = key.holder_user_id
@@ -472,98 +430,55 @@ export default async function KeysPage({
                   holderUser?.full_name ?? key.holder_name ?? "In storage";
 
                 return (
-                  <div
+                  <TableRow
                     key={key.id}
-                    className="rounded-2xl border bg-card p-5 transition-colors hover:bg-muted/20"
+                    className="transition-colors hover:bg-muted/20"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 space-y-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-base font-semibold text-foreground">
-                            {key.name || "Unnamed Key"}
-                          </div>
-
-                          <Badge variant={getStatusVariant(key.status)}>
-                            {formatStatusLabel(key.status)}
-                          </Badge>
-
-                          {key.key_type ? (
-                            <Badge variant={getKeyTypeVariant(key.key_type)}>
-                              {formatStatusLabel(key.key_type)}
-                            </Badge>
-                          ) : null}
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="font-semibold text-foreground">
+                          {key.name || "Unnamed Key"}
                         </div>
-
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                          <div>
-                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Tag
-                            </div>
-                            <div className="mt-1 text-sm text-foreground">
-                              {key.key_code || "-"}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Holder
-                            </div>
-                            <div className="mt-1 text-sm text-foreground">
-                              {holderDisplay}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Storage
-                            </div>
-                            <div className="mt-1 text-sm text-foreground">
-                              {key.storage_location || "-"}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Last Checked Out
-                            </div>
-                            <div className="mt-1 text-sm text-foreground">
-                              {formatDate(key.last_checked_out_at)}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Property
-                            </div>
-                            <div className="mt-1 text-sm text-foreground">
-                              {property?.title || "-"}
-                              {property?.property_code
-                                ? ` (${property.property_code})`
-                                : ""}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Address
-                            </div>
-                            <div className="mt-1 text-sm text-foreground">
-                              {property?.address_line_1 || "-"}
-                            </div>
-                          </div>
+                        <div className="text-sm text-muted-foreground">
+                          Tag: {key.key_code || "-"}
                         </div>
                       </div>
-
-                      <div className="flex justify-end">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {key.key_type ? formatStatusLabel(key.key_type) : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={key.status} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {holderDisplay}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {key.storage_location || "-"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <div>{property?.title || "-"}</div>
+                      {property?.property_code ? (
+                        <div className="text-xs text-muted-foreground">
+                          {property.property_code}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(key.last_checked_out_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
                         <Link href={`/keys/${key.id}`}>
                           <Button variant="outline">Open</Button>
                         </Link>
-                      </div>
-                    </div>
-                  </div>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </TableShell>
           )}
         </CardContent>
       </Card>

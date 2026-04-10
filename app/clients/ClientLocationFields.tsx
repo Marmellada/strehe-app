@@ -28,6 +28,8 @@ export default function ClientLocationFields({
   defaultMunicipalityId = "",
   defaultLocationId = "",
 }: Props) {
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
   const [municipalityId, setMunicipalityId] = useState(defaultMunicipalityId);
   const [locationId, setLocationId] = useState(defaultLocationId);
 
@@ -51,7 +53,7 @@ export default function ClientLocationFields({
             setMunicipalityId(e.target.value);
             setLocationId("");
           }}
-          className="input"
+          className={nativeSelectClassName}
         >
           <option value="">Select municipality</option>
           {municipalities.map((municipality) => (
@@ -74,7 +76,7 @@ export default function ClientLocationFields({
           }
           onChange={(e) => setLocationId(e.target.value)}
           disabled={!municipalityId}
-          className="input"
+          className={nativeSelectClassName}
         >
           <option value="">
             {municipalityId ? "Select location" : "Select municipality first"}

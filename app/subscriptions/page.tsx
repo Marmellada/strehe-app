@@ -11,8 +11,18 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { StatCard } from "@/components/ui/StatCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import {
+  TableShell,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/Table";
 
 type ClientRelation =
   | {
@@ -57,6 +67,7 @@ type ContractRow = {
   end_date: string | null;
   status: string | null;
   monthly_price: number | string | null;
+  physical_contract_confirmed_at: string | null;
   client_name_snapshot: string | null;
   property_code_snapshot: string | null;
   package_name_snapshot: string | null;
@@ -69,14 +80,6 @@ function getSingleRelation<T>(value: T | T[] | null): T | null {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] || null;
   return value;
-}
-
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "-";
-
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char: string) => char.toUpperCase());
 }
 
 function formatPrice(value: number | string | null | undefined) {
@@ -111,19 +114,6 @@ function formatPeriod(
   if (start === "-" && end !== "-") return `Until ${end}`;
 
   return `${start} → ${end}`;
-}
-
-function getBadgeVariant(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "active":
-      return "success" as const;
-    case "paused":
-      return "info" as const;
-    case "cancelled":
-      return "danger" as const;
-    default:
-      return "neutral" as const;
-  }
 }
 
 function getClientName(row: ContractRow) {
@@ -166,6 +156,7 @@ export default async function SubscriptionsPage() {
       end_date,
       status,
       monthly_price,
+      physical_contract_confirmed_at,
       client_name_snapshot,
       property_code_snapshot,
       package_name_snapshot,
@@ -200,7 +191,9 @@ export default async function SubscriptionsPage() {
 
       acc.total += 1;
 
-      if (status === "active") acc.active += 1;
+      if (status === "draft") acc.draft += 1;
+      else if (status === "prepared") acc.prepared += 1;
+      else if (status === "active") acc.active += 1;
       else if (status === "paused") acc.paused += 1;
       else if (status === "cancelled") acc.cancelled += 1;
       else acc.other += 1;
@@ -213,6 +206,8 @@ export default async function SubscriptionsPage() {
     },
     {
       total: 0,
+      draft: 0,
+      prepared: 0,
       active: 0,
       paused: 0,
       cancelled: 0,
@@ -233,53 +228,20 @@ export default async function SubscriptionsPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Total Contracts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{summary.total}</div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <StatCard title="Total Contracts" value={summary.total} />
+        <StatCard title="Draft" value={summary.draft} />
+        <StatCard title="Prepared" value={summary.prepared} />
+        <StatCard title="Active" value={summary.active} />
+        <StatCard title="Paused" value={summary.paused} />
+        <StatCard title="Cancelled" value={summary.cancelled} />
+      </div>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Active</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{summary.active}</div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Paused</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{summary.paused}</div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Cancelled</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{summary.cancelled}</div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Monthly Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              {formatPrice(summary.monthlyRevenue)}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatCard
+          title="Monthly Revenue"
+          value={formatPrice(summary.monthlyRevenue)}
+        />
       </div>
 
       <Card>
@@ -302,65 +264,56 @@ export default async function SubscriptionsPage() {
               }
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Client
-                    </th>
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Property
-                    </th>
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Package
-                    </th>
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Price
-                    </th>
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Period
-                    </th>
-                    <th className="px-2 py-3 font-medium text-muted-foreground">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
+            <TableShell>
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Property</TableHead>
+                    <TableHead>Package</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Paper Filed</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-                <tbody>
+                <TableBody>
                   {rows.map((contract) => (
-                    <tr key={contract.id} className="border-b last:border-b-0">
-                      <td className="px-2 py-4 font-medium">
+                    <TableRow key={contract.id}>
+                      <TableCell className="font-medium">
                         {getClientName(contract)}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-2 py-4">{getPropertyLabel(contract)}</td>
+                      <TableCell>{getPropertyLabel(contract)}</TableCell>
 
-                      <td className="px-2 py-4">{getPackageName(contract)}</td>
+                      <TableCell>{getPackageName(contract)}</TableCell>
 
-                      <td className="px-2 py-4">
-                        <Badge variant={getBadgeVariant(contract.status)}>
-                          {formatLabel(contract.status)}
-                        </Badge>
-                      </td>
+                      <TableCell>
+                        <StatusBadge status={contract.status} />
+                      </TableCell>
 
-                      <td className="px-2 py-4">
+                      <TableCell>
+                        {contract.physical_contract_confirmed_at
+                          ? formatDate(contract.physical_contract_confirmed_at)
+                          : "-"}
+                      </TableCell>
+
+                      <TableCell>
                         {formatPrice(contract.monthly_price)}
                         {contract.monthly_price !== null &&
                         contract.monthly_price !== undefined &&
                         contract.monthly_price !== ""
                           ? " / mo"
                           : ""}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-2 py-4">
+                      <TableCell>
                         {formatPeriod(contract.start_date, contract.end_date)}
-                      </td>
+                      </TableCell>
 
-                      <td className="px-2 py-4">
+                      <TableCell>
                         <div className="flex gap-2 flex-wrap">
                           <Button asChild variant="outline" size="sm">
                             <Link href={`/subscriptions/${contract.id}`}>
@@ -377,12 +330,12 @@ export default async function SubscriptionsPage() {
                             </Link>
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableShell>
           )}
         </CardContent>
       </Card>

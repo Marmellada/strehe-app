@@ -6,9 +6,17 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Card, CardContent } from "@/components/ui/Card";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui/Table";
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "-";
@@ -100,6 +108,7 @@ export default async function ServicesPage() {
       <SectionCard
         title="Services List"
         description="Reusable catalog items for packages now and billing later."
+        contentClassName="p-0"
       >
         {rows.length === 0 ? (
           <EmptyState
@@ -112,42 +121,51 @@ export default async function ServicesPage() {
             }
           />
         ) : (
-          <div className="space-y-2">
-            {rows.map((service) => (
-              <Card key={service.id}>
-                <CardContent className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/services/${service.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {service.name || "-"}
-                    </Link>
-
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      <span>{formatLabel(service.category)}</span>
-                      <span>•</span>
-                      <span>{formatLabel(service.default_priority)} priority</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-medium">
-                      {formatPrice(service.base_price)}
-                    </div>
-
-                    <Badge variant={service.is_active ? "success" : "neutral"}>
-  {service.is_active ? "Active" : "Inactive"}
-</Badge>
-
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/services/${service.id}`}>Open</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <TableShell className="rounded-none border-x-0 border-b-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Base Price</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/services/${service.id}`}
+                        className="hover:underline"
+                      >
+                        {service.name || "-"}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatLabel(service.category)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatLabel(service.default_priority)}
+                    </TableCell>
+                    <TableCell>{formatPrice(service.base_price)}</TableCell>
+                    <TableCell>
+                      <Badge variant={service.is_active ? "success" : "neutral"}>
+                        {service.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/services/${service.id}`}>Open</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableShell>
         )}
       </SectionCard>
     </div>

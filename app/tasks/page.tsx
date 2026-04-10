@@ -222,7 +222,50 @@ export default async function TasksPage({
     query = query.gt("due_date", today);
   }
 
-  const { data: tasks, error, count } = await query.range(from, to);
+  let statsQuery = supabase
+    .from("tasks")
+    .select(
+      "id, status, priority, due_date, assigned_user_id, property_id, subscription_id, title"
+    );
+
+  if (appUser.role === "field" || appUser.role === "contractor") {
+    statsQuery = statsQuery.eq("assigned_user_id", authUser.id);
+  }
+
+  if (params.priority) statsQuery = statsQuery.eq("priority", params.priority);
+
+  if (params.assigned === "me") {
+    statsQuery = statsQuery.eq("assigned_user_id", authUser.id);
+  }
+
+  if (params.assigned === "unassigned") {
+    statsQuery = statsQuery.is("assigned_user_id", null);
+  }
+
+  if (params.property) {
+    statsQuery = statsQuery.eq("property_id", params.property);
+  }
+
+  if (params.search) {
+    statsQuery = statsQuery.ilike("title", `%${params.search}%`);
+  }
+
+  if (canUseAdminAssigneeFilter && params.assignee_id) {
+    statsQuery = statsQuery.eq("assigned_user_id", params.assignee_id);
+  }
+
+  if (params.source === "manual") {
+    statsQuery = statsQuery.is("subscription_id", null);
+  }
+
+  if (params.source === "subscription") {
+    statsQuery = statsQuery.not("subscription_id", "is", null);
+  }
+
+  const [
+    { data: tasks, error, count },
+    { data: statsRows, error: statsError },
+  ] = await Promise.all([query.range(from, to), statsQuery]);
 
   if (error) {
     return (
@@ -235,7 +278,21 @@ export default async function TasksPage({
     );
   }
 
+  if (statsError) {
+    return (
+      <div className="p-8">
+        <h1 className="mb-2 text-lg font-semibold text-red-600">
+          Task Metrics Error
+        </h1>
+        <pre className="overflow-auto rounded-xl border bg-muted p-4 text-sm text-foreground">
+          {JSON.stringify(statsError, null, 2)}
+        </pre>
+      </div>
+    );
+  }
+
   const typedTasks: TaskRow[] = (tasks || []) as TaskRow[];
+  const typedTaskStats = (statsRows || []) as TaskRow[];
   const total = count || 0;
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
 
@@ -355,25 +412,25 @@ export default async function TasksPage({
   const allUsers = (allUsersResult.data || []) as AppUserRow[];
   const allProperties = (allPropertiesResult.data || []) as PropertyRow[];
 
-  const openCount = typedTasks.filter((task) => task.status === "open").length;
-  const inProgressCount = typedTasks.filter(
+  const openCount = typedTaskStats.filter((task) => task.status === "open").length;
+  const inProgressCount = typedTaskStats.filter(
     (task) => task.status === "in_progress"
   ).length;
-  const blockedCount = typedTasks.filter(
+  const blockedCount = typedTaskStats.filter(
     (task) => task.status === "blocked"
   ).length;
-  const completedCount = typedTasks.filter(
+  const completedCount = typedTaskStats.filter(
     (task) => task.status === "completed"
   ).length;
-  const overdueCount = typedTasks.filter(
+  const overdueCount = typedTaskStats.filter(
     (task) =>
       task.due_date && task.due_date < today && task.status !== "completed"
   ).length;
-  const unassignedCount = typedTasks.filter(
+  const unassignedCount = typedTaskStats.filter(
     (task) => !task.assigned_user_id
   ).length;
-  const manualCount = typedTasks.filter((task) => !task.subscription_id).length;
-  const subscriptionCount = typedTasks.filter((task) =>
+  const manualCount = typedTaskStats.filter((task) => !task.subscription_id).length;
+  const subscriptionCount = typedTaskStats.filter((task) =>
     Boolean(task.subscription_id)
   ).length;
 
@@ -446,6 +503,16 @@ export default async function TasksPage({
     params.status === "open" &&
     params.assigned === "unassigned" &&
     params.source === "manual";
+  const allQuickFilterActive =
+    !params.status && !params.due && !params.source && !params.assigned;
+  const openQuickFilterActive = params.status === "open";
+  const overdueQuickFilterActive = params.due === "overdue";
+  const completedQuickFilterActive = params.status === "completed";
+  const cancelledQuickFilterActive = params.status === "cancelled";
+  const manualQuickFilterActive = params.source === "manual";
+  const subscriptionQuickFilterActive = params.source === "subscription";
+  const myTasksQuickFilterActive = params.assigned === "me";
+  const unassignedQuickFilterActive = params.assigned === "unassigned";
 
   return (
     <div className="space-y-6">
@@ -488,14 +555,33 @@ export default async function TasksPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks">All</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?status=open">Open</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?due=overdue">Overdue</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?status=completed">Completed</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?source=manual">Manual</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?source=subscription">Subscription</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?assigned=me">My Tasks</Link></Button>
-        <Button asChild variant="secondary" size="sm"><Link href="/tasks?assigned=unassigned">Unassigned</Link></Button>
+        <Button asChild variant={allQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks">All</Link>
+        </Button>
+        <Button asChild variant={openQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?status=open">Open</Link>
+        </Button>
+        <Button asChild variant={overdueQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?due=overdue">Overdue</Link>
+        </Button>
+        <Button asChild variant={completedQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?status=completed">Completed</Link>
+        </Button>
+        <Button asChild variant={cancelledQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?status=cancelled">Cancelled</Link>
+        </Button>
+        <Button asChild variant={manualQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?source=manual">Manual</Link>
+        </Button>
+        <Button asChild variant={subscriptionQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?source=subscription">Subscription</Link>
+        </Button>
+        <Button asChild variant={myTasksQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?assigned=me">My Tasks</Link>
+        </Button>
+        <Button asChild variant={unassignedQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?assigned=unassigned">Unassigned</Link>
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -626,6 +712,7 @@ export default async function TasksPage({
               <option value="in_progress">In Progress</option>
               <option value="blocked">Blocked</option>
               <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
 

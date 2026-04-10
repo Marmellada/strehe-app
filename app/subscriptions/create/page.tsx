@@ -9,6 +9,13 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import CreateSubscriptionForm from "@/app/subscriptions/create/CreateSubscriptionForm";
 import { resolveContractSnapshot } from "@/lib/actions/contract-setup";
 
+const SUBSCRIPTION_EDITABLE_STATUSES = [
+  "draft",
+  "prepared",
+  "paused",
+  "cancelled",
+] as const;
+
 async function createSubscription(formData: FormData) {
   "use server";
 
@@ -21,7 +28,9 @@ async function createSubscription(formData: FormData) {
 
   const start_date = String(formData.get("start_date") || "").trim();
   const end_date = String(formData.get("end_date") || "").trim();
-  const status = String(formData.get("status") || "active").trim();
+  const status = String(formData.get("status") || "draft")
+    .trim()
+    .toLowerCase();
   const monthly_price_raw = String(formData.get("monthly_price") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
 
@@ -32,6 +41,14 @@ async function createSubscription(formData: FormData) {
   const monthly_price = Number(monthly_price_raw);
   if (!monthly_price_raw || Number.isNaN(monthly_price)) {
     throw new Error("Monthly price is required and must be valid.");
+  }
+
+  if (
+    !SUBSCRIPTION_EDITABLE_STATUSES.includes(
+      status as (typeof SUBSCRIPTION_EDITABLE_STATUSES)[number]
+    )
+  ) {
+    throw new Error("Invalid contract status.");
   }
 
   const { data: property, error: propertyError } = await supabase
@@ -79,6 +96,8 @@ async function createSubscription(formData: FormData) {
       status,
       monthly_price,
       notes: notes || null,
+      physical_contract_confirmed_at: null,
+      physical_contract_confirmed_by_user_id: null,
       ...snapshot,
     })
     .select("id")

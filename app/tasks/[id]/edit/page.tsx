@@ -19,6 +19,8 @@ type TaskEditRow = {
   assigned_user_id: string | null;
   priority: string | null;
   status: string | null;
+  blocked_reason: string | null;
+  cancelled_reason: string | null;
   due_date: string | null;
   completed_at: string | null;
   property_id: string | null;
@@ -53,8 +55,16 @@ async function updateTask(formData: FormData) {
   const status = String(formData.get("status") || "").trim();
   const due_date = String(formData.get("due_date") || "").trim();
   const property_id = String(formData.get("property_id") || "").trim();
+  const blocked_reason = String(formData.get("blocked_reason") || "").trim();
+  const cancelled_reason = String(formData.get("cancelled_reason") || "").trim();
 
   if (!title) throw new Error("Title is required.");
+  if (status === "blocked" && !blocked_reason) {
+    throw new Error("Blocked tasks require a reason.");
+  }
+  if (status === "cancelled" && !cancelled_reason) {
+    throw new Error("Cancelled tasks require a reason.");
+  }
 
   const { data: existingTask, error: existingTaskError } = await supabase
     .from("tasks")
@@ -81,6 +91,8 @@ async function updateTask(formData: FormData) {
     status,
     due_date: due_date || null,
     property_code_snapshot: null,
+    blocked_reason: status === "blocked" ? blocked_reason : null,
+    cancelled_reason: status === "cancelled" ? cancelled_reason : null,
   };
 
   if (assigned_user_id) {
@@ -166,7 +178,7 @@ export default async function TaskEditPage({ params }: PageProps) {
     supabase
       .from("tasks")
       .select(
-        "id, title, description, assigned_user_id, priority, status, due_date, completed_at, property_id, subscription_id, service_id"
+        "id, title, description, assigned_user_id, priority, status, blocked_reason, cancelled_reason, due_date, completed_at, property_id, subscription_id, service_id"
       )
       .eq("id", id)
       .single(),
@@ -203,7 +215,7 @@ export default async function TaskEditPage({ params }: PageProps) {
   const typedProperties = (properties || []) as PropertyRow[];
   const isAutoTask = Boolean(typedTask.subscription_id);
 
-  if (typedTask.status === "completed") {
+  if (typedTask.status === "completed" || typedTask.status === "cancelled") {
     redirect(`/tasks/${id}`);
   }
 

@@ -50,6 +50,9 @@ export type PreviewTheme = {
   tableHeaderText: string;
   tableBodyText: string;
   tableRowBorder: string;
+  badgeNeutralBg: string;
+  badgeNeutralText: string;
+  badgeNeutralBorder: string;
   badgeSuccessBg: string;
   badgeSuccessText: string;
   badgeWarningBg: string;
@@ -160,6 +163,9 @@ export const previewDefaults: PreviewTheme = {
   tableHeaderText: "#171717",
   tableBodyText: "#171717",
   tableRowBorder: "#e4e4e7",
+  badgeNeutralBg: "#eef0f3",
+  badgeNeutralText: "#475569",
+  badgeNeutralBorder: "#d7dce3",
   badgeSuccessBg: "#dcfce7",
   badgeSuccessText: "#166534",
   badgeWarningBg: "#fef3c7",
@@ -540,6 +546,27 @@ export const previewTokenFields: PreviewField[] = [
     section: "Tables",
   },
   {
+    key: "badgeNeutralBg",
+    label: "Neutral Badge Fill",
+    cssVar: "--badge-neutral-bg",
+    type: "text",
+    section: "Badges",
+  },
+  {
+    key: "badgeNeutralText",
+    label: "Neutral Badge Text",
+    cssVar: "--badge-neutral-text",
+    type: "text",
+    section: "Badges",
+  },
+  {
+    key: "badgeNeutralBorder",
+    label: "Neutral Badge Border",
+    cssVar: "--badge-neutral-border",
+    type: "text",
+    section: "Badges",
+  },
+  {
     key: "badgeSuccessBg",
     label: "Success Badge Fill",
     cssVar: "--badge-success-bg",
@@ -597,28 +624,28 @@ export const previewTokenFields: PreviewField[] = [
   },
   {
     key: "alertDefaultBg",
-    label: "Default Alert Background",
+    label: "Neutral Alert Background",
     cssVar: "--alert-default-bg",
     type: "text",
     section: "Alerts",
   },
   {
     key: "alertDefaultBorder",
-    label: "Default Alert Border",
+    label: "Neutral Alert Border",
     cssVar: "--alert-default-border",
     type: "text",
     section: "Alerts",
   },
   {
     key: "alertDefaultText",
-    label: "Default Alert Text",
+    label: "Neutral Alert Text",
     cssVar: "--alert-default-text",
     type: "text",
     section: "Alerts",
   },
   {
     key: "alertDefaultIcon",
-    label: "Default Alert Icon",
+    label: "Neutral Alert Icon",
     cssVar: "--alert-default-icon",
     type: "text",
     section: "Alerts",
@@ -882,7 +909,6 @@ export function applyPreviewTheme(theme: PreviewTheme) {
   root.style.setProperty("--bg", theme.background);
   root.style.setProperty("--surface", theme.card);
   root.style.setProperty("--text", theme.foreground);
-  root.style.setProperty("--muted", theme.mutedForeground);
   root.style.setProperty("--link", theme.buttonPrimaryBg);
 }
 
@@ -898,7 +924,6 @@ export function clearPreviewTheme() {
   root.style.removeProperty("--bg");
   root.style.removeProperty("--surface");
   root.style.removeProperty("--text");
-  root.style.removeProperty("--muted");
   root.style.removeProperty("--link");
   window.localStorage.removeItem(APPEARANCE_PREVIEW_STORAGE_KEY);
   window.localStorage.removeItem(APPEARANCE_PREVIEW_PREVIOUS_STORAGE_KEY);

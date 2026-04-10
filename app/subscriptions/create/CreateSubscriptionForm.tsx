@@ -252,13 +252,17 @@ export default function CreateSubscriptionForm({
             <select
               id="status"
               name="status"
-              defaultValue="active"
+              defaultValue="draft"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+              <option value="prepared">Prepared</option>
               <option value="paused">Paused</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            <p className="text-sm text-muted-foreground">
+              A contract becomes active only after someone confirms the physical copy was signed and filed.
+            </p>
           </div>
 
           <div className="space-y-2 md:col-span-2">

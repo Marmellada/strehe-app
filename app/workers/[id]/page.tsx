@@ -9,6 +9,18 @@ import WorkerForm from "@/components/workers/WorkerForm";
 import { updateWorker } from "@/lib/actions/workers";
 import { requireWorkersAccess } from "@/lib/auth/require-workers-access";
 import { formatStatusLabel } from "@/lib/ui/status";
+import type { BankIdentifierRule } from "@/types/banking";
+
+type RawBankIdentifierQueryClient = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (
+        column: string,
+        value: boolean
+      ) => Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+    };
+  };
+};
 
 type Params = Promise<{ id: string }>;
 
@@ -28,12 +40,23 @@ export default async function StaffDetailPage({
 }) {
   const { id } = await params;
   const { supabase } = await requireWorkersAccess();
+  const rawClient = supabase as unknown as RawBankIdentifierQueryClient;
 
-  const { data: worker, error } = await supabase
-    .from("workers")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data: worker, error }, { data: banks }, { data: identifiersData }] =
+    await Promise.all([
+      supabase.from("workers").select("*").eq("id", id).maybeSingle(),
+      supabase
+        .from("banks")
+        .select("id, name, short_name, swift_code, country, country_code, is_active")
+        .eq("is_active", true)
+        .order("name"),
+      rawClient
+        .from("bank_identifiers")
+        .select(
+          "id, bank_id, identifier_type, value, value_end, scheme, country_code, priority, is_active, source, notes"
+        )
+        .eq("is_active", true),
+    ]);
 
   if (error) {
     throw new Error(error.message);
@@ -89,6 +112,8 @@ export default async function StaffDetailPage({
               start_date: worker.start_date ?? "",
               end_date: worker.end_date ?? "",
             }}
+            banks={banks || []}
+            identifiers={(identifiersData || []) as BankIdentifierRule[]}
           />
         </div>
       </div>

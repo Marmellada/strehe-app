@@ -486,7 +486,7 @@ export function UiPreviewClient() {
       >
         <div className="space-y-5">
           <div className="flex flex-wrap gap-2">
-            <PreviewHint controls="Muted Text, Border Color" onHoverChange={setHoveredControls}>
+            <PreviewHint controls="Neutral Badge Fill, Neutral Badge Text, Neutral Badge Border" onHoverChange={setHoveredControls}>
               <Badge variant="neutral">neutral</Badge>
             </PreviewHint>
             <PreviewHint controls="Info Badge Fill, Info Badge Text" onHoverChange={setHoveredControls}>
@@ -504,18 +504,18 @@ export function UiPreviewClient() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <PreviewHint
-              controls="Default Alert Background, Default Alert Border, Default Alert Text, Default Alert Icon"
-              className="block"
-              onHoverChange={setHoveredControls}
-            >
-              <Alert>
-                <CircleAlert className="h-4 w-4" />
-                <div>
-                  <div className="mb-1 font-medium">Default Alert</div>
-                  <p className="text-sm">
-                    Shared informational or confirmation message.
-                  </p>
+              <PreviewHint
+                controls="Neutral Alert Background, Neutral Alert Border, Neutral Alert Text, Neutral Alert Icon"
+                className="block"
+                onHoverChange={setHoveredControls}
+              >
+                <Alert>
+                  <CircleAlert className="h-4 w-4" />
+                  <div>
+                    <div className="mb-1 font-medium">Neutral Alert</div>
+                    <p className="text-sm">
+                      Shared informational or confirmation message.
+                    </p>
                 </div>
               </Alert>
             </PreviewHint>

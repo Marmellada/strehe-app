@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import Link from "next/link";
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -28,6 +32,22 @@ type AppUserRow = {
   created_at: string;
 };
 
+type AuthAdminUser = {
+  id: string;
+  email?: string;
+  last_sign_in_at?: string | null;
+  created_at?: string;
+  identities?: Array<{
+    identity_data?: {
+      email_verified?: boolean;
+    } | null;
+  }> | null;
+  user_metadata?: {
+    full_name?: string;
+  } | null;
+  email_confirmed_at?: string | null;
+};
+
 const nativeSelectClassName =
   "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -42,6 +62,182 @@ function getAdminClient() {
   }
 
   return createAdminClient(supabaseUrl, serviceRoleKey);
+}
+
+async function getAppBaseUrl() {
+  const explicit =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SITE_URL;
+
+  if (explicit) {
+    return explicit.replace(/\/$/, "");
+  }
+
+  const headerStore = await headers();
+  const host = headerStore.get("x-forwarded-host") || headerStore.get("host");
+  const protocol = headerStore.get("x-forwarded-proto") || "http";
+
+  if (host) {
+    return `${protocol}://${host}`;
+  }
+
+  return "http://localhost:3000";
+}
+
+function getPasswordSetupRedirect(baseUrl: string) {
+  return `${baseUrl}/auth/callback?next=/auth/setup-password`;
+}
+
+function getAuthSetupSummary(authUser: AuthAdminUser | null) {
+  if (!authUser) {
+    return {
+      badgeStatus: "inactive",
+      label: "Missing Auth Record",
+      detail: "This app user does not have a matching auth account yet.",
+    } as const;
+  }
+
+  if (authUser.last_sign_in_at) {
+    return {
+      badgeStatus: "active",
+      label: "Signed In",
+      detail: `Last sign-in: ${formatDate(authUser.last_sign_in_at)}`,
+    } as const;
+  }
+
+  if (authUser.email_confirmed_at) {
+    return {
+      badgeStatus: "info",
+      label: "Password Set",
+      detail: "The account is confirmed and ready to sign in.",
+    } as const;
+  }
+
+  return {
+    badgeStatus: "pending",
+    label: "Invited",
+    detail: "The user still needs to open the email and finish setup.",
+  } as const;
+}
+
+async function inviteUser(formData: FormData) {
+  "use server";
+
+  await requireRole(["admin"]);
+
+  const supabase = await createClient();
+  const admin = getAdminClient();
+  const baseUrl = await getAppBaseUrl();
+
+  const fullName = String(formData.get("full_name") || "").trim();
+  const email = String(formData.get("email") || "")
+    .trim()
+    .toLowerCase();
+  const role = String(formData.get("role") || "").trim() as AppRole;
+
+  if (!fullName) {
+    throw new Error("Full name is required.");
+  }
+
+  if (!email) {
+    throw new Error("Email is required.");
+  }
+
+  if (!APP_ROLES.includes(role)) {
+    throw new Error("Invalid role.");
+  }
+
+  const { data: authData, error: authError } =
+    await admin.auth.admin.inviteUserByEmail(email, {
+      data: {
+        full_name: fullName,
+      },
+      redirectTo: getPasswordSetupRedirect(baseUrl),
+    });
+
+  if (authError || !authData.user) {
+    throw new Error(authError?.message || "Failed to create auth invite.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { error: appUserError } = await supabase.from("app_users").upsert(
+    {
+      id: authData.user.id,
+      email,
+      full_name: fullName,
+      role,
+      is_active: true,
+      updated_at: now,
+    },
+    {
+      onConflict: "id",
+    }
+  );
+
+  if (appUserError) {
+    throw new Error(appUserError.message);
+  }
+
+  revalidatePath("/settings/users");
+}
+
+async function sendPasswordSetupEmail(formData: FormData) {
+  "use server";
+
+  await requireRole(["admin"]);
+
+  const supabase = await createClient();
+  const baseUrl = await getAppBaseUrl();
+  const email = String(formData.get("email") || "")
+    .trim()
+    .toLowerCase();
+
+  if (!email) {
+    throw new Error("Email is required.");
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: getPasswordSetupRedirect(baseUrl),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/settings/users");
+}
+
+async function resendInviteEmail(formData: FormData) {
+  "use server";
+
+  await requireRole(["admin"]);
+
+  const admin = getAdminClient();
+  const baseUrl = await getAppBaseUrl();
+
+  const fullName = String(formData.get("full_name") || "").trim();
+  const email = String(formData.get("email") || "")
+    .trim()
+    .toLowerCase();
+
+  if (!email) {
+    throw new Error("Email is required.");
+  }
+
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: {
+      full_name: fullName,
+    },
+    redirectTo: getPasswordSetupRedirect(baseUrl),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/settings/users");
 }
 
 async function createTestUser(formData: FormData) {
@@ -203,17 +399,33 @@ export default async function SettingsUsersPage() {
   await requireRole(["admin"]);
 
   const supabase = await createClient();
+  const admin = getAdminClient();
 
-  const { data, error } = await supabase
-    .from("app_users")
-    .select("id, email, full_name, role, is_active, created_at")
-    .order("created_at", { ascending: false });
+  const [{ data, error }, { data: authUsersData, error: authUsersError }] =
+    await Promise.all([
+      supabase
+        .from("app_users")
+        .select("id, email, full_name, role, is_active, created_at")
+        .order("created_at", { ascending: false }),
+      admin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      }),
+    ]);
 
   if (error) {
     throw new Error(`Users load error: ${error.message}`);
   }
 
+  if (authUsersError) {
+    throw new Error(`Auth users load error: ${authUsersError.message}`);
+  }
+
   const users = (data || []) as AppUserRow[];
+  const authUsers = ((authUsersData?.users || []) as AuthAdminUser[]).reduce(
+    (map, user) => map.set(user.id, user),
+    new Map<string, AuthAdminUser>()
+  );
 
   return (
     <main className="space-y-6">
@@ -229,10 +441,49 @@ export default async function SettingsUsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Create Test User</CardTitle>
+          <CardTitle>Invite User</CardTitle>
           <CardDescription>
-            Temporary admin-only user creation for testing. This creates both the
-            auth account and the matching app user record.
+            Create the auth account, assign the app role, and send a setup email.
+            Your temporary personal mailbox can be used as the sender until the official company sender is ready in Supabase Auth.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={inviteUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <FormField label="Full Name" required>
+              <Input name="full_name" type="text" required placeholder="Jane Admin" />
+            </FormField>
+
+            <FormField label="Email" required>
+              <Input
+                name="email"
+                type="email"
+                required
+                placeholder="jane@example.com"
+              />
+            </FormField>
+
+            <FormField label="Role" required>
+              <select name="role" defaultValue="office" className={nativeSelectClassName}>
+                {APP_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <div className="flex justify-end md:col-span-2 xl:col-span-3">
+              <Button type="submit">Send Invite</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Manual Fallback</CardTitle>
+          <CardDescription>
+            Use this only if the email sender is not configured yet and you need to unblock someone immediately.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -271,11 +522,18 @@ export default async function SettingsUsersPage() {
             </FormField>
 
             <div className="flex justify-end md:col-span-2 xl:col-span-4">
-              <Button type="submit">Create Test User</Button>
+              <Button type="submit" variant="outline">Create Direct User</Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <Alert>
+        <AlertTitle>Current rollout shape</AlertTitle>
+        <AlertDescription>
+          We can onboard people properly now with invites and setup emails. The final login polish can come later without changing the underlying user model.
+        </AlertDescription>
+      </Alert>
 
       <section className="space-y-4">
         <div>
@@ -305,16 +563,25 @@ export default async function SettingsUsersPage() {
                 </CardHeader>
 
                 <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+                  {(() => {
+                    const authUser = authUsers.get(user.id) || null;
+                    const setup = getAuthSetupSummary(authUser);
+
+                    return (
+                      <>
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <DetailField label="Role" value={user.role} />
                     <DetailField
                       label="Status"
                       value={user.is_active ? "Active" : "Inactive"}
                     />
+                    <DetailField label="Setup State" value={setup.label} />
                     <DetailField label="Created" value={formatDate(user.created_at)} />
+                    <DetailField label="Auth Detail" value={setup.detail} />
                     <DetailField
                       label="User ID"
                       value={<span className="break-all">{user.id}</span>}
+                      className="xl:col-span-2"
                     />
                   </div>
 
@@ -341,6 +608,27 @@ export default async function SettingsUsersPage() {
                       </Button>
                     </form>
 
+                    {authUser ? (
+                      authUser.last_sign_in_at || authUser.email_confirmed_at ? (
+                        <form action={sendPasswordSetupEmail}>
+                          <input type="hidden" name="email" value={user.email || ""} />
+
+                          <Button type="submit" variant="outline" className="w-full">
+                            Send Password Reset
+                          </Button>
+                        </form>
+                      ) : (
+                        <form action={resendInviteEmail}>
+                          <input type="hidden" name="email" value={user.email || ""} />
+                          <input type="hidden" name="full_name" value={user.full_name || ""} />
+
+                          <Button type="submit" variant="outline" className="w-full">
+                            Resend Invite
+                          </Button>
+                        </form>
+                      )
+                    ) : null}
+
                     <form action={toggleUserActive}>
                       <input type="hidden" name="user_id" value={user.id} />
                       <input type="hidden" name="current" value={String(!!user.is_active)} />
@@ -350,6 +638,9 @@ export default async function SettingsUsersPage() {
                       </Button>
                     </form>
                   </div>
+                      </>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             ))}

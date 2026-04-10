@@ -11,7 +11,8 @@ const variantClasses: Record<BadgeVariant, string> = {
   success: "border-[color:var(--badge-success-bg)] bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]",
   warning: "border-[color:var(--badge-warning-bg)] bg-[var(--badge-warning-bg)] text-[var(--badge-warning-text)]",
   danger: "border-[color:var(--badge-danger-bg)] bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)]",
-  neutral: "border-border bg-muted text-muted-foreground",
+  neutral:
+    "border-[color:var(--badge-neutral-border)] bg-[var(--badge-neutral-bg)] text-[var(--badge-neutral-text)]",
   info: "border-[color:var(--badge-info-bg)] bg-[var(--badge-info-bg)] text-[var(--badge-info-text)]",
 };
 

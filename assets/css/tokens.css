@@ -8,7 +8,6 @@
   --bg: var(--background);
   --surface: var(--card);
   --text: var(--foreground);
-  --muted: var(--muted-foreground);
   --border: var(--border);
   --link: var(--primary);
   --sidebar-bg: var(--card);
@@ -57,6 +56,9 @@
   --select-ring-color: var(--ring);
   --badge-success-bg: rgba(16, 185, 129, 0.12);
   --badge-success-text: #6ee7b7;
+  --badge-neutral-bg: #eef0f3;
+  --badge-neutral-text: #475569;
+  --badge-neutral-border: #d7dce3;
   --badge-warning-bg: rgba(245, 158, 11, 0.12);
   --badge-warning-text: #fcd34d;
   --badge-danger-bg: rgba(239, 68, 68, 0.12);

@@ -4,17 +4,29 @@ import { requireRole } from "@/lib/auth/require-role";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatCard } from "@/components/ui/StatCard";
 import { SectionCard } from "@/components/ui/SectionCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui/Table";
 
 function formatPrice(value: number | string | null | undefined) {
   if (!value) return "—";
   const num = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(num)) return "—";
   return `€${num.toFixed(2)}`;
+}
+
+function formatServiceCount(value: number) {
+  return `${value} service${value === 1 ? "" : "s"}`;
 }
 
 export default async function PackagesPage() {
@@ -76,7 +88,6 @@ export default async function PackagesPage() {
         }
       />
 
-      {/* Stats */}
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard title="Total" value={totals.total} />
         <StatCard title="Active" value={totals.active} />
@@ -84,60 +95,74 @@ export default async function PackagesPage() {
         <StatCard title="Active Contracts" value={totals.contracts} />
       </div>
 
-      {/* List */}
-      <SectionCard title="Packages">
+      <SectionCard
+        title="Packages"
+        description="Subscription-ready service bundles with monthly pricing."
+        contentClassName="p-0"
+      >
         {!packages || packages.length === 0 ? (
           <EmptyState
             title="No packages"
             description="Create your first package to start assigning services to properties."
-             action={
-    <Button asChild>
-      <Link href="/packages/create">Create Package</Link>
-    </Button>
-  }
-/>
+            action={
+              <Button asChild>
+                <Link href="/packages/create">Create Package</Link>
+              </Button>
+            }
+          />
         ) : (
-          <div className="space-y-2">
+          <TableShell className="rounded-none border-x-0 border-b-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Package</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Included Services</TableHead>
+                  <TableHead>Monthly Price</TableHead>
+                  <TableHead>Contracts</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
             {packages.map((pkg) => {
               const services = pkg.package_services || [];
 
               return (
-                <Card key={pkg.id}>
-                  <CardContent className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">
-                        <Link href={`/packages/${pkg.id}`}>
-                          {pkg.name}
-                        </Link>
-                      </p>
-
-                      <p className="text-sm text-muted-foreground">
-                        {pkg.description || "No description"}
-                      </p>
-
-                      <p className="text-xs mt-1 text-muted-foreground">
-                        {services.length} services
-                      </p>
-                    </div>
-
-                    <div className="text-right space-y-1">
-                      <p>{formatPrice(pkg.monthly_price)}</p>
-
-                      <Badge
-  variant={pkg.is_active ? "success" : "neutral"}
->
-                        {pkg.is_active ? "Active" : "Inactive"}
-                      </Badge>
-
-                      <p className="text-xs text-muted-foreground">
-                        {activeMap.get(pkg.id) || 0} contracts
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <TableRow key={pkg.id}>
+                  <TableCell className="font-medium">
+                    <Link href={`/packages/${pkg.id}`} className="hover:underline">
+                      {pkg.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {pkg.description || "No description"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatServiceCount(services.length)}
+                  </TableCell>
+                  <TableCell>{formatPrice(pkg.monthly_price)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {activeMap.get(pkg.id) || 0}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={pkg.is_active ? "success" : "neutral"}>
+                      {pkg.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/packages/${pkg.id}`}>
+                        Open
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </div>
+              </TableBody>
+            </Table>
+          </TableShell>
         )}
       </SectionCard>
     </div>

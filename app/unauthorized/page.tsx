@@ -1,23 +1,44 @@
 import Link from "next/link";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  PageHeader,
+  SectionCard,
+} from "@/components/ui";
 
 export default function UnauthorizedPage() {
   return (
-    <main className="container" style={{ padding: "32px" }}>
-      <div className="card" style={{ maxWidth: 640, margin: "0 auto" }}>
-        <h1 style={{ marginBottom: 12 }}>Access denied</h1>
-        <p style={{ marginBottom: 16 }}>
-          You do not have permission to access this page.
-        </p>
+    <main className="mx-auto max-w-3xl space-y-6 px-6 py-8">
+      <PageHeader
+        title="Access Denied"
+        subtitle="You do not have permission to access this page."
+      />
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <Link href="/" className="btn btn-primary">
-            Go to dashboard
-          </Link>
-          <Link href="/auth/logout" className="btn btn-secondary">
-            Logout
-          </Link>
+      <SectionCard
+        title="Permission Required"
+        description="This area is limited to users with the required access level."
+      >
+        <div className="space-y-4">
+          <Alert variant="warning">
+            <AlertTitle>Restricted page</AlertTitle>
+            <AlertDescription>
+              If you expected to see this page, check your role or sign in with
+              the correct account.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex gap-2">
+            <Button asChild>
+              <Link href="/">Go to dashboard</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/auth/logout">Logout</Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      </SectionCard>
     </main>
   );
 }

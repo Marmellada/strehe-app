@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireWorkersAccess } from "@/lib/auth/require-workers-access";
+import { detectBankFromInput } from "@/lib/banking/detection";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -51,7 +52,10 @@ function normalizeWorkerPayload(formData: FormData) {
   const base_salary = getNullableNumber(formData, "base_salary");
   const payment_frequency = getNullableString(formData, "payment_frequency");
   const payment_method = getNullableString(formData, "payment_method");
-  const bank_account = getNullableString(formData, "bank_account");
+  const bank_account_raw = getNullableString(formData, "bank_account");
+  const bank_account = bank_account_raw
+    ? bank_account_raw.toUpperCase().replace(/[^A-Z0-9]/g, "")
+    : null;
 
   const subject_to_tax = getBoolean(formData, "subject_to_tax");
   const subject_to_pension = getBoolean(formData, "subject_to_pension");
@@ -63,6 +67,24 @@ function normalizeWorkerPayload(formData: FormData) {
   validateRequired(worker_type, "Worker type");
   validateRequired(status, "Status");
   validateRequired(start_date, "Start date");
+
+  if (payment_method === "bank" && !bank_account) {
+    throw new Error("Bank account is required when payment method is Bank.");
+  }
+
+  if (bank_account) {
+    const bankDetection = detectBankFromInput({ input: bank_account });
+
+    if (!bankDetection.isValid) {
+      throw new Error(bankDetection.validationMessage);
+    }
+
+    if (bankDetection.kind === "card_number") {
+      throw new Error(
+        "Card numbers are not allowed for staff bank details. Please enter an IBAN or bank account number."
+      );
+    }
+  }
 
   return {
     full_name,

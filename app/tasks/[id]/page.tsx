@@ -14,11 +14,14 @@ import {
   CardTitle,
   DetailField,
   EmptyState,
+  FormField,
+  Textarea,
 } from "@/components/ui";
 import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
 import { deleteTask } from "./actions";
 import {
   assignTaskToMe,
+  blockTask,
   markTaskCompleted,
   markTaskInProgress,
   reopenTask,
@@ -34,6 +37,8 @@ type TaskRow = {
   title: string | null;
   description: string | null;
   status: string | null;
+  blocked_reason: string | null;
+  cancelled_reason: string | null;
   priority: string | null;
   due_date: string | null;
   assigned_user_id: string | null;
@@ -161,6 +166,8 @@ function getStatusClasses(status: string | null) {
       return "danger" as const;
     case "completed":
       return "success" as const;
+    case "cancelled":
+      return "danger" as const;
     default:
       return "neutral" as const;
   }
@@ -201,6 +208,8 @@ export default async function TaskDetailPage({ params }: PageProps) {
       title,
       description,
       status,
+      blocked_reason,
+      cancelled_reason,
       priority,
       due_date,
       assigned_user_id,
@@ -237,6 +246,8 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
   const typedTask = task as TaskRow;
   const isAutoTask = Boolean(typedTask.subscription_id);
+  const isBlocked = typedTask.status === "blocked";
+  const isCancelled = typedTask.status === "cancelled";
 
   const isRestrictedRole =
     appUser.role === "field" || appUser.role === "contractor";
@@ -253,17 +264,18 @@ export default async function TaskDetailPage({ params }: PageProps) {
   const canUpdateOwnAssignedStatus =
     (appUser.role === "field" || appUser.role === "contractor") &&
     typedTask.assigned_user_id === authUser.id &&
-    !isCompleted;
+    !isCompleted &&
+    !isCancelled;
 
   const canUseQuickStatusActions =
-    (canManageTask && !isCompleted) || canUpdateOwnAssignedStatus;
+    (canManageTask && !isCompleted && !isCancelled) || canUpdateOwnAssignedStatus;
 
-  const canReopenTask = canManageTask && isCompleted;
-  const canShowEditButton = canManageTask && !isCompleted;
+  const canReopenTask = canManageTask && (isCompleted || isCancelled);
+  const canShowEditButton = canManageTask && !isCompleted && !isCancelled;
   const canAddReport =
-    (canManageTask || typedTask.assigned_user_id === authUser.id) && !isCompleted;
-  const canShowAssignmentActions = canManageTask && !isCompleted;
-  const canDeleteTask = canManageTask && !isAutoTask;
+    (canManageTask || typedTask.assigned_user_id === authUser.id) && !isCompleted && !isCancelled;
+  const canShowAssignmentActions = canManageTask && !isCompleted && !isCancelled;
+  const canDeleteTask = canManageTask && !isAutoTask && !isCompleted && !isCancelled;
   const isMyTask = typedTask.assigned_user_id === authUser.id;
 
   const userIdsToLoad = Array.from(
@@ -509,6 +521,24 @@ export default async function TaskDetailPage({ params }: PageProps) {
         </Alert>
       ) : null}
 
+      {isBlocked && typedTask.blocked_reason ? (
+        <Alert variant="warning">
+          <div>
+            <div className="mb-1 font-medium">Blocked reason</div>
+            <p className="text-sm whitespace-pre-wrap">{typedTask.blocked_reason}</p>
+          </div>
+        </Alert>
+      ) : null}
+
+      {isCancelled && typedTask.cancelled_reason ? (
+        <Alert variant="destructive">
+          <div>
+            <div className="mb-1 font-medium">Cancellation reason</div>
+            <p className="text-sm whitespace-pre-wrap">{typedTask.cancelled_reason}</p>
+          </div>
+        </Alert>
+      ) : null}
+
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant={getStatusClasses(typedTask.status)}>
           {formatLabel(typedTask.status)}
@@ -602,14 +632,44 @@ export default async function TaskDetailPage({ params }: PageProps) {
                   </form>
                 ) : null}
 
-                {isCompleted ? (
+                {(isCompleted || isCancelled) ? (
                   <div className="text-sm text-muted-foreground">
-                    This task is completed. Reopen it to continue work.
+                    This task is closed. Reopen it to continue work.
                   </div>
                 ) : null}
               </div>
             </CardContent>
           </Card>
+
+          {canUseQuickStatusActions && !isBlocked ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Block Task</CardTitle>
+                <CardDescription>
+                  Record what is preventing progress so the next step is clear.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action={blockTask} className="space-y-4">
+                  <input type="hidden" name="taskId" value={typedTask.id} />
+                  <FormField label="Blocked Reason" required>
+                    <Textarea
+                      id="blocked_reason"
+                      name="blocked_reason"
+                      rows={4}
+                      placeholder="Explain what is blocking this task and what is needed next."
+                      required
+                    />
+                  </FormField>
+                  <div className="flex justify-end">
+                    <Button type="submit" variant="outline">
+                      Mark Blocked
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4">
@@ -802,6 +862,24 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     {formatDateTime(typedTask.completed_at)}
                   </dd>
                 </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">
+                    Blocked Reason
+                  </dt>
+                  <dd className="mt-1 text-sm text-foreground whitespace-pre-wrap">
+                    {typedTask.blocked_reason || "—"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">
+                    Cancellation Reason
+                  </dt>
+                  <dd className="mt-1 text-sm text-foreground whitespace-pre-wrap">
+                    {typedTask.cancelled_reason || "—"}
+                  </dd>
+                </div>
               </dl>
             </CardContent>
           </Card>
@@ -857,20 +935,21 @@ export default async function TaskDetailPage({ params }: PageProps) {
               <CardContent>
 
                 {canDeleteTask ? (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-4">
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
                       Cancel this manual task. The task record will be preserved.
                     </p>
-
                     <DeleteTaskButton
                       taskId={typedTask.id}
                       deleteAction={deleteTask}
                     />
-                  </>
+                  </div>
                 ) : (
                   <>
                     <p className="text-sm text-muted-foreground">
-                      Auto-generated subscription tasks cannot be cancelled manually.
+                      {isAutoTask
+                        ? "Auto-generated subscription tasks cannot be cancelled manually."
+                        : "This task is already closed."}
                     </p>
                   </>
                 )}

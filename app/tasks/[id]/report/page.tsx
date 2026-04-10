@@ -97,8 +97,8 @@ async function submitTaskReport(formData: FormData) {
     throw new Error("You are not allowed to submit a report for this task.");
   }
 
-  if (typedTask.status === "completed") {
-    throw new Error("Completed tasks cannot receive new reports. Reopen first.");
+  if (typedTask.status === "completed" || typedTask.status === "cancelled") {
+    throw new Error("Closed tasks cannot receive new reports. Reopen first.");
   }
 
   const statusAtSubmission =
@@ -189,6 +189,8 @@ async function submitTaskReport(formData: FormData) {
       .from("tasks")
       .update({
         status: "completed",
+        blocked_reason: null,
+        cancelled_reason: null,
         completed_at: now,
         updated_at: now,
       })
@@ -245,7 +247,7 @@ export default async function TaskReportPage({ params }: PageProps) {
     notFound();
   }
 
-  if (typedTask.status === "completed") {
+  if (typedTask.status === "completed" || typedTask.status === "cancelled") {
     redirect(`/tasks/${typedTask.id}`);
   }
 

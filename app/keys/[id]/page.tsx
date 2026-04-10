@@ -1,11 +1,22 @@
 // app/keys/[id]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { getActiveUsers } from "@/lib/users";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  DetailField,
+  FormField,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+  Textarea,
+} from "@/components/ui";
 import KeyStatusActionForm from './KeyStatusActionForm'
 import {
   assignKey,
@@ -76,22 +87,12 @@ function formatDate(value: string | null) {
   }
 }
 
-function getKeyStatusVariant(status: string | null | undefined) {
-  switch ((status || "").toLowerCase()) {
-    case "available":
-      return "success" as const;
-    case "assigned":
-    case "damaged":
-      return "warning" as const;
-    case "lost":
-      return "danger" as const;
-    default:
-      return "neutral" as const;
-  }
-}
-
 export default async function KeyDetailPage({ params }: PageProps) {
+  const { appUser } = await requireRole(["admin", "office", "field"]);
   const { id } = await params;
+  const supabase = await createClient();
+  const nativeSelectClassName =
+    "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   const [{ data: rawKey, error: keyError }, { data: logs, error: logsError }, users] =
     await Promise.all([
@@ -125,7 +126,12 @@ export default async function KeyDetailPage({ params }: PageProps) {
 
   if (keyError || !rawKey) return notFound();
   if (logsError) {
-    return <div className="card">Error loading key logs: {logsError.message}</div>;
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Unable to load key history</AlertTitle>
+        <AlertDescription>{logsError.message}</AlertDescription>
+      </Alert>
+    );
   }
 
   const key = rawKey as KeyRecord;
@@ -149,7 +155,12 @@ export default async function KeyDetailPage({ params }: PageProps) {
       .in("id", userIdsToLoad);
 
     if (appUsersError) {
-      return <div className="card">Error loading key users: {appUsersError.message}</div>;
+      return (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load key users</AlertTitle>
+          <AlertDescription>{appUsersError.message}</AlertDescription>
+        </Alert>
+      );
     }
 
     userMap = new Map(
@@ -167,6 +178,7 @@ export default async function KeyDetailPage({ params }: PageProps) {
   const isAssigned         = key.status === "assigned";
   const canMarkLostDamaged = key.status === "available" || key.status === "assigned";
   const canRetire          = key.status !== "retired";
+  const canManageCustody = appUser.role === "admin" || appUser.role === "office";
 
   return (
     <main className="space-y-6">
@@ -193,107 +205,77 @@ export default async function KeyDetailPage({ params }: PageProps) {
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="neutral">{key.key_type || "Key"}</Badge>
-        <Badge variant={getKeyStatusVariant(key.status)}>
-          {key.status || "Unknown"}
-        </Badge>
+        <StatusBadge status={key.status} fallbackLabel="Unknown" />
       </div>
       <section className="grid gap-4 md:grid-cols-4">
-        <div className="card">
-          <span className="field-label">Key Tag</span>
-          <span className="field-value">{key.key_code || "-"}</span>
-        </div>
-        <div className="card">
-          <span className="field-label">Key Type</span>
-          <span className="field-value">{key.key_type || "-"}</span>
-        </div>
-        <div className="card">
-          <span className="field-label">Current Holder</span>
-          <span className="field-value">{holderDisplay}</span>
-        </div>
-        <div className="card">
-          <span className="field-label">Last Checked Out</span>
-          <span className="field-value">{formatDate(key.last_checked_out_at)}</span>
-        </div>
+        <SectionCard title="Key Tag" contentClassName="pt-0">
+          <div className="text-base font-medium text-foreground">{key.key_code || "-"}</div>
+        </SectionCard>
+        <SectionCard title="Key Type" contentClassName="pt-0">
+          <div className="text-base font-medium text-foreground">{key.key_type || "-"}</div>
+        </SectionCard>
+        <SectionCard title="Current Holder" contentClassName="pt-0">
+          <div className="text-base font-medium text-foreground">{holderDisplay}</div>
+        </SectionCard>
+        <SectionCard title="Last Checked Out" contentClassName="pt-0">
+          <div className="text-base font-medium text-foreground">{formatDate(key.last_checked_out_at)}</div>
+        </SectionCard>
       </section>
 
       {/* ── Info + Property ── */}
       <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <div className="card">
-          <h2 className="section-title">Key Information</h2>
-          <div className="info-stack">
-            <div className="info-row">
-              <span className="field-label">Name</span>
-              <span className="field-value">{key.name || "-"}</span>
-            </div>
-            <div className="info-row">
-              <span className="field-label">Tag / Code</span>
-              <span className="field-value">{key.key_code || "-"}</span>
-            </div>
-            <div className="info-row">
-              <span className="field-label">Status</span>
-              <span className="field-value">{key.status || "-"}</span>
-            </div>
-            <div className="info-row">
-              <span className="field-label">Current Holder</span>
-              <span className="field-value">{holderDisplay}</span>
-            </div>
-            <div className="info-row">
-              <span className="field-label">Storage Location</span>
-              <span className="field-value">{key.storage_location || "-"}</span>
-            </div>
-            <div className="info-row">
-              <span className="field-label">Description</span>
-              <span className="field-value-muted whitespace-pre-wrap">
-                {key.description || "-"}
-              </span>
-            </div>
-            <div className="info-row">
-              <span className="field-label">Created</span>
-              <span className="field-value">{formatDate(key.created_at)}</span>
-            </div>
+        <SectionCard title="Key Information">
+          <div className="grid gap-4 md:grid-cols-2">
+            <DetailField label="Name" value={key.name || "-"} />
+            <DetailField label="Tag / Code" value={key.key_code || "-"} />
+            <DetailField label="Status" value={key.status || "-"} />
+            <DetailField label="Current Holder" value={holderDisplay} />
+            <DetailField label="Storage Location" value={key.storage_location || "-"} />
+            <DetailField label="Created" value={formatDate(key.created_at)} />
+            <DetailField
+              className="md:col-span-2"
+              label="Description"
+              value={
+                <div className="whitespace-pre-wrap text-sm text-muted-foreground">
+                  {key.description || "-"}
+                </div>
+              }
+            />
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="card">
-          <h2 className="section-title">Property Summary</h2>
-          <div className="summary-stack">
-            <div className="summary-item">
-              <span className="field-label">Property</span>
-              <span className="field-value">{property?.title || "-"}</span>
-            </div>
-            <div className="summary-item">
-              <span className="field-label">Property Code</span>
-              <span className="field-value">{property?.property_code || "-"}</span>
-            </div>
-            <div className="summary-item">
-              <span className="field-label">Address</span>
-              <span className="field-value">{property?.address_line_1 || "-"}</span>
-            </div>
+        <SectionCard title="Property Summary">
+          <div className="grid gap-4">
+            <DetailField label="Property" value={property?.title || "-"} />
+            <DetailField label="Property Code" value={property?.property_code || "-"} />
+            <DetailField label="Address" value={property?.address_line_1 || "-"} />
             {property?.id ? (
-              <div className="summary-item pt-2">
-                <Link href={`/properties/${property.id}`} className="btn btn-ghost">
-                  Open Property
-                </Link>
+              <div className="pt-2">
+                <Button asChild variant="ghost">
+                  <Link href={`/properties/${property.id}`}>Open Property</Link>
+                </Button>
               </div>
             ) : null}
           </div>
-        </div>
+        </SectionCard>
       </section>
 
       {/* ── Assign ── */}
-      {isAvailable ? (
-        <section className="card">
-          <div className="mb-4">
-            <h2 className="section-title !mb-0">Assign Key</h2>
-            <p className="page-subtitle mt-1">
-              Record who is taking custody of this key.
-            </p>
-          </div>
-          <form action={assignKey} className="grid max-w-[720px] gap-4">
+      {canManageCustody && isAvailable ? (
+        <SectionCard
+          title="Assign Key"
+          description="Record who is taking custody of this key."
+        >
+          <div className="max-w-[720px]">
+          <form action={assignKey} className="grid gap-4">
             <input type="hidden" name="key_id" value={id} />
-            <label className="field">
-              Assign To
-              <select name="holder_user_id" className="input" required>
+            <FormField id="assign-holder-user" label="Assign To" required>
+              <select
+                id="assign-holder-user"
+                name="holder_user_id"
+                className={nativeSelectClassName}
+                required
+              >
                 <option value="">Select person...</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -301,115 +283,109 @@ export default async function KeyDetailPage({ params }: PageProps) {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="field">
-              Note
-              <textarea
+            </FormField>
+            <FormField id="assign-notes" label="Note">
+              <Textarea
+                id="assign-notes"
                 name="notes"
-                className="input"
                 rows={3}
                 placeholder="Optional note about why the key is being assigned"
               />
-            </label>
+            </FormField>
             <div className="flex justify-end">
               <Button type="submit">
                 Assign Key
               </Button>
             </div>
           </form>
-        </section>
+          </div>
+        </SectionCard>
       ) : null}
 
       {/* ── Return ── */}
-      {isAssigned ? (
-        <section className="card">
-          <div className="mb-4">
-            <h2 className="section-title !mb-0">Return Key</h2>
-            <p className="page-subtitle mt-1">
-              Move the key back into storage and close the custody cycle.
-            </p>
-          </div>
+      {canManageCustody && isAssigned ? (
+        <SectionCard
+          title="Return Key"
+          description="Move the key back into storage and close the custody cycle."
+        >
           <KeyStatusActionForm
             action={returnKey}
             keyId={id}
             label="Return Key"
             defaultNote="Key returned."
-            users={users}
+            description="This action is recorded under your account automatically."
             variant="primary"
           />
-        </section>
+        </SectionCard>
       ) : null}
 
       {/* ── Lost / Damaged ── */}
-      {canMarkLostDamaged ? (
+      {canManageCustody && canMarkLostDamaged ? (
         <section className="grid gap-4 lg:grid-cols-2">
-          <div className="card">
-            <div className="mb-4">
-              <h2 className="section-title !mb-0">Mark as Lost</h2>
-              <p className="page-subtitle mt-1">
-                Use this if the key cannot currently be located.
-              </p>
-            </div>
+          <SectionCard
+            title="Mark as Lost"
+            description="Use this if the key cannot currently be located."
+          >
             <KeyStatusActionForm
               action={markKeyAsLost}
               keyId={id}
               label="Mark as Lost"
               defaultNote="Key marked as lost."
-              users={users}
+              description="This action is recorded under your account automatically."
               variant="danger"
             />
-          </div>
-          <div className="card">
-            <div className="mb-4">
-              <h2 className="section-title !mb-0">Mark as Damaged</h2>
-              <p className="page-subtitle mt-1">
-                Use this if the key is broken or no longer usable.
-              </p>
-            </div>
+          </SectionCard>
+          <SectionCard
+            title="Mark as Damaged"
+            description="Use this if the key is broken or no longer usable."
+          >
             <KeyStatusActionForm
               action={markKeyAsDamaged}
               keyId={id}
               label="Mark as Damaged"
               defaultNote="Key marked as damaged."
-              users={users}
+              description="This action is recorded under your account automatically."
               variant="warning"
             />
-          </div>
+          </SectionCard>
         </section>
       ) : null}
 
       {/* ── Retire ── */}
-      {canRetire ? (
-        <section className="card">
-          <div className="mb-4">
-            <h2 className="section-title !mb-0">Retire Key</h2>
-            <p className="page-subtitle mt-1">
-              Permanently remove this key from active use.
-            </p>
-          </div>
+      {canManageCustody && canRetire ? (
+        <SectionCard
+          title="Retire Key"
+          description="Permanently remove this key from active use."
+        >
           <KeyStatusActionForm
             action={markKeyAsRetired}
             keyId={id}
             label="Mark as Retired"
             defaultNote="Key retired from active use."
-            users={users}
+            description="This action is recorded under your account automatically."
             variant="ghost"
           />
-        </section>
+        </SectionCard>
+      ) : null}
+
+      {!canManageCustody ? (
+        <Alert>
+          <AlertTitle>View-only access</AlertTitle>
+          <AlertDescription>
+            Custody and status changes for keys are limited to office and admin users.
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {/* ── History ── */}
-      <section className="card">
-        <div className="mb-4">
-          <h2 className="section-title !mb-0">Key History</h2>
-          <p className="page-subtitle mt-1">
-            Full audit trail of status and custody changes.
-          </p>
-        </div>
+      <SectionCard
+        title="Key History"
+        description="Full audit trail of status and custody changes."
+      >
         {keyLogs.length === 0 ? (
-          <p className="field-value-muted">No history found for this key.</p>
+          <p className="text-sm text-muted-foreground">No history found for this key.</p>
         ) : (
-          <div className="related-list">
+          <div className="space-y-3">
             {keyLogs.map((log) => {
               const performer = log.performed_by_user_id
                 ? userMap.get(log.performed_by_user_id) || null
@@ -417,23 +393,26 @@ export default async function KeyDetailPage({ params }: PageProps) {
               const performerDisplay =
                 performer?.full_name ?? log.user_name ?? "system";
               return (
-                <div key={log.id} className="related-item">
+                <div
+                  key={log.id}
+                  className="flex items-start justify-between gap-4 rounded-xl border bg-card px-4 py-3"
+                >
                   <div>
-                    <div className="related-item-title">
+                    <div className="font-medium text-foreground">
                       {log.action || "Unknown action"}
                     </div>
-                    <div className="related-item-subtitle">
+                    <div className="text-sm text-muted-foreground">
                       By: {performerDisplay}
                       {performer?.role ? ` (${performer.role})` : ""}
                     </div>
-                    <div className="related-item-subtitle">
+                    <div className="text-sm text-muted-foreground">
                       {log.from_status || "-"} → {log.to_status || "-"}
                     </div>
                     {log.notes ? (
-                      <div className="related-item-subtitle">{log.notes}</div>
+                      <div className="text-sm text-muted-foreground">{log.notes}</div>
                     ) : null}
                   </div>
-                  <div className="related-item-subtitle">
+                  <div className="text-sm text-muted-foreground">
                     {formatDate(log.created_at)}
                   </div>
                 </div>
@@ -441,7 +420,7 @@ export default async function KeyDetailPage({ params }: PageProps) {
             })}
           </div>
         )}
-      </section>
+      </SectionCard>
     </main>
   );
 }
