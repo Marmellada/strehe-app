@@ -7,9 +7,19 @@ import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
 type AppShellProps = {
   children: React.ReactNode;
   role: string | null;
+  current:
+    | {
+        authUser: {
+          email: string | undefined;
+        };
+        appUser: {
+          full_name: string | null;
+        };
+      }
+    | null;
 };
 
-export function AppShell({ children, role }: AppShellProps) {
+export function AppShell({ children, role, current }: AppShellProps) {
   const pathname = usePathname();
   const isAuthRoute = pathname?.startsWith("/auth");
 
@@ -69,7 +79,7 @@ export function AppShell({ children, role }: AppShellProps) {
           ) : null}
         </nav>
 
-        <SidebarAuthBox />
+        <SidebarAuthBox current={current} />
       </aside>
 
       <div className="main">

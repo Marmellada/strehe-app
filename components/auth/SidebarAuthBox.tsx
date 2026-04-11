@@ -1,15 +1,23 @@
 import { Button } from "@/components/ui";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
 
-export default async function SidebarAuthBox() {
-  const current = await getCurrentUser();
+type SidebarAuthBoxProps = {
+  current:
+    | {
+        authUser: {
+          email: string | undefined;
+        };
+        appUser: {
+          full_name: string | null;
+        };
+      }
+    | null;
+};
 
+export default function SidebarAuthBox({ current }: SidebarAuthBoxProps) {
   if (!current) return null;
 
-  const { authUser, appUser } = current;
-
-  const email = authUser.email || "Logged in user";
-  const fullName = appUser.full_name;
+  const email = current.authUser.email || "Logged in user";
+  const fullName = current.appUser.full_name;
 
   return (
     <div className="sidebar-auth">

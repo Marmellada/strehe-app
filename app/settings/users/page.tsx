@@ -49,6 +49,8 @@ type AuthAdminUser = {
   email_confirmed_at?: string | null;
 };
 
+const USERS_PER_PAGE = 50;
+
 const nativeSelectClassName =
   "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -416,39 +418,98 @@ function formatDate(value: string | null) {
   }
 }
 
-export default async function SettingsUsersPage() {
+async function getAuthUsersForIds(targetIds: string[]) {
+  const admin = getAdminClient();
+  const authUsers = new Map<string, AuthAdminUser>();
+  const remainingIds = new Set(targetIds);
+  let page = 1;
+  let total = 0;
+
+  while (remainingIds.size > 0) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 200,
+    });
+
+    if (error) {
+      throw new Error(`Auth users load error: ${error.message}`);
+    }
+
+    total = data?.total ?? total;
+
+    for (const user of (data?.users || []) as AuthAdminUser[]) {
+      if (!remainingIds.has(user.id)) continue;
+
+      authUsers.set(user.id, user);
+      remainingIds.delete(user.id);
+    }
+
+    if (!data?.nextPage) {
+      break;
+    }
+
+    page = data.nextPage;
+  }
+
+  return {
+    authUsers,
+    authUserTotal: total,
+    missingCount: remainingIds.size,
+  };
+}
+
+function buildUsersPageHref(page: number) {
+  return `/settings/users?page=${page}`;
+}
+
+export default async function SettingsUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    page?: string;
+  }>;
+}) {
   await requireRole(["admin"]);
 
   const supabase = await createClient();
-  const admin = getAdminClient();
+  const params = await searchParams;
+  const currentPage = Math.max(1, Number.parseInt(params.page || "1", 10) || 1);
+  const from = (currentPage - 1) * USERS_PER_PAGE;
+  const to = from + USERS_PER_PAGE - 1;
 
-  const [{ data, error }, { data: authUsersData, error: authUsersError }] =
-    await Promise.all([
-      supabase
+  const [{ data, error, count }, authUsersResult] = await Promise.all([
+    supabase
+      .from("app_users")
+      .select("id, email, username, full_name, role, is_active, created_at", {
+        count: "exact",
+      })
+      .order("created_at", { ascending: false })
+      .range(from, to),
+    (async () => {
+      const { data: pageData, error: pageError } = await supabase
         .from("app_users")
-        .select("id, email, username, full_name, role, is_active, created_at")
-        .order("created_at", { ascending: false }),
-      admin.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      }),
-    ]);
+        .select("id")
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (pageError) {
+        throw new Error(`Users load error: ${pageError.message}`);
+      }
+
+      return getAuthUsersForIds((pageData || []).map((row) => row.id));
+    })(),
+  ]);
 
   if (error) {
     throw new Error(`Users load error: ${error.message}`);
   }
 
-  if (authUsersError) {
-    throw new Error(`Auth users load error: ${authUsersError.message}`);
-  }
-
   const users = (data || []) as AppUserRow[];
-  const authUserTotal = authUsersData?.total ?? authUsersData?.users?.length ?? 0;
-  const authUsersNextPage = authUsersData?.nextPage ?? null;
-  const authUsers = ((authUsersData?.users || []) as AuthAdminUser[]).reduce(
-    (map, user) => map.set(user.id, user),
-    new Map<string, AuthAdminUser>()
-  );
+  const totalUsers = count ?? users.length;
+  const totalPages = Math.max(1, Math.ceil(totalUsers / USERS_PER_PAGE));
+  const authUserTotal = authUsersResult.authUserTotal;
+  const authUsers = authUsersResult.authUsers;
+  const missingAuthMatches = authUsersResult.missingCount;
 
   return (
     <main className="space-y-6">
@@ -578,12 +639,12 @@ export default async function SettingsUsersPage() {
         </AlertDescription>
       </Alert>
 
-      {authUsersNextPage ? (
+      {missingAuthMatches > 0 ? (
         <Alert variant="warning">
-          <AlertTitle>Auth user list is truncated</AlertTitle>
+          <AlertTitle>Some auth records could not be matched</AlertTitle>
           <AlertDescription>
-            This screen loaded the first 1000 auth users out of {authUserTotal}.
-            Add paging here before relying on it for larger teams.
+            We loaded {users.length} app users on this page, but {missingAuthMatches} of
+            their auth records could not be matched from the auth directory scan.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -713,6 +774,36 @@ export default async function SettingsUsersPage() {
             ))}
           </div>
         )}
+
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-between gap-4 rounded-2xl border bg-card px-4 py-3">
+            <p className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}. Showing up to {USERS_PER_PAGE} users
+              per page. Auth directory total: {authUserTotal}.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                asChild
+                variant="outline"
+                disabled={currentPage <= 1}
+              >
+                <Link href={buildUsersPageHref(Math.max(1, currentPage - 1))}>
+                  Previous
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                disabled={currentPage >= totalPages}
+              >
+                <Link href={buildUsersPageHref(Math.min(totalPages, currentPage + 1))}>
+                  Next
+                </Link>
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   );

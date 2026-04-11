@@ -65,7 +65,9 @@ export default async function RootLayout({
       <body className="min-h-full">
         <ToastProvider>
           <AppearanceThemeClient initialTheme={initialTheme} />
-          <AppShell role={role}>{children}</AppShell>
+          <AppShell role={role} current={current}>
+            {children}
+          </AppShell>
         </ToastProvider>
       </body>
     </html>
