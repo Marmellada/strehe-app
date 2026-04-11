@@ -12,6 +12,39 @@ import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 import { requireRole } from "@/lib/auth/require-role";
 import DeleteClientButton from "./DeleteClientButton";
 
+type OwnedPropertyRow = {
+  id: string;
+  property_code: string | null;
+  title: string | null;
+  status: string | null;
+  address_line_1: string | null;
+};
+
+type ContractRow = {
+  id: string;
+  status: string | null;
+  property_id: string | null;
+  packages:
+    | { name: string | null }
+    | { name: string | null }[]
+    | null;
+  properties:
+    | { title: string | null; property_code: string | null }
+    | { title: string | null; property_code: string | null }[]
+    | null;
+};
+
+type TaskRow = {
+  id: string;
+  title: string | null;
+  status: string | null;
+  property_id: string | null;
+  properties:
+    | { title: string | null; property_code: string | null }
+    | { title: string | null; property_code: string | null }[]
+    | null;
+};
+
 async function deleteClient(id: string) {
   "use server";
 
@@ -49,24 +82,77 @@ export default async function ClientDetailPage({
   const supabase = await createClient();
   const { id } = await params;
 
-  const { data: rawClient } = await supabase
-    .from("clients")
-    .select(
+  const [{ data: rawClient }, { data: ownedProperties }] = await Promise.all([
+    supabase
+      .from("clients")
+      .select(
+        `
+        *,
+        municipality:municipalities(name),
+        location:locations(name)
       `
-      *,
-      municipality:municipalities(name),
-      location:locations(name)
-    `
-    )
-    .eq("id", id)
-    .maybeSingle();
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("properties")
+      .select("id, property_code, title, status, address_line_1")
+      .eq("owner_client_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (!rawClient) return notFound();
 
   const client = rawClient;
+  const properties = (ownedProperties || []) as OwnedPropertyRow[];
+  const propertyIds = properties.map((property) => property.id);
+
+  const [contractsResult, tasksResult] = propertyIds.length
+    ? await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select(
+            `
+            id,
+            status,
+            property_id,
+            packages(name),
+            properties(title, property_code)
+          `
+          )
+          .in("property_id", propertyIds)
+          .order("start_date", { ascending: false }),
+        supabase
+          .from("tasks")
+          .select(
+            `
+            id,
+            title,
+            status,
+            property_id,
+            properties(title, property_code)
+          `
+          )
+          .in("property_id", propertyIds)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ])
+    : [
+        { data: [] as ContractRow[] },
+        { data: [] as TaskRow[] },
+      ];
 
   const municipality = getSingle(client.municipality);
   const location = getSingle(client.location);
+  const contracts = (contractsResult.data || []) as ContractRow[];
+  const tasks = (tasksResult.data || []) as TaskRow[];
+  const activeContractsCount = contracts.filter(
+    (contract) => (contract.status || "").toLowerCase() === "active"
+  ).length;
+  const openTasksCount = tasks.filter((task) => {
+    const status = (task.status || "").toLowerCase();
+    return !["completed", "done", "cancelled"].includes(status);
+  }).length;
 
   const name =
     client.client_type === "business"
@@ -106,6 +192,13 @@ export default async function ClientDetailPage({
         </CardContent>
       </Card>
 
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card size="sm"><CardContent><DetailField label="Owned Properties" value={properties.length} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Active Contracts" value={activeContractsCount} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Recent Open Tasks" value={openTasksCount} /></CardContent></Card>
+        <Card size="sm"><CardContent><DetailField label="Status" value={formatStatusLabel(client.status)} /></CardContent></Card>
+      </section>
+
       <SectionCard
         title="Contact"
         contentClassName="grid gap-4 md:grid-cols-2"
@@ -128,6 +221,143 @@ export default async function ClientDetailPage({
       <SectionCard title="Notes">
         <div className="text-sm text-muted-foreground">{client.notes || "-"}</div>
       </SectionCard>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-foreground">
+            Owned Properties
+          </h2>
+          <Button asChild size="sm">
+            <Link href={`/properties/new?owner_client_id=${id}`}>New Property</Link>
+          </Button>
+        </div>
+
+        <SectionCard title="Owned Properties">
+          {properties.length === 0 ? (
+            <Card size="sm">
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  No properties are linked to this client yet.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {properties.map((property) => (
+                <div
+                  key={property.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border p-4"
+                >
+                  <div>
+                    <div className="font-medium text-foreground">
+                      {property.title || "Untitled Property"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {property.property_code || "No code"}
+                      {property.address_line_1 ? ` • ${property.address_line_1}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={getStatusVariant(property.status)}>
+                      {formatStatusLabel(property.status)}
+                    </Badge>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/properties/${property.id}`}>Open</Link>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
+        <SectionCard title="Contracts">
+          {contracts.length === 0 ? (
+            <Card size="sm">
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  No contracts are linked to this client&apos;s properties yet.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {contracts.map((contract) => {
+                const plan = getSingle(contract.packages)?.name || "Unnamed Plan";
+                const property =
+                  getSingle(contract.properties)?.title ||
+                  getSingle(contract.properties)?.property_code ||
+                  "Property";
+
+                return (
+                  <div
+                    key={contract.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border p-4"
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">{plan}</div>
+                      <div className="text-sm text-muted-foreground">{property}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant={getStatusVariant(contract.status)}>
+                        {formatStatusLabel(contract.status)}
+                      </Badge>
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/subscriptions/${contract.id}`}>Open</Link>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Recent Tasks">
+          {tasks.length === 0 ? (
+            <Card size="sm">
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  No recent tasks are linked to this client&apos;s properties.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {tasks.map((task) => {
+                const property =
+                  getSingle(task.properties)?.title ||
+                  getSingle(task.properties)?.property_code ||
+                  "Property";
+
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border p-4"
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">
+                        {task.title || "Untitled Task"}
+                      </div>
+                      <div className="text-sm text-muted-foreground">{property}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant={getStatusVariant(task.status)}>
+                        {formatStatusLabel(task.status)}
+                      </Badge>
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/tasks/${task.id}`}>Open</Link>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </div>
 
       <SectionCard title="Meta" contentClassName="flex flex-wrap gap-2">
         <Badge variant="neutral">

@@ -16,11 +16,16 @@ type PropertyRow = {
   id: string;
   property_code: string | null;
   title: string | null;
+  owner_client_id: string | null;
   address_line_1: string | null;
   property_type: string | null;
   status: string | null;
   municipalities: RelatedName;
   locations: RelatedName;
+  clients:
+    | { full_name: string | null; company_name: string | null }
+    | { full_name: string | null; company_name: string | null }[]
+    | null;
 };
 
 type Municipality = {
@@ -39,6 +44,7 @@ export default async function PropertiesPage({
 }: {
   searchParams: Promise<{
     municipality_id?: string;
+    owner_client_id?: string;
     status?: string;
     search?: string;
   }>;
@@ -49,6 +55,7 @@ export default async function PropertiesPage({
   const params = await searchParams;
 
   const municipalityId = params.municipality_id || "";
+  const ownerClientId = params.owner_client_id || "";
   const status = params.status || "";
   const search = params.search || "";
   const nativeSelectClassName =
@@ -58,11 +65,13 @@ export default async function PropertiesPage({
       id,
       property_code,
       title,
+      owner_client_id,
       address_line_1,
       property_type,
       status,
       municipalities(name),
-      locations(name)
+      locations(name),
+      clients(full_name, company_name)
     `);
 
   if (municipalityId) {
@@ -71,6 +80,10 @@ export default async function PropertiesPage({
 
   if (status) {
     propertiesQuery = propertiesQuery.eq("status", status);
+  }
+
+  if (ownerClientId) {
+    propertiesQuery = propertiesQuery.eq("owner_client_id", ownerClientId);
   }
 
   if (search) {
@@ -82,6 +95,7 @@ export default async function PropertiesPage({
   const [
     propertiesResult,
     municipalitiesResult,
+    ownersResult,
     totalPropertiesResult,
     activePropertiesResult,
     vacantPropertiesResult,
@@ -89,6 +103,11 @@ export default async function PropertiesPage({
   ] = await Promise.all([
     propertiesQuery.order("id", { ascending: false }),
     supabase.from("municipalities").select("id, name").order("name"),
+    supabase
+      .from("clients")
+      .select("id, full_name, company_name, status")
+      .neq("status", "inactive")
+      .order("created_at", { ascending: false }),
     supabase.from("properties").select("*", { count: "exact", head: true }),
     supabase
       .from("properties")
@@ -142,6 +161,7 @@ export default async function PropertiesPage({
 
   const properties = (propertiesResult.data || []) as PropertyRow[];
   const municipalities = (municipalitiesResult.data || []) as Municipality[];
+  const owners = ownersResult.data || [];
 
   return (
     <div className="space-y-6">
@@ -202,7 +222,7 @@ export default async function PropertiesPage({
       </div>
 
       <div className="rounded-2xl border bg-card p-5">
-        <form method="GET" className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <form method="GET" className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="search">Search</Label>
             <Input
@@ -245,7 +265,24 @@ export default async function PropertiesPage({
             </select>
           </div>
 
-          <div className="flex items-end gap-3 md:col-span-4">
+          <div className="space-y-2">
+            <Label htmlFor="owner_client_id">Owner</Label>
+            <select
+              id="owner_client_id"
+              name="owner_client_id"
+              defaultValue={ownerClientId}
+              className={nativeSelectClassName}
+            >
+              <option value="">All owners</option>
+              {owners.map((owner) => (
+                <option key={owner.id} value={owner.id}>
+                  {owner.company_name || owner.full_name || owner.id}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end gap-3 md:col-span-5">
             <Button type="submit">Apply</Button>
             <Link href="/properties">
               <Button variant="outline">Clear</Button>
@@ -279,6 +316,9 @@ export default async function PropertiesPage({
                     Location
                   </th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">
+                    Owner
+                  </th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">
                     Type
                   </th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">
@@ -299,6 +339,13 @@ export default async function PropertiesPage({
                   const locationLine = [locationName, municipalityName]
                     .filter(Boolean)
                     .join(", ");
+                  const owner = Array.isArray(property.clients)
+                    ? property.clients[0]?.company_name ||
+                      property.clients[0]?.full_name ||
+                      ""
+                    : property.clients?.company_name ||
+                      property.clients?.full_name ||
+                      "";
 
                   return (
                     <tr
@@ -322,6 +369,10 @@ export default async function PropertiesPage({
 
                       <td className="px-4 py-3 text-muted-foreground">
                         {locationLine || "—"}
+                      </td>
+
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {owner || "—"}
                       </td>
 
                       <td className="px-4 py-3">

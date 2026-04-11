@@ -8,6 +8,28 @@ async function updateClientAction(id: string, formData: FormData) {
 
   await requireRole(["admin", "office"]);
   const supabase = await createClient();
+  const municipalityId = String(formData.get("municipality_id") || "").trim();
+  const locationId = String(formData.get("location_id") || "").trim();
+
+  if (locationId) {
+    if (!municipalityId) {
+      throw new Error("Select a municipality before choosing a location.");
+    }
+
+    const { data: selectedLocation, error: locationError } = await supabase
+      .from("locations")
+      .select("id, municipality_id")
+      .eq("id", locationId)
+      .single();
+
+    if (locationError || !selectedLocation) {
+      throw new Error("Invalid location selected.");
+    }
+
+    if (selectedLocation.municipality_id !== municipalityId) {
+      throw new Error("Selected location does not belong to the municipality.");
+    }
+  }
 
   const payload = {
     client_type: String(formData.get("client_type") || ""),
@@ -19,8 +41,8 @@ async function updateClientAction(id: string, formData: FormData) {
     address_line_1: String(formData.get("address_line_1") || "") || null,
     address_line_2: String(formData.get("address_line_2") || "") || null,
     country: String(formData.get("country") || "") || null,
-    municipality_id: String(formData.get("municipality_id") || "") || null,
-    location_id: String(formData.get("location_id") || "") || null,
+    municipality_id: municipalityId || null,
+    location_id: locationId || null,
     notes: String(formData.get("notes") || "") || null,
     status: String(formData.get("status") || "active"),
   };
