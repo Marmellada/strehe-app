@@ -5,9 +5,14 @@ import { Geist, Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
 import { AppearanceThemeClient } from "@/components/ui/AppearanceThemeClient";
 import { AppShell } from "@/components/layout/AppShell";
+import {
+  normalizePreviewTheme,
+  type PreviewTheme,
+} from "@/components/ui/appearance-preview-theme";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -33,6 +38,16 @@ export default async function RootLayout({
 }>) {
   const current = await getCurrentUser();
   const role = current?.appUser.role ?? null;
+  const supabase = await createClient();
+  const { data: companySettings } = await supabase
+    .from("company_settings")
+    .select("appearance_theme")
+    .limit(1)
+    .maybeSingle();
+  const initialTheme = normalizePreviewTheme(
+    (companySettings?.appearance_theme as Partial<PreviewTheme> | null | undefined) ??
+      null
+  );
 
   return (
     <html
@@ -49,7 +64,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full">
         <ToastProvider>
-          <AppearanceThemeClient />
+          <AppearanceThemeClient initialTheme={initialTheme} />
           <AppShell role={role}>{children}</AppShell>
         </ToastProvider>
       </body>

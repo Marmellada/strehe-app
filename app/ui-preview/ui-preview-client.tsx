@@ -44,6 +44,7 @@ import {
   TableShell,
   Textarea,
 } from "@/components/ui";
+import type { PreviewTheme } from "@/components/ui/appearance-preview-theme";
 
 const globalControlRows = [
   {
@@ -128,7 +129,11 @@ function PreviewHint({
   );
 }
 
-export function UiPreviewClient() {
+export function UiPreviewClient({
+  initialTheme,
+}: {
+  initialTheme: PreviewTheme;
+}) {
   const [checked, setChecked] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [hoveredControls, setHoveredControls] = useState<string | null>(null);
@@ -140,7 +145,10 @@ export function UiPreviewClient() {
         description="Visual preview of the shared UI system before page-by-page migration starts."
       />
 
-      <AppearancePreviewPanel scopeLabel="Appearance editor for the live app" />
+      <AppearancePreviewPanel
+        initialTheme={initialTheme}
+        scopeLabel="Appearance editor for the live app"
+      />
 
       <SectionCard
         title="What This Page Is"
@@ -152,8 +160,8 @@ export function UiPreviewClient() {
             badges, tables, and support text.
           </p>
           <p>
-            Changes made here affect the whole app in this browser so you can
-            spot pages that still resist the shared visual system.
+            Changes saved here become the shared default for everyone, while
+            the draft still previews safely on this page before you save it.
           </p>
         </div>
       </SectionCard>

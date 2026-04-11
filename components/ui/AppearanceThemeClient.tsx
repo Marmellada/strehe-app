@@ -2,30 +2,21 @@
 
 import { useEffect } from "react";
 import {
-  APPEARANCE_PREVIEW_EVENT,
   applyPreviewTheme,
-  readStoredTheme,
+  normalizePreviewTheme,
+  type PreviewTheme,
 } from "./appearance-preview-theme";
 
-export function AppearanceThemeClient() {
+type AppearanceThemeClientProps = {
+  initialTheme?: Partial<PreviewTheme> | null;
+};
+
+export function AppearanceThemeClient({
+  initialTheme,
+}: AppearanceThemeClientProps) {
   useEffect(() => {
-    function applyStoredTheme() {
-      const storedTheme = readStoredTheme();
-
-      if (storedTheme) {
-        applyPreviewTheme(storedTheme);
-      }
-    }
-
-    applyStoredTheme();
-    window.addEventListener(APPEARANCE_PREVIEW_EVENT, applyStoredTheme);
-    window.addEventListener("storage", applyStoredTheme);
-
-    return () => {
-      window.removeEventListener(APPEARANCE_PREVIEW_EVENT, applyStoredTheme);
-      window.removeEventListener("storage", applyStoredTheme);
-    };
-  }, []);
+    applyPreviewTheme(normalizePreviewTheme(initialTheme));
+  }, [initialTheme]);
 
   return null;
 }

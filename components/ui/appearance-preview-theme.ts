@@ -1,5 +1,3 @@
-"use client";
-
 export type PreviewTheme = {
   background: string;
   foreground: string;
@@ -200,6 +198,15 @@ export const previewDefaults: PreviewTheme = {
   emptyStateIconFg: "#71717a",
   radius: 10,
 };
+
+export function normalizePreviewTheme(
+  value: Partial<PreviewTheme> | null | undefined
+): PreviewTheme {
+  return {
+    ...previewDefaults,
+    ...(value ?? {}),
+  };
+}
 
 export const previewTokenFields: PreviewField[] = [
   {
@@ -836,10 +843,7 @@ export function readStoredTheme(): PreviewTheme | null {
 
   try {
     const parsed = JSON.parse(raw) as Partial<PreviewTheme>;
-    return {
-      ...previewDefaults,
-      ...parsed,
-    };
+    return normalizePreviewTheme(parsed);
   } catch {
     return null;
   }
@@ -855,10 +859,7 @@ export function readPreviousStoredTheme(): PreviewTheme | null {
 
   try {
     const parsed = JSON.parse(raw) as Partial<PreviewTheme>;
-    return {
-      ...previewDefaults,
-      ...parsed,
-    };
+    return normalizePreviewTheme(parsed);
   } catch {
     return null;
   }

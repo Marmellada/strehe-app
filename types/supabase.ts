@@ -188,6 +188,7 @@ export type Database = {
       company_settings: {
         Row: {
           address: string | null
+          appearance_theme: Json | null
           city: string | null
           company_name: string
           country: string | null
@@ -204,6 +205,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          appearance_theme?: Json | null
           city?: string | null
           company_name?: string
           country?: string | null
@@ -220,6 +222,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          appearance_theme?: Json | null
           city?: string | null
           company_name?: string
           country?: string | null

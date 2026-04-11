@@ -8,30 +8,35 @@ import { Label } from "@/components/ui/Label";
 import {
   applyPreviewTheme,
   cssColorToPickerValue,
-  getInitialPreviewTheme,
-  persistPreviewTheme,
-  persistPreviousPreviewTheme,
+  normalizePreviewTheme,
   previewDefaults,
   previewTokenFields,
-  readPreviousStoredTheme,
   type PreviewTheme,
 } from "./appearance-preview-theme";
+import { saveGlobalAppearanceTheme } from "@/lib/actions/settings";
 
 type AppearancePreviewPanelProps = {
   scopeLabel?: string;
+  initialTheme?: Partial<PreviewTheme> | null;
 };
 
 export function AppearancePreviewPanel({
   scopeLabel = "Live app preview",
+  initialTheme,
 }: AppearancePreviewPanelProps) {
-  const [draftTheme, setDraftTheme] = useState<PreviewTheme>(() =>
-    getInitialPreviewTheme()
+  const sharedTheme = useMemo(
+    () => normalizePreviewTheme(initialTheme),
+    [initialTheme]
   );
-  const [appliedTheme, setAppliedTheme] = useState<PreviewTheme>(() =>
-    getInitialPreviewTheme()
-  );
+  const [draftTheme, setDraftTheme] = useState<PreviewTheme>(sharedTheme);
+  const [appliedTheme, setAppliedTheme] = useState<PreviewTheme>(sharedTheme);
   const [previousAppliedTheme, setPreviousAppliedTheme] =
-    useState<PreviewTheme | null>(() => readPreviousStoredTheme());
+    useState<PreviewTheme | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     applyPreviewTheme(draftTheme);
@@ -58,36 +63,78 @@ export function AppearancePreviewPanel({
     return Array.from(grouped.entries());
   }, []);
 
-  const hasUnappliedChanges = JSON.stringify(draftTheme) !== JSON.stringify(appliedTheme);
-
   function updateDraftTheme(key: keyof PreviewTheme, value: string | number) {
+    setMessage(null);
     setDraftTheme((current) => ({
       ...current,
       [key]: value,
     }));
   }
 
-  function applyChanges() {
-    setPreviousAppliedTheme(appliedTheme);
-    persistPreviousPreviewTheme(appliedTheme);
-    setAppliedTheme(draftTheme);
-    persistPreviewTheme(draftTheme);
+  async function applyChanges() {
+    setIsSaving(true);
+    setMessage(null);
+    const previousTheme = appliedTheme;
+    const nextTheme = normalizePreviewTheme(draftTheme);
+    const result = await saveGlobalAppearanceTheme(nextTheme);
+
+    setIsSaving(false);
+
+    if (result.error) {
+      setMessage({ type: "error", text: result.error });
+      applyPreviewTheme(previousTheme);
+      setDraftTheme(previousTheme);
+      return;
+    }
+
+    setPreviousAppliedTheme(previousTheme);
+    setAppliedTheme(nextTheme);
+    setDraftTheme(nextTheme);
+    setMessage({
+      type: "success",
+      text: "Shared appearance saved. Everyone will pick up this default on refresh.",
+    });
   }
 
-  function undoLastChange() {
+  async function undoLastChange() {
     if (!previousAppliedTheme) return;
 
+    setIsSaving(true);
+    setMessage(null);
+
     const currentAppliedTheme = appliedTheme;
+    const result = await saveGlobalAppearanceTheme(previousAppliedTheme);
+
+    setIsSaving(false);
+
+    if (result.error) {
+      setMessage({ type: "error", text: result.error });
+      applyPreviewTheme(currentAppliedTheme);
+      return;
+    }
+
     setAppliedTheme(previousAppliedTheme);
     setDraftTheme(previousAppliedTheme);
     setPreviousAppliedTheme(currentAppliedTheme);
-    persistPreviewTheme(previousAppliedTheme);
-    persistPreviousPreviewTheme(currentAppliedTheme);
+    setMessage({
+      type: "success",
+      text: "Shared appearance reverted to the previous saved version.",
+    });
   }
 
   function resetTheme() {
+    setMessage(null);
     setDraftTheme(previewDefaults);
   }
+
+  const hasUnappliedChanges =
+    JSON.stringify(draftTheme) !== JSON.stringify(appliedTheme);
+
+  const buttonLabel = isSaving
+    ? "Saving..."
+    : hasUnappliedChanges
+      ? "Save For Everyone"
+      : "Saved";
 
   return (
     <div className="rounded-2xl border bg-card shadow-sm">
@@ -105,7 +152,7 @@ export function AppearancePreviewPanel({
             variant="outline"
             size="sm"
             onClick={undoLastChange}
-            disabled={!previousAppliedTheme}
+            disabled={!previousAppliedTheme || isSaving}
           >
             Undo Last Change
           </Button>
@@ -114,29 +161,39 @@ export function AppearancePreviewPanel({
             variant="ghost"
             size="sm"
             onClick={resetTheme}
+            disabled={isSaving}
           >
-            Reset
+            Reset Draft
           </Button>
           <Button
             type="button"
             size="sm"
             onClick={applyChanges}
-            disabled={!hasUnappliedChanges}
+            disabled={!hasUnappliedChanges || isSaving}
           >
-            Apply Changes
+            {buttonLabel}
           </Button>
         </div>
       </div>
 
       <div className="border-b px-6 py-3 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Default:</span> the
-        current light scheme. <span className="font-medium text-foreground">Reset</span>{" "}
-        returns the draft to default values.{" "}
-        <span className="font-medium text-foreground">Apply Changes</span> makes
-        the draft live across the app.{" "}
+        current company-wide appearance.{" "}
+        <span className="font-medium text-foreground">Reset Draft</span> returns
+        the editor to the built-in fallback values.{" "}
+        <span className="font-medium text-foreground">Save For Everyone</span>{" "}
+        updates the shared default saved in the database.{" "}
         <span className="font-medium text-foreground">Undo Last Change</span>{" "}
-        returns to the previous applied version.
+        restores the previous saved version.
       </div>
+
+      {message ? (
+        <div className="px-6 pt-6">
+          <Alert variant={message.type === "error" ? "destructive" : "success"}>
+            <div className="text-sm">{message.text}</div>
+          </Alert>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 px-6 py-6">
         {fieldSections.map(([section, fields]) => (
@@ -146,8 +203,8 @@ export function AppearancePreviewPanel({
                 {section}
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Edit the draft here, review it on this page, then apply it when
-                it feels right.
+                Edit the draft here, review it on this page, then save it when
+                it feels right for the whole app.
               </p>
             </div>
 
@@ -214,9 +271,9 @@ export function AppearancePreviewPanel({
           <div>
             <div className="mb-1 font-medium">Draft Preview</div>
             <p className="text-sm">
-              The values above are a draft preview on this page first. Nothing
-              becomes the app-wide applied theme until you press{" "}
-              <strong>Apply Changes</strong>.
+              The values above are still a draft on this page first. Nothing
+              becomes the shared default until you press{" "}
+              <strong>Save For Everyone</strong>.
             </p>
           </div>
         </Alert>
