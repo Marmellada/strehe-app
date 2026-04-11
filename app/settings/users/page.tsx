@@ -21,11 +21,12 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { APP_ROLES, type AppRole } from "@/lib/auth/roles";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 type AppUserRow = {
   id: string;
   email: string | null;
+  username: string | null;
   full_name: string | null;
   role: AppRole;
   is_active: boolean;
@@ -51,19 +52,6 @@ type AuthAdminUser = {
 const nativeSelectClassName =
   "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-function getAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error(
-      "Missing Supabase admin credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
-
-  return createAdminClient(supabaseUrl, serviceRoleKey);
-}
-
 async function getAppBaseUrl() {
   const explicit =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -87,6 +75,22 @@ async function getAppBaseUrl() {
 
 function getPasswordSetupRedirect(baseUrl: string) {
   return `${baseUrl}/auth/setup-password`;
+}
+
+function normalizeUsername(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function assertValidUsername(value: string) {
+  const username = normalizeUsername(value);
+
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+    throw new Error(
+      "Username must be 3-32 characters and use only lowercase letters, numbers, dots, underscores, or hyphens."
+    );
+  }
+
+  return username;
 }
 
 function getAuthSetupSummary(authUser: AuthAdminUser | null) {
@@ -134,6 +138,7 @@ async function inviteUser(formData: FormData) {
   const email = String(formData.get("email") || "")
     .trim()
     .toLowerCase();
+  const username = assertValidUsername(String(formData.get("username") || ""));
   const role = String(formData.get("role") || "").trim() as AppRole;
 
   if (!fullName) {
@@ -166,6 +171,7 @@ async function inviteUser(formData: FormData) {
     {
       id: authData.user.id,
       email,
+      username,
       full_name: fullName,
       role,
       is_active: true,
@@ -252,6 +258,7 @@ async function createTestUser(formData: FormData) {
   const email = String(formData.get("email") || "")
     .trim()
     .toLowerCase();
+  const username = assertValidUsername(String(formData.get("username") || ""));
   const password = String(formData.get("password") || "");
   const role = String(formData.get("role") || "").trim() as AppRole;
 
@@ -290,6 +297,7 @@ async function createTestUser(formData: FormData) {
     {
       id: authData.user.id,
       email,
+      username,
       full_name: fullName,
       role,
       is_active: true,
@@ -317,6 +325,8 @@ async function updateUserRole(formData: FormData) {
 
   const userId = String(formData.get("user_id") || "").trim();
   const role = String(formData.get("role") || "").trim() as AppRole;
+  const rawUsername = String(formData.get("username") || "").trim();
+  const username = rawUsername ? assertValidUsername(rawUsername) : null;
 
   if (!userId) {
     throw new Error("User id is required.");
@@ -330,6 +340,7 @@ async function updateUserRole(formData: FormData) {
     .from("app_users")
     .update({
       role,
+      username,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
@@ -405,7 +416,7 @@ export default async function SettingsUsersPage() {
     await Promise.all([
       supabase
         .from("app_users")
-        .select("id, email, full_name, role, is_active, created_at")
+        .select("id, email, username, full_name, role, is_active, created_at")
         .order("created_at", { ascending: false }),
       admin.auth.admin.listUsers({
         page: 1,
@@ -448,7 +459,7 @@ export default async function SettingsUsersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={inviteUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <form action={inviteUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <FormField label="Full Name" required>
               <Input name="full_name" type="text" required placeholder="Jane Admin" />
             </FormField>
@@ -462,6 +473,16 @@ export default async function SettingsUsersPage() {
               />
             </FormField>
 
+            <FormField label="Username" required hint="Used for sign-in.">
+              <Input
+                name="username"
+                type="text"
+                required
+                minLength={3}
+                placeholder="jane.admin"
+              />
+            </FormField>
+
             <FormField label="Role" required>
               <select name="role" defaultValue="office" className={nativeSelectClassName}>
                 {APP_ROLES.map((role) => (
@@ -472,7 +493,7 @@ export default async function SettingsUsersPage() {
               </select>
             </FormField>
 
-            <div className="flex justify-end md:col-span-2 xl:col-span-3">
+            <div className="flex justify-end md:col-span-2 xl:col-span-4">
               <Button type="submit">Send Invite</Button>
             </div>
           </form>
@@ -487,7 +508,7 @@ export default async function SettingsUsersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={createTestUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <form action={createTestUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <FormField label="Full Name" required>
               <Input name="full_name" type="text" required placeholder="Test User" />
             </FormField>
@@ -498,6 +519,16 @@ export default async function SettingsUsersPage() {
                 type="email"
                 required
                 placeholder="test.user@example.com"
+              />
+            </FormField>
+
+            <FormField label="Username" required hint="Used for sign-in.">
+              <Input
+                name="username"
+                type="text"
+                required
+                minLength={3}
+                placeholder="test.user"
               />
             </FormField>
 
@@ -521,7 +552,7 @@ export default async function SettingsUsersPage() {
               </select>
             </FormField>
 
-            <div className="flex justify-end md:col-span-2 xl:col-span-4">
+            <div className="flex justify-end md:col-span-2 xl:col-span-5">
               <Button type="submit" variant="outline">Create Direct User</Button>
             </div>
           </form>
@@ -572,6 +603,10 @@ export default async function SettingsUsersPage() {
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <DetailField label="Role" value={user.role} />
                     <DetailField
+                      label="Username"
+                      value={user.username || "No username set"}
+                    />
+                    <DetailField
                       label="Status"
                       value={user.is_active ? "Active" : "Inactive"}
                     />
@@ -589,6 +624,16 @@ export default async function SettingsUsersPage() {
                     <form action={updateUserRole} className="space-y-3">
                       <input type="hidden" name="user_id" value={user.id} />
 
+                      <FormField label="Username" hint="Users can sign in with username or email.">
+                        <Input
+                          name="username"
+                          type="text"
+                          defaultValue={user.username || ""}
+                          minLength={3}
+                          placeholder="username"
+                        />
+                      </FormField>
+
                       <FormField label="Role">
                         <select
                           name="role"
@@ -604,7 +649,7 @@ export default async function SettingsUsersPage() {
                       </FormField>
 
                       <Button type="submit" className="w-full">
-                        Save Role
+                        Save Access
                       </Button>
                     </form>
 

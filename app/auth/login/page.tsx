@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -17,16 +18,38 @@ async function loginAction(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const admin = getAdminClient();
 
-  const email = String(formData.get("email") || "").trim();
+  const identifier = String(formData.get("identifier") || "").trim();
   const password = String(formData.get("password") || "");
   const next = String(formData.get("next") || "").trim();
 
-  if (!email || !password) {
-    redirect("/auth/login?error=Please%20enter%20email%20and%20password");
+  if (!identifier || !password) {
+    redirect(
+      "/auth/login?error=Please%20enter%20your%20username%20or%20email%20and%20password"
+    );
   }
 
   const safeNext = next.startsWith("/") ? next : "/";
+  let email = identifier.toLowerCase();
+
+  if (!identifier.includes("@")) {
+    const { data: appUser, error: lookupError } = await admin
+      .from("app_users")
+      .select("email")
+      .eq("username", identifier.toLowerCase())
+      .maybeSingle();
+
+    if (lookupError || !appUser?.email) {
+      redirect(
+        `/auth/login?error=${encodeURIComponent(
+          "Invalid login credentials"
+        )}&next=${encodeURIComponent(safeNext)}`
+      );
+    }
+
+    email = appUser.email.toLowerCase();
+  }
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -70,13 +93,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="identifier">Username or Email</Label>
                 <Input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
                   required
-                  placeholder="you@example.com"
+                  placeholder="milot.berisha or you@example.com"
                 />
               </div>
 
