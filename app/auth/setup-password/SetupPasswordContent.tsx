@@ -1,6 +1,14 @@
 "use client";
 
-import { Button, Card, CardContent, Input, Label, PageHeader } from "@/components/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+} from "@/components/ui";
 
 type SetupPasswordContentProps = {
   error: string;
@@ -14,27 +22,36 @@ export function SetupPasswordContent({
   updatePasswordAction,
 }: SetupPasswordContentProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-full max-w-md space-y-6">
-        <PageHeader
-          title="Set password"
-          description="Finish account setup before signing in."
-        />
+    <div className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-6 py-12">
+      <div className="w-full space-y-6">
+        <div className="space-y-2 text-center">
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Account Access
+          </p>
+          <h1 className="text-3xl font-semibold text-foreground">
+            Set password
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Finish account setup before signing in.
+          </p>
+        </div>
 
         <Card>
           <CardContent className="pt-6">
             <form action={updatePasswordAction} className="space-y-4">
               {error ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
-                </div>
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               ) : null}
 
               {awaitingSession ? (
-                <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                  Validating your invite or reset link. If this takes more than a
-                  moment, open the email link again.
-                </div>
+                <Alert variant="info">
+                  <AlertDescription>
+                    Validating your invite or reset link. If this takes more
+                    than a moment, open the email link again.
+                  </AlertDescription>
+                </Alert>
               ) : null}
 
               <div className="space-y-2">

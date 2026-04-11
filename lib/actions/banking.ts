@@ -638,3 +638,33 @@ export async function deactivateBankAccount(id: string): Promise<ActionResult> {
     return { success: false, error: 'Failed to deactivate bank account' };
   }
 }
+
+export async function activateBankAccount(id: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { error: updateError } = await supabase
+      .from('company_bank_accounts')
+      .update({ is_active: true })
+      .eq('id', id);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    revalidatePath('/settings/banking');
+    revalidatePath(`/settings/banking/${id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Activate bank account error:', error);
+    return { success: false, error: 'Failed to activate bank account' };
+  }
+}

@@ -14,6 +14,14 @@ function getNullableString(formData: FormData, key: string) {
   return value || null;
 }
 
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/svg+xml',
+]);
+
 export async function createOrUpdateCompany(formData: FormData, userId: string) {
   try {
     void userId;
@@ -80,6 +88,14 @@ export async function createOrUpdateCompany(formData: FormData, userId: string) 
 
     const logoFile = formData.get('logo') as File | null;
     if (settingsId && logoFile && logoFile.size > 0) {
+      if (logoFile.size > MAX_LOGO_BYTES) {
+        return { error: 'Logo must be 2MB or smaller.' };
+      }
+
+      if (!ALLOWED_LOGO_TYPES.has(logoFile.type)) {
+        return { error: 'Logo must be a PNG, JPG, WEBP, or SVG image.' };
+      }
+
       const fileExt = logoFile.name.split('.').pop();
       const fileName = `${settingsId}-${Date.now()}.${fileExt}`;
       

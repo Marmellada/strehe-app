@@ -32,8 +32,8 @@ export default async function BankingSettingsPage() {
   const { data: accounts, error } = await supabase
     .from("company_bank_accounts")
     .select("id, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, is_active, show_on_invoice")
-    .eq("is_active", true)
     .order("is_primary", { ascending: false })
+    .order("is_active", { ascending: false })
     .order("account_name");
 
   if (error) {
@@ -50,9 +50,10 @@ export default async function BankingSettingsPage() {
     throw new Error(banksError.message);
   }
 
-  const totalAccounts = accounts?.length ?? 0;
+  const totalAccounts = accounts?.filter((account) => account.is_active).length ?? 0;
   const primaryAccounts = accounts?.filter((account) => account.is_primary).length ?? 0;
   const visibleOnInvoices = accounts?.filter((account) => account.show_on_invoice).length ?? 0;
+  const inactiveAccounts = accounts?.filter((account) => !account.is_active).length ?? 0;
   const totalBanks = banks?.length ?? 0;
   const activeBanks = banks?.filter((bank) => bank.is_active).length ?? 0;
 
@@ -84,10 +85,11 @@ export default async function BankingSettingsPage() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <StatCard title="Active Accounts" value={totalAccounts} />
         <StatCard title="Primary Accounts" value={primaryAccounts} />
         <StatCard title="Shown On Invoices" value={visibleOnInvoices} />
+        <StatCard title="Inactive Accounts" value={inactiveAccounts} />
         <StatCard title="Licensed Banks" value={totalBanks} />
         <StatCard title="Active Banks" value={activeBanks} />
       </div>
@@ -105,6 +107,7 @@ export default async function BankingSettingsPage() {
                   <TableHead>Account Name</TableHead>
                   <TableHead>IBAN</TableHead>
                   <TableHead>SWIFT</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Flags</TableHead>
                   <TableHead className="w-[160px]">Actions</TableHead>
                 </TableRow>
@@ -120,6 +123,11 @@ export default async function BankingSettingsPage() {
                       {maskIban(account.iban)}
                     </TableCell>
                     <TableCell>{account.swift || "Not set"}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={account.is_active ? "active" : "inactive"}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         {account.is_primary ? <Badge>Primary</Badge> : null}

@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { updateBankAccount, deactivateBankAccount } from "@/lib/actions/banking";
+import {
+  updateBankAccount,
+  deactivateBankAccount,
+  activateBankAccount,
+} from "@/lib/actions/banking";
 import type { BankIdentifierRule } from "@/types/banking";
 import { BankAccountForm } from "@/components/banking/BankAccountForm";
 import {
@@ -53,9 +57,8 @@ export default async function EditBankAccountPage({
       .order('name'),
     supabase
       .from('company_bank_accounts')
-      .select('id, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, show_on_invoice')
+      .select('id, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, is_active, show_on_invoice')
       .eq('id', id)
-      .eq('is_active', true)
       .single(),
     rawClient
       .from("bank_identifiers")
@@ -74,6 +77,12 @@ export default async function EditBankAccountPage({
     "use server";
 
     await deactivateBankAccount(id);
+  }
+
+  async function activateCurrentAccount() {
+    "use server";
+
+    await activateBankAccount(id);
   }
 
   return (
@@ -108,7 +117,21 @@ export default async function EditBankAccountPage({
         </CardContent>
       </Card>
 
-      {account.is_primary ? (
+      {!account.is_active ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Inactive Account</CardTitle>
+            <CardDescription>
+              This account is archived from active invoice use. You can reactivate it if you need it again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={activateCurrentAccount}>
+              <Button type="submit">Reactivate Account</Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : account.is_primary ? (
         <Alert variant="warning">
           <AlertTitle>Primary account protection</AlertTitle>
           <AlertDescription>

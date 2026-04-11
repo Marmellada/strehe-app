@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { Alert, AlertDescription } from "@/components/ui/Alert";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -74,12 +74,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const error = params?.error || "";
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-full max-w-md space-y-6">
-        <PageHeader
-          title="Sign in"
-          description="Access STREHË Admin"
-        />
+    <div className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-6 py-12">
+      <div className="w-full space-y-6">
+        <div className="space-y-2 text-center">
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Account Access
+          </p>
+          <h1 className="text-3xl font-semibold text-foreground">Sign in</h1>
+          <p className="text-sm text-muted-foreground">
+            Use your username or email to continue.
+          </p>
+        </div>
 
         <Card>
           <CardContent className="pt-6">
@@ -87,9 +92,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <input type="hidden" name="next" value={nextPath} />
 
               {error && (
-                <div className="badge warn">
-                  {error}
-                </div>
+                <Alert variant="warning">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
 
               <div className="space-y-2">

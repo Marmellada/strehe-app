@@ -125,6 +125,15 @@ function getAuthSetupSummary(authUser: AuthAdminUser | null) {
   } as const;
 }
 
+async function rollbackAuthUser(userId: string) {
+  const admin = getAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+
+  if (error) {
+    console.error("Auth rollback failed:", error.message);
+  }
+}
+
 async function inviteUser(formData: FormData) {
   "use server";
 
@@ -183,6 +192,7 @@ async function inviteUser(formData: FormData) {
   );
 
   if (appUserError) {
+    await rollbackAuthUser(authData.user.id);
     throw new Error(appUserError.message);
   }
 
