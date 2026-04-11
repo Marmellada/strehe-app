@@ -3,6 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { toggleExpenseCategoryActiveAction } from "@/lib/actions/expense-categories";
 import { ExpenseCategoryStatusBadge } from "@/components/expenses/ExpenseCategoryStatusBadge";
+import {
+  Button,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+} from "@/components/ui";
 
 export default async function ExpenseCategoriesPage() {
   await requireRole(["admin", "office"]);
@@ -20,73 +32,80 @@ export default async function ExpenseCategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Expense Categories</h1>
-          <p className="text-sm text-muted-foreground">
-            Managed reference data for expense classification. Inactive categories remain visible on old records.
-          </p>
-        </div>
+      <PageHeader
+        title="Expense Categories"
+        description="Managed reference data for expense classification. Inactive categories remain visible on old records."
+        actions={
+          <Button asChild>
+            <Link href="/settings/expense-categories/new">New Category</Link>
+          </Button>
+        }
+      />
 
-        <Link
-          href="/settings/expense-categories/new"
-          className="inline-flex items-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-        >
-          New category
-        </Link>
-      </div>
+      <TableShell>
+        {categories?.length ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Sort</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categories.map((category) => (
+                  <TableRow key={category.id}>
+                    <TableCell className="font-medium">{category.name}</TableCell>
+                    <TableCell>{category.sort_order}</TableCell>
+                    <TableCell>
+                      <ExpenseCategoryStatusBadge isActive={category.is_active} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {category.description || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/settings/expense-categories/${category.id}/edit`}>
+                            Edit
+                          </Link>
+                        </Button>
 
-      <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Sort</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-left font-medium">Description</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories?.map((category) => (
-              <tr key={category.id} className="border-t">
-                <td className="px-4 py-3 font-medium">{category.name}</td>
-                <td className="px-4 py-3">{category.sort_order}</td>
-                <td className="px-4 py-3">
-                  <ExpenseCategoryStatusBadge isActive={category.is_active} />
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{category.description || "—"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    <Link
-                      href={`/settings/expense-categories/${category.id}/edit`}
-                      className="rounded-md border px-3 py-1.5 text-sm"
-                    >
-                      Edit
-                    </Link>
-
-                    <form action={toggleExpenseCategoryActiveAction}>
-                      <input type="hidden" name="id" value={category.id} />
-                      <input type="hidden" name="next_is_active" value={String(!category.is_active)} />
-                      <button type="submit" className="rounded-md border px-3 py-1.5 text-sm">
-                        {category.is_active ? "Disable" : "Enable"}
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
-
-            {!categories?.length ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  No expense categories found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+                        <form action={toggleExpenseCategoryActiveAction}>
+                          <input type="hidden" name="id" value={category.id} />
+                          <input
+                            type="hidden"
+                            name="next_is_active"
+                            value={String(!category.is_active)}
+                          />
+                          <Button type="submit" variant="outline" size="sm">
+                            {category.is_active ? "Disable" : "Enable"}
+                          </Button>
+                        </form>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="p-6">
+            <EmptyState
+              title="No expense categories found"
+              description="Create managed categories so expenses stay clean and consistent."
+              action={
+                <Button asChild>
+                  <Link href="/settings/expense-categories/new">New Category</Link>
+                </Button>
+              }
+            />
+          </div>
+        )}
+      </TableShell>
     </div>
   );
 }

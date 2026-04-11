@@ -2,6 +2,14 @@
 
 import { useActionState } from "react";
 import {
+  Alert,
+  AlertDescription,
+  Button,
+  FormField,
+  Input,
+  Textarea,
+} from "@/components/ui";
+import {
   createExpenseCategoryAction,
   updateExpenseCategoryAction,
   type ExpenseCategoryActionState,
@@ -19,17 +27,8 @@ type Props = {
 };
 
 const initialState: ExpenseCategoryActionState = {};
-
-function SubmitButton({ label }: { label: string }) {
-  return (
-    <button
-      type="submit"
-      className="inline-flex items-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      {label}
-    </button>
-  );
-}
+const nativeSelectClassName =
+  "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function ExpenseCategoryForm({ mode, initialValues }: Props) {
   const action = mode === "create" ? createExpenseCategoryAction : updateExpenseCategoryAction;
@@ -39,69 +38,62 @@ export function ExpenseCategoryForm({ mode, initialValues }: Props) {
     <form action={formAction} className="space-y-6">
       {mode === "edit" && <input type="hidden" name="id" value={initialValues?.id ?? ""} />}
 
-      <div className="space-y-2">
-        <label htmlFor="name" className="block text-sm font-medium">
-          Category name
-        </label>
-        <input
+      <FormField label="Category Name" required>
+        <Input
           id="name"
           name="name"
           defaultValue={initialValues?.name ?? ""}
           required
-          className="w-full rounded-md border px-3 py-2"
+          placeholder="Cleaning supplies"
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2">
-        <label htmlFor="description" className="block text-sm font-medium">
-          Description
-        </label>
-        <textarea
+      <FormField label="Description">
+        <Textarea
           id="description"
           name="description"
           defaultValue={initialValues?.description ?? ""}
           rows={4}
-          className="w-full rounded-md border px-3 py-2"
+          placeholder="Used for one-off cleaning, materials, or supply purchases."
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2">
-        <label htmlFor="sort_order" className="block text-sm font-medium">
-          Sort order
-        </label>
-        <input
-          id="sort_order"
-          name="sort_order"
-          type="number"
-          min={0}
-          defaultValue={initialValues?.sort_order ?? 0}
-          required
-          className="w-full rounded-md border px-3 py-2"
-        />
-      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <FormField label="Sort Order" required hint="Lower numbers appear first.">
+          <Input
+            id="sort_order"
+            name="sort_order"
+            type="number"
+            min={0}
+            defaultValue={initialValues?.sort_order ?? 0}
+            required
+          />
+        </FormField>
 
-      <div className="space-y-2">
-        <label htmlFor="is_active" className="block text-sm font-medium">
-          Status
-        </label>
-        <select
-          id="is_active"
-          name="is_active"
-          defaultValue={String(initialValues?.is_active ?? true)}
-          className="w-full rounded-md border px-3 py-2"
-        >
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
+        <FormField label="Status">
+          <select
+            id="is_active"
+            name="is_active"
+            defaultValue={String(initialValues?.is_active ?? true)}
+            className={nativeSelectClassName}
+          >
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </FormField>
       </div>
 
       {state.error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {state.error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <SubmitButton label={mode === "create" ? "Create category" : "Save category"} />
+      <div className="flex justify-end">
+        <Button type="submit">
+          {mode === "create" ? "Create Category" : "Save Category"}
+        </Button>
+      </div>
     </form>
   );
 }

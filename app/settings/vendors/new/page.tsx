@@ -1,25 +1,28 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/require-role";
 import { VendorForm } from "@/components/expenses/VendorForm";
+import { Button, Card, CardContent, PageHeader } from "@/components/ui";
 
 export default async function NewVendorPage() {
   await requireRole(["admin", "office"]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="space-y-2">
-        <Link href="/settings/vendors" className="text-sm text-muted-foreground hover:underline">
-          ← Back to vendors
-        </Link>
-        <h1 className="text-2xl font-semibold">New Vendor</h1>
-        <p className="text-sm text-muted-foreground">
-          Create a vendor for future expense records.
-        </p>
-      </div>
+      <PageHeader
+        title="New Vendor"
+        description="Create a vendor for future expense records."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/settings/vendors">Back to Vendors</Link>
+          </Button>
+        }
+      />
 
-      <div className="rounded-lg border p-6">
-        <VendorForm mode="create" />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <VendorForm mode="create" />
+        </CardContent>
+      </Card>
     </div>
   );
 }

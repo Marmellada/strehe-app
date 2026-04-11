@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { VendorForm } from "@/components/expenses/VendorForm";
+import { Button, Card, CardContent, PageHeader } from "@/components/ui";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -26,19 +27,21 @@ export default async function EditVendorPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="space-y-2">
-        <Link href="/settings/vendors" className="text-sm text-muted-foreground hover:underline">
-          ← Back to vendors
-        </Link>
-        <h1 className="text-2xl font-semibold">Edit Vendor</h1>
-        <p className="text-sm text-muted-foreground">
-          Update vendor details and active/inactive state.
-        </p>
-      </div>
+      <PageHeader
+        title="Edit Vendor"
+        description="Update vendor details and active or inactive state."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/settings/vendors">Back to Vendors</Link>
+          </Button>
+        }
+      />
 
-      <div className="rounded-lg border p-6">
-        <VendorForm mode="edit" initialValues={vendor} />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <VendorForm mode="edit" initialValues={vendor} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

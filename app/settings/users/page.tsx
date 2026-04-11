@@ -443,6 +443,8 @@ export default async function SettingsUsersPage() {
   }
 
   const users = (data || []) as AppUserRow[];
+  const authUserTotal = authUsersData?.total ?? authUsersData?.users?.length ?? 0;
+  const authUsersNextPage = authUsersData?.nextPage ?? null;
   const authUsers = ((authUsersData?.users || []) as AuthAdminUser[]).reduce(
     (map, user) => map.set(user.id, user),
     new Map<string, AuthAdminUser>()
@@ -575,6 +577,16 @@ export default async function SettingsUsersPage() {
           We can onboard people properly now with invites and setup emails. The final login polish can come later without changing the underlying user model.
         </AlertDescription>
       </Alert>
+
+      {authUsersNextPage ? (
+        <Alert variant="warning">
+          <AlertTitle>Auth user list is truncated</AlertTitle>
+          <AlertDescription>
+            This screen loaded the first 1000 auth users out of {authUserTotal}.
+            Add paging here before relying on it for larger teams.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <section className="space-y-4">
         <div>
