@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { ExpenseCategoryStatusBadge } from "@/components/expenses/ExpenseCategoryStatusBadge";
+import { Button, PageHeader, SectionCard } from "@/components/ui";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -87,16 +88,24 @@ export default async function ExpenseDetailPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div className="space-y-2">
-        <Link href="/expenses" className="text-sm text-muted-foreground hover:underline">
-          ← Back to expenses
-        </Link>
-        <h1 className="text-2xl font-semibold">Expense Detail</h1>
-        <p className="text-sm text-muted-foreground">Read-only view for the expense record.</p>
-      </div>
+      <PageHeader
+        title="Expense Detail"
+        description="Review the recorded expense and correct it when operational details change."
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={`/expenses/${expense.id}/edit`}>Edit Expense</Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link href="/expenses">Back to expenses</Link>
+            </Button>
+          </>
+        }
+      />
 
-      <div className="rounded-lg border">
-        <div className="border-b px-6 py-4">
+      <SectionCard title="Recorded Expense" description="Read-only record with the saved operational snapshots.">
+        <div className="rounded-lg border">
+          <div className="border-b px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm text-muted-foreground">Expense ID</div>
@@ -107,60 +116,61 @@ export default async function ExpenseDetailPage({ params }: Props) {
               <div className="text-2xl font-semibold">{formatCurrencyFromCents(expense.amount_cents)}</div>
             </div>
           </div>
-        </div>
+          </div>
 
-        <div className="grid gap-6 p-6 md:grid-cols-2">
-          <div className="space-y-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Expense date</div>
-              <div className="font-medium">{expense.expense_date}</div>
+          <div className="grid gap-6 p-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Expense date</div>
+                <div className="font-medium">{expense.expense_date}</div>
+              </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground">Description</div>
+                <div className="font-medium">{expense.description}</div>
+              </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground">Category</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="font-medium">{categoryLabel}</span>
+                  {category ? <ExpenseCategoryStatusBadge isActive={category.is_active} /> : null}
+                </div>
+              </div>
             </div>
 
-            <div>
-              <div className="text-sm text-muted-foreground">Description</div>
-              <div className="font-medium">{expense.description}</div>
-            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Vendor</div>
+                <div className="font-medium">
+                  {vendorLabel}
+                  {!expense.vendor_name_snapshot && vendor && !vendor.is_active ? " (inactive)" : ""}
+                </div>
+              </div>
 
-            <div>
-              <div className="text-sm text-muted-foreground">Category</div>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="font-medium">{categoryLabel}</span>
-                {category ? <ExpenseCategoryStatusBadge isActive={category.is_active} /> : null}
+              <div>
+                <div className="text-sm text-muted-foreground">Property</div>
+                <div className="font-medium">{propertyLabel}</div>
+              </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground">Worker</div>
+                <div className="font-medium">{workerLabel}</div>
+              </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground">Created at</div>
+                <div className="font-medium">{new Date(expense.created_at).toLocaleString()}</div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Vendor</div>
-              <div className="font-medium">
-                {vendorLabel}
-                {!expense.vendor_name_snapshot && vendor && !vendor.is_active ? " (inactive)" : ""}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-sm text-muted-foreground">Property</div>
-              <div className="font-medium">{propertyLabel}</div>
-            </div>
-
-            <div>
-              <div className="text-sm text-muted-foreground">Worker</div>
-              <div className="font-medium">{workerLabel}</div>
-            </div>
-
-            <div>
-              <div className="text-sm text-muted-foreground">Created at</div>
-              <div className="font-medium">{new Date(expense.created_at).toLocaleString()}</div>
-            </div>
+          <div className="border-t px-6 py-4">
+            <div className="text-sm text-muted-foreground">Notes</div>
+            <div className="mt-1 whitespace-pre-wrap">{expense.notes || "—"}</div>
           </div>
         </div>
-
-        <div className="border-t px-6 py-4">
-          <div className="text-sm text-muted-foreground">Notes</div>
-          <div className="mt-1 whitespace-pre-wrap">{expense.notes || "—"}</div>
-        </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

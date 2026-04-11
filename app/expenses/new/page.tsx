@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
+import { Button, PageHeader, SectionCard } from "@/components/ui";
 
 export default async function NewExpensePage() {
   await requireRole(["admin", "office"]);
@@ -36,17 +37,20 @@ export default async function NewExpensePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div className="space-y-2">
-        <Link href="/expenses" className="text-sm text-muted-foreground hover:underline">
-          ← Back to expenses
-        </Link>
-        <h1 className="text-2xl font-semibold">New Expense</h1>
-        <p className="text-sm text-muted-foreground">
-          Create a manual expense record. Only active categories are selectable.
-        </p>
-      </div>
+      <PageHeader
+        title="New Expense"
+        description="Create a manual expense record. Only active categories are selectable."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/expenses">Back to expenses</Link>
+          </Button>
+        }
+      />
 
-      <div className="rounded-lg border p-6">
+      <SectionCard
+        title="Expense Details"
+        description="Capture the amount, category, and operational context for the expense."
+      >
         <ExpenseForm
           categories={categories ?? []}
           vendors={vendors ?? []}
@@ -55,7 +59,7 @@ export default async function NewExpensePage() {
             name: property.title ?? "",
           }))}
         />
-      </div>
+      </SectionCard>
     </div>
   );
 }

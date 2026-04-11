@@ -1,8 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { createExpenseAction, type ExpenseActionState } from "@/lib/actions/expenses";
+import {
+  createExpenseAction,
+  updateExpenseAction,
+  type ExpenseActionState,
+} from "@/lib/actions/expenses";
 import { createClient } from "@/lib/supabase/client";
+import { Button, FormField, Input, Textarea } from "@/components/ui";
 
 type CategoryOption = {
   id: string;
@@ -29,24 +34,39 @@ type Props = {
   categories: CategoryOption[];
   vendors: VendorOption[];
   properties: PropertyOption[];
+  mode?: "create" | "edit";
+  expenseId?: string;
+  initialValues?: {
+    expense_date: string;
+    amount: string;
+    description: string;
+    expense_category_id: string;
+    worker_id: string;
+    vendor_id: string;
+    property_id: string;
+    notes: string;
+  };
 };
 
 const initialState: ExpenseActionState = {};
+const nativeSelectClassName =
+  "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
-function SubmitButton() {
-  return (
-    <button
-      type="submit"
-      className="inline-flex items-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      Create expense
-    </button>
-  );
-}
-
-export function ExpenseForm({ categories, vendors, properties }: Props) {
-  const [state, formAction] = useActionState(createExpenseAction, initialState);
+export function ExpenseForm({
+  categories,
+  vendors,
+  properties,
+  mode = "create",
+  expenseId,
+  initialValues,
+}: Props) {
+  const action =
+    mode === "edit" && expenseId
+      ? updateExpenseAction.bind(null, expenseId)
+      : createExpenseAction;
+  const [state, formAction] = useActionState(action, initialState);
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
+  const submitLabel = mode === "edit" ? "Save Expense" : "Create Expense";
 
   useEffect(() => {
     let isMounted = true;
@@ -74,60 +94,49 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
   return (
     <form action={formAction} className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="expense_date" className="block text-sm font-medium">
-            Expense date
-          </label>
-          <input
+        <FormField label="Expense date" required>
+          <Input
             id="expense_date"
             name="expense_date"
             type="date"
             required
-            className="w-full rounded-md border px-3 py-2"
+            defaultValue={initialValues?.expense_date ?? ""}
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label htmlFor="amount" className="block text-sm font-medium">
-            Amount
-          </label>
-          <input
+        <FormField
+          label="Amount"
+          required
+          hint="Use decimal input like 12.50. Stored internally as cents."
+        >
+          <Input
             id="amount"
             name="amount"
             type="text"
             inputMode="decimal"
             placeholder="0.00"
             required
-            className="w-full rounded-md border px-3 py-2"
+            defaultValue={initialValues?.amount ?? ""}
           />
-          <p className="text-xs text-muted-foreground">
-            Use decimal input like 12.50. Stored internally as cents.
-          </p>
-        </div>
+        </FormField>
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="description" className="block text-sm font-medium">
-          Description
-        </label>
-        <input
+      <FormField label="Description" required>
+        <Input
           id="description"
           name="description"
           required
-          className="w-full rounded-md border px-3 py-2"
+          defaultValue={initialValues?.description ?? ""}
         />
-      </div>
+      </FormField>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <div className="space-y-2">
-          <label htmlFor="worker_id" className="block text-sm font-medium">
-            Worker
-          </label>
+        <FormField label="Worker">
           <select
             id="worker_id"
             name="worker_id"
-            defaultValue=""
-            className="w-full rounded-md border px-3 py-2"
+            defaultValue={initialValues?.worker_id ?? ""}
+            className={nativeSelectClassName}
           >
             <option value="">No worker</option>
             {workers.map((worker) => (
@@ -137,18 +146,15 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label htmlFor="expense_category_id" className="block text-sm font-medium">
-            Category
-          </label>
+        <FormField label="Category" required>
           <select
             id="expense_category_id"
             name="expense_category_id"
             required
-            defaultValue=""
-            className="w-full rounded-md border px-3 py-2"
+            defaultValue={initialValues?.expense_category_id ?? ""}
+            className={nativeSelectClassName}
           >
             <option value="" disabled>
               Select category
@@ -159,17 +165,14 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label htmlFor="vendor_id" className="block text-sm font-medium">
-            Vendor
-          </label>
+        <FormField label="Vendor">
           <select
             id="vendor_id"
             name="vendor_id"
-            defaultValue=""
-            className="w-full rounded-md border px-3 py-2"
+            defaultValue={initialValues?.vendor_id ?? ""}
+            className={nativeSelectClassName}
           >
             <option value="">No vendor</option>
             {vendors.map((vendor) => (
@@ -178,17 +181,14 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label htmlFor="property_id" className="block text-sm font-medium">
-            Property
-          </label>
+        <FormField label="Property">
           <select
             id="property_id"
             name="property_id"
-            defaultValue=""
-            className="w-full rounded-md border px-3 py-2"
+            defaultValue={initialValues?.property_id ?? ""}
+            className={nativeSelectClassName}
           >
             <option value="">No property</option>
             {properties.map((property) => (
@@ -197,20 +197,17 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="notes" className="block text-sm font-medium">
-          Notes
-        </label>
-        <textarea
+      <FormField label="Notes">
+        <Textarea
           id="notes"
           name="notes"
           rows={4}
-          className="w-full rounded-md border px-3 py-2"
+          defaultValue={initialValues?.notes ?? ""}
         />
-      </div>
+      </FormField>
 
       {state.error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -218,7 +215,9 @@ export function ExpenseForm({ categories, vendors, properties }: Props) {
         </div>
       ) : null}
 
-      <SubmitButton />
+      <div className="flex justify-end">
+        <Button type="submit">{submitLabel}</Button>
+      </div>
     </form>
   );
 }
