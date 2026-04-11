@@ -86,7 +86,7 @@ async function getAppBaseUrl() {
 }
 
 function getPasswordSetupRedirect(baseUrl: string) {
-  return `${baseUrl}/auth/callback?next=/auth/setup-password`;
+  return `${baseUrl}/auth/setup-password`;
 }
 
 function getAuthSetupSummary(authUser: AuthAdminUser | null) {
