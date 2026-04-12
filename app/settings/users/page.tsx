@@ -227,32 +227,6 @@ async function sendPasswordSetupEmail(formData: FormData) {
   revalidatePath("/settings/users");
 }
 
-async function resendInviteEmail(formData: FormData) {
-  "use server";
-
-  await requireRole(["admin"]);
-
-  const supabase = await createClient();
-  const baseUrl = await getAppBaseUrl();
-  const email = String(formData.get("email") || "")
-    .trim()
-    .toLowerCase();
-
-  if (!email) {
-    throw new Error("Email is required.");
-  }
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: getPasswordSetupRedirect(baseUrl),
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/settings/users");
-}
-
 async function createTestUser(formData: FormData) {
   "use server";
 
@@ -732,23 +706,15 @@ export default async function SettingsUsersPage({
                     </form>
 
                     {authUser ? (
-                      authUser.last_sign_in_at || authUser.email_confirmed_at ? (
-                        <form action={sendPasswordSetupEmail}>
-                          <input type="hidden" name="email" value={user.email || ""} />
+                      <form action={sendPasswordSetupEmail}>
+                        <input type="hidden" name="email" value={user.email || ""} />
 
-                          <Button type="submit" variant="outline" className="w-full">
-                            Send Password Reset
-                          </Button>
-                        </form>
-                      ) : (
-                        <form action={resendInviteEmail}>
-                          <input type="hidden" name="email" value={user.email || ""} />
-
-                          <Button type="submit" variant="outline" className="w-full">
-                            Resend Invite
-                          </Button>
-                        </form>
-                      )
+                        <Button type="submit" variant="outline" className="w-full">
+                          {authUser.last_sign_in_at || authUser.email_confirmed_at
+                            ? "Send Password Reset"
+                            : "Send Setup Email"}
+                        </Button>
+                      </form>
                     ) : null}
 
                     <form action={toggleUserActive}>
