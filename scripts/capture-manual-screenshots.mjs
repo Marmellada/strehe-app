@@ -179,25 +179,6 @@ async function getSampleData(client) {
   return sampleData;
 }
 
-async function generateLink(client, type, email, redirectTo) {
-  const { data, error } = await client.auth.admin.generateLink({
-    type,
-    email,
-    options: { redirectTo },
-  });
-
-  if (error) {
-    throw new Error(`${type} link for ${email}: ${error.message}`);
-  }
-
-  const actionLink = data?.properties?.action_link;
-  if (!actionLink) {
-    throw new Error(`${type} link for ${email}: missing action link`);
-  }
-
-  return actionLink;
-}
-
 function getAuthCookieName(supabaseUrl) {
   return `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`;
 }

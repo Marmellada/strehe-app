@@ -232,10 +232,8 @@ async function resendInviteEmail(formData: FormData) {
 
   await requireRole(["admin"]);
 
-  const admin = getAdminClient();
+  const supabase = await createClient();
   const baseUrl = await getAppBaseUrl();
-
-  const fullName = String(formData.get("full_name") || "").trim();
   const email = String(formData.get("email") || "")
     .trim()
     .toLowerCase();
@@ -244,10 +242,7 @@ async function resendInviteEmail(formData: FormData) {
     throw new Error("Email is required.");
   }
 
-  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      full_name: fullName,
-    },
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: getPasswordSetupRedirect(baseUrl),
   });
 
@@ -748,7 +743,6 @@ export default async function SettingsUsersPage({
                       ) : (
                         <form action={resendInviteEmail}>
                           <input type="hidden" name="email" value={user.email || ""} />
-                          <input type="hidden" name="full_name" value={user.full_name || ""} />
 
                           <Button type="submit" variant="outline" className="w-full">
                             Resend Invite
