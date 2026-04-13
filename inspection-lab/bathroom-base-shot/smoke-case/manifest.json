@@ -1,0 +1,12 @@
+{
+  "case_id": "bathroom-smoke-001",
+  "room_type": "bathroom",
+  "capture_type": "base_shot",
+  "baseline_photo": {
+    "path": "../../../docs/manuals/screenshots/auth-login.png"
+  },
+  "current_photo": {
+    "path": "../../../docs/manuals/screenshots/auth-login.png"
+  },
+  "output_dir": "../results/bathroom-smoke-001"
+}

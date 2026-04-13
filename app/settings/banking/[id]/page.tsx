@@ -57,7 +57,7 @@ export default async function EditBankAccountPage({
       .order('name'),
     supabase
       .from('company_bank_accounts')
-      .select('id, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, is_active, show_on_invoice')
+      .select('id, account_type, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, is_active, show_on_invoice')
       .eq('id', id)
       .single(),
     rawClient
@@ -88,8 +88,8 @@ export default async function EditBankAccountPage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
-        title="Edit Bank Account"
-        description="Update the account details used for invoices and payment routing."
+        title="Edit Company Account"
+        description="Update the bank or cash account details used for payment routing."
         actions={
           <Button asChild variant="outline">
             <Link href="/settings/banking">Back to Banking</Link>
@@ -101,7 +101,7 @@ export default async function EditBankAccountPage({
         <CardHeader>
           <CardTitle>Account Details</CardTitle>
           <CardDescription>
-            Modify the bank, account holder details, invoice visibility, and primary status.
+            Modify the account type, payment details, invoice visibility, and primary status.
           </CardDescription>
         </CardHeader>
         <CardContent>

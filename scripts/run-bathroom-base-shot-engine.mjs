@@ -2,9 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   analyzeBathroomBaseShot,
+  analyzeBathroomObjectsWithAi,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
+  mergeBathroomAiFindings,
 } from "../lib/inspection-lab/bathroom-base-shot-engine.mjs";
 
 const DEFAULT_MANIFEST = path.resolve(
@@ -45,15 +47,28 @@ async function main() {
   const baselinePhotoPath = resolveCasePath(manifestPath, manifest.baseline_photo.path);
   const currentPhotoPath = resolveCasePath(manifestPath, manifest.current_photo.path);
 
-  const baseline = await analyzeBathroomBaseShot(
-    await fs.readFile(baselinePhotoPath),
-    "baseline"
-  );
-  const current = await analyzeBathroomBaseShot(
-    await fs.readFile(currentPhotoPath),
-    "current"
-  );
-  const comparison = compareBathroomBaseShots(baseline, current);
+  const baselineBuffer = await fs.readFile(baselinePhotoPath);
+  const currentBuffer = await fs.readFile(currentPhotoPath);
+
+  const baseline = await analyzeBathroomBaseShot(baselineBuffer, "baseline");
+  const current = await analyzeBathroomBaseShot(currentBuffer, "current");
+  const baseComparison = compareBathroomBaseShots(baseline, current);
+
+  let comparison = baseComparison;
+
+  try {
+    const aiAnalysis = await analyzeBathroomObjectsWithAi(
+      baselineBuffer,
+      currentBuffer,
+      baseComparison
+    );
+
+    if (aiAnalysis) {
+      comparison = mergeBathroomAiFindings(baseComparison, aiAnalysis);
+    }
+  } catch (aiError) {
+    console.warn("[INSPECTION_LAB_AI_WARNING]", aiError);
+  }
 
   const outputDir = resolveCasePath(
     manifestPath,

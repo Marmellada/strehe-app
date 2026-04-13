@@ -71,6 +71,45 @@ function isValidSwiftBic(value: string) {
   return value === '' || /^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(value);
 }
 
+async function findDuplicateCompanyAccount(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  {
+    accountType,
+    iban,
+    accountName,
+    excludeId,
+  }: {
+    accountType: 'bank' | 'cash';
+    iban: string;
+    accountName: string;
+    excludeId?: string;
+  }
+): Promise<{ duplicateId: string | null; error?: string }> {
+  let query = supabase
+    .from('company_bank_accounts')
+    .select('id, account_name')
+    .eq('account_type', accountType)
+    .eq('is_active', true);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  if (accountType === 'cash') {
+    query = query.ilike('account_name', accountName.trim());
+  } else {
+    query = query.eq('iban', iban);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    return { duplicateId: null, error: error.message };
+  }
+
+  return { duplicateId: data?.id ?? null };
+}
+
 export async function createLicensedBank(formData: FormData): Promise<ActionResult> {
   try {
     await requireRole(['admin']);
@@ -378,6 +417,7 @@ export async function createBankAccount(formData: FormData): Promise<ActionResul
     }
 
     const rawData = {
+      account_type: ((formData.get('account_type') as string) || 'bank') as 'bank' | 'cash',
       bank_id: (formData.get('bank_id') as string) || undefined,
       bank_name:
         (formData.get('bank_name') as string) ||
@@ -406,35 +446,44 @@ export async function createBankAccount(formData: FormData): Promise<ActionResul
     }
 
     const data = validatedFields.data;
-    const normalizedIban = data.iban.toUpperCase().replace(/\s/g, '');
+    const normalizedIban =
+      data.account_type === 'cash' ? '' : data.iban.toUpperCase().replace(/\s/g, '');
 
     let bankId = data.bank_id || null;
 
-    if (!bankId) {
+    if (data.account_type === 'bank' && !bankId) {
       const bankResult = await getOrCreateBankId(
-  supabase,
-  data.bank_name,
-  data.swift_bic ?? undefined
-);
+        supabase,
+        data.bank_name,
+        data.swift_bic ?? undefined
+      );
       if (!bankResult.bankId) {
         return { success: false, error: bankResult.error || 'Failed to resolve bank' };
       }
       bankId = bankResult.bankId;
     }
 
-    const { data: existingAccount, error: existingAccountError } = await supabase
-      .from('company_bank_accounts')
-      .select('id')
-      .eq('iban', normalizedIban)
-      .eq('is_active', true)
-      .maybeSingle();
+    const duplicateCheck = await findDuplicateCompanyAccount(supabase, {
+      accountType: data.account_type,
+      iban: normalizedIban,
+      accountName:
+        data.account_name ||
+        data.bank_name_snapshot ||
+        (data.account_type === 'cash' ? 'Cash Account' : data.bank_name),
+    });
 
-    if (existingAccountError) {
-      return { success: false, error: existingAccountError.message };
+    if (duplicateCheck.error) {
+      return { success: false, error: duplicateCheck.error };
     }
 
-    if (existingAccount) {
-      return { success: false, error: 'An account with this IBAN already exists' };
+    if (duplicateCheck.duplicateId) {
+      return {
+        success: false,
+        error:
+          data.account_type === 'cash'
+            ? 'An active cash account with this name already exists.'
+            : 'An account with this IBAN already exists',
+      };
     }
 
     if (data.is_primary) {
@@ -451,14 +500,21 @@ export async function createBankAccount(formData: FormData): Promise<ActionResul
     const { error: insertError } = await supabase
       .from('company_bank_accounts')
       .insert({
+        account_type: data.account_type,
         bank_id: bankId,
-        account_name: data.account_name || data.bank_name,
-        bank_name_snapshot: data.bank_name_snapshot || data.bank_name,
-        iban: normalizedIban,
-        swift: data.swift_bic?.trim() || null,
+        account_name:
+          data.account_name ||
+          data.bank_name_snapshot ||
+          (data.account_type === 'cash' ? 'Cash Account' : data.bank_name),
+        bank_name_snapshot:
+          data.account_type === 'cash'
+            ? data.bank_name_snapshot || 'Cash'
+            : data.bank_name_snapshot || data.bank_name,
+        iban: normalizedIban || null,
+        swift: data.account_type === 'cash' ? null : data.swift_bic?.trim() || null,
         is_primary: data.is_primary,
         is_active: true,
-        show_on_invoice: data.show_on_invoice,
+        show_on_invoice: data.account_type === 'cash' ? false : data.show_on_invoice,
       });
 
     if (insertError) {
@@ -492,6 +548,7 @@ export async function updateBankAccount(
     }
 
     const rawData = {
+      account_type: ((formData.get('account_type') as string) || 'bank') as 'bank' | 'cash',
       bank_id: (formData.get('bank_id') as string) || undefined,
       bank_name:
         (formData.get('bank_name') as string) ||
@@ -520,36 +577,45 @@ export async function updateBankAccount(
     }
 
     const data = validatedFields.data;
-    const normalizedIban = data.iban.toUpperCase().replace(/\s/g, '');
+    const normalizedIban =
+      data.account_type === 'cash' ? '' : data.iban.toUpperCase().replace(/\s/g, '');
 
     let bankId = data.bank_id || null;
 
-    if (!bankId) {
-    const bankResult = await getOrCreateBankId(
-  supabase,
-  data.bank_name,
-  data.swift_bic ?? undefined
-);
+    if (data.account_type === 'bank' && !bankId) {
+      const bankResult = await getOrCreateBankId(
+        supabase,
+        data.bank_name,
+        data.swift_bic ?? undefined
+      );
       if (!bankResult.bankId) {
         return { success: false, error: bankResult.error || 'Failed to resolve bank' };
       }
       bankId = bankResult.bankId;
     }
 
-    const { data: existingAccount, error: existingAccountError } = await supabase
-      .from('company_bank_accounts')
-      .select('id')
-      .eq('iban', normalizedIban)
-      .eq('is_active', true)
-      .neq('id', id)
-      .maybeSingle();
+    const duplicateCheck = await findDuplicateCompanyAccount(supabase, {
+      accountType: data.account_type,
+      iban: normalizedIban,
+      accountName:
+        data.account_name ||
+        data.bank_name_snapshot ||
+        (data.account_type === 'cash' ? 'Cash Account' : data.bank_name),
+      excludeId: id,
+    });
 
-    if (existingAccountError) {
-      return { success: false, error: existingAccountError.message };
+    if (duplicateCheck.error) {
+      return { success: false, error: duplicateCheck.error };
     }
 
-    if (existingAccount) {
-      return { success: false, error: 'An account with this IBAN already exists' };
+    if (duplicateCheck.duplicateId) {
+      return {
+        success: false,
+        error:
+          data.account_type === 'cash'
+            ? 'An active cash account with this name already exists.'
+            : 'An account with this IBAN already exists',
+      };
     }
 
     if (data.is_primary) {
@@ -567,13 +633,20 @@ export async function updateBankAccount(
     const { error: updateError } = await supabase
       .from('company_bank_accounts')
       .update({
+        account_type: data.account_type,
         bank_id: bankId,
-        account_name: data.account_name || data.bank_name,
-        bank_name_snapshot: data.bank_name_snapshot || data.bank_name,
-        iban: normalizedIban,
-        swift: data.swift_bic?.trim() || null,
+        account_name:
+          data.account_name ||
+          data.bank_name_snapshot ||
+          (data.account_type === 'cash' ? 'Cash Account' : data.bank_name),
+        bank_name_snapshot:
+          data.account_type === 'cash'
+            ? data.bank_name_snapshot || 'Cash'
+            : data.bank_name_snapshot || data.bank_name,
+        iban: normalizedIban || null,
+        swift: data.account_type === 'cash' ? null : data.swift_bic?.trim() || null,
         is_primary: data.is_primary,
-        show_on_invoice: data.show_on_invoice,
+        show_on_invoice: data.account_type === 'cash' ? false : data.show_on_invoice,
       })
       .eq('id', id);
 

@@ -28,6 +28,7 @@ type BankAccountActionResult = {
 };
 
 type BankAccountInitialValues = {
+  account_type?: "bank" | "cash" | null;
   bank_id?: string | null;
   account_name?: string | null;
   bank_name_snapshot?: string | null;
@@ -61,6 +62,9 @@ export function BankAccountForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [accountType, setAccountType] = useState<"bank" | "cash">(
+    initialValues?.account_type === "cash" ? "cash" : "bank"
+  );
   const [selectedBankId, setSelectedBankId] = useState<string>(
     initialValues?.bank_id ?? ""
   );
@@ -106,9 +110,16 @@ export function BankAccountForm({
       .replace(/\s+/g, "");
 
     const swift = String(formData.get("swift_bic") || "").trim().toUpperCase();
+    const currentAccountType = String(formData.get("account_type") || "bank");
 
-    formData.set("iban", iban);
-    formData.set("swift_bic", swift);
+    formData.set("iban", currentAccountType === "cash" ? "" : iban);
+    formData.set("swift_bic", currentAccountType === "cash" ? "" : swift);
+
+    if (currentAccountType === "cash") {
+      formData.set("bank_id", "");
+      formData.set("bank_name", "Cash");
+      formData.set("show_on_invoice", "false");
+    }
 
     startTransition(async () => {
       try {
@@ -150,46 +161,72 @@ export function BankAccountForm({
       ) : null}
 
       <FormField
-        id="bank_id"
-        label="Bank"
+        id="account_type"
+        label="Account Type"
         required
-        hint="Choose the bank institution this account belongs to."
+        hint="Use bank for invoice payment instructions or cash for petty cash / cash box tracking."
       >
         <select
-          id="bank_id"
-          name="bank_id"
+          id="account_type"
+          name="account_type"
           className={nativeSelectClassName}
-          required
-          value={selectedBankId}
-          onChange={(e) => {
-            const nextBankId = e.target.value;
-            const nextBank = (banks || []).find((bank) => bank.id === nextBankId) || null;
-            setSelectedBankId(nextBankId);
-            setBankWasManuallySelected(true);
-            if (nextBank && (!displayNameWasManuallyEdited || !displayBankName.trim())) {
-              setDisplayBankName(nextBank.name);
-            }
-            if (
-              nextBank?.swift_code &&
-              (!swiftWasManuallyEdited || !swiftValue.trim())
-            ) {
-              setSwiftValue(nextBank.swift_code);
-            }
-          }}
+          value={accountType}
+          onChange={(e) => setAccountType(e.target.value as "bank" | "cash")}
         >
-          <option value="">Select a bank</option>
-          {(banks || []).map((bank) => (
-            <option key={bank.id} value={bank.id}>
-              {bank.name}
-            </option>
-          ))}
+          <option value="bank">Bank Account</option>
+          <option value="cash">Cash Account</option>
         </select>
       </FormField>
+
+      {accountType === "bank" ? (
+        <FormField
+          id="bank_id"
+          label="Bank"
+          required
+          hint="Choose the bank institution this account belongs to."
+        >
+          <select
+            id="bank_id"
+            name="bank_id"
+            className={nativeSelectClassName}
+            required
+            value={selectedBankId}
+            onChange={(e) => {
+              const nextBankId = e.target.value;
+              const nextBank =
+                (banks || []).find((bank) => bank.id === nextBankId) || null;
+              setSelectedBankId(nextBankId);
+              setBankWasManuallySelected(true);
+              if (
+                nextBank &&
+                (!displayNameWasManuallyEdited || !displayBankName.trim())
+              ) {
+                setDisplayBankName(nextBank.name);
+              }
+              if (
+                nextBank?.swift_code &&
+                (!swiftWasManuallyEdited || !swiftValue.trim())
+              ) {
+                setSwiftValue(nextBank.swift_code);
+              }
+            }}
+          >
+            <option value="">Select a bank</option>
+            {(banks || []).map((bank) => (
+              <option key={bank.id} value={bank.id}>
+                {bank.name}
+              </option>
+            ))}
+          </select>
+        </FormField>
+      ) : (
+        <input type="hidden" name="bank_id" value="" />
+      )}
 
       <input
         type="hidden"
         name="bank_name"
-        value={selectedBank?.name || displayBankName || ""}
+        value={accountType === "cash" ? "Cash" : selectedBank?.name || displayBankName || ""}
       />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -197,12 +234,20 @@ export function BankAccountForm({
           id="account_name"
           label="Account Name"
           required
-          hint="Use the formal company account name shown by the bank."
+          hint={
+            accountType === "cash"
+              ? "Use a clear label like Office Cash Box or Petty Cash."
+              : "Use the formal company account name shown by the bank."
+          }
         >
           <Input
             id="account_name"
             name="account_name"
-            placeholder="e.g., Strehe-Prona SHPK - Business Account"
+            placeholder={
+              accountType === "cash"
+                ? "e.g., Office Cash Box"
+                : "e.g., Strehe-Prona SHPK - Business Account"
+            }
             defaultValue={initialValues?.account_name || ""}
             required
           />
@@ -210,113 +255,131 @@ export function BankAccountForm({
 
         <FormField
           id="bank_name_snapshot"
-          label="Display Bank Name"
+          label={accountType === "cash" ? "Display Label" : "Display Bank Name"}
           required
-          hint="This is the bank name shown on invoices and payment details."
+          hint={
+            accountType === "cash"
+              ? "This label will be used in payment history and cash-account references."
+              : "This is the bank name shown on invoices and payment details."
+          }
         >
           <Input
             id="bank_name_snapshot"
             name="bank_name_snapshot"
-            value={displayBankName}
-            onChange={(event) => {
-              setDisplayBankName(event.target.value.toUpperCase());
-              setDisplayNameWasManuallyEdited(true);
-            }}
-            placeholder="e.g., Raiffeisen Bank Kosovo"
+            {...(accountType === "cash"
+              ? {
+                  defaultValue: initialValues?.bank_name_snapshot || "Cash",
+                }
+              : {
+                  value: displayBankName,
+                  onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                    setDisplayBankName(event.target.value.toUpperCase());
+                    setDisplayNameWasManuallyEdited(true);
+                  },
+                })}
+            placeholder={accountType === "cash" ? "e.g., Office Cash Box" : "e.g., Raiffeisen Bank Kosovo"}
             required
           />
         </FormField>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField
-          id="iban"
-          label="IBAN"
-          required
-          hint="Kosovo format: XK followed by 18 digits."
-        >
-          <Input
-            id="iban"
-            name="iban"
-            value={ibanValue}
-            onChange={(event) => {
-              const nextValue = normalizeUppercaseAlphaNumeric(event.target.value);
-              setIbanValue(nextValue);
+      {accountType === "bank" ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              id="iban"
+              label="IBAN"
+              required
+              hint="Kosovo format: XK followed by 18 digits."
+            >
+              <Input
+                id="iban"
+                name="iban"
+                value={ibanValue}
+                onChange={(event) => {
+                  const nextValue = normalizeUppercaseAlphaNumeric(
+                    event.target.value
+                  );
+                  setIbanValue(nextValue);
 
-              const nextDetection = detectBankFromInput({
-                input: nextValue,
-                identifiers: identifiers || [],
-                banks: banks || [],
-              });
+                  const nextDetection = detectBankFromInput({
+                    input: nextValue,
+                    identifiers: identifiers || [],
+                    banks: banks || [],
+                  });
 
-              const matchedBank = nextDetection.matchedBank;
-              if (!matchedBank) return;
+                  const matchedBank = nextDetection.matchedBank;
+                  if (!matchedBank) return;
 
-              if (!bankWasManuallySelected) {
-                setSelectedBankId(matchedBank.bankId);
+                  if (!bankWasManuallySelected) {
+                    setSelectedBankId(matchedBank.bankId);
+                  }
+
+                  if (!displayNameWasManuallyEdited || !displayBankName.trim()) {
+                    setDisplayBankName(matchedBank.bankName);
+                  }
+
+                  if (
+                    matchedBank.swiftCode &&
+                    (!swiftWasManuallyEdited || !swiftValue.trim())
+                  ) {
+                    setSwiftValue(matchedBank.swiftCode);
+                  }
+                }}
+                placeholder="e.g., XK051212012345678906"
+                required
+                pattern="^XK\\d{18}$"
+                title="Must be in format XK followed by 18 digits"
+                className="uppercase"
+              />
+            </FormField>
+
+            <FormField
+              id="swift"
+              label="SWIFT / BIC"
+              hint="Optional. Use the bank's official SWIFT/BIC code if available."
+            >
+              <Input
+                id="swift"
+                name="swift_bic"
+                value={swiftValue}
+                onChange={(event) => {
+                  setSwiftValue(
+                    normalizeUppercaseAlphaNumeric(event.target.value)
+                  );
+                  setSwiftWasManuallyEdited(true);
+                }}
+                placeholder="e.g., RBKOXKPR"
+                pattern="^[A-Za-z0-9]{8}([A-Za-z0-9]{3})?$"
+                title="Must be 8 or 11 characters"
+                className="uppercase"
+              />
+            </FormField>
+          </div>
+
+          {detectionResult && ibanValue.trim() ? (
+            <Alert
+              variant={
+                !detectionResult.isValid
+                  ? "destructive"
+                  : detectionResult.matchedBank
+                    ? "success"
+                    : "warning"
               }
-
-              if (!displayNameWasManuallyEdited || !displayBankName.trim()) {
-                setDisplayBankName(matchedBank.bankName);
-              }
-
-              if (
-                matchedBank.swiftCode &&
-                (!swiftWasManuallyEdited || !swiftValue.trim())
-              ) {
-                setSwiftValue(matchedBank.swiftCode);
-              }
-            }}
-            placeholder="e.g., XK051212012345678906"
-            required
-            pattern="^XK\\d{18}$"
-            title="Must be in format XK followed by 18 digits"
-            className="uppercase"
-          />
-        </FormField>
-
-        <FormField
-          id="swift"
-          label="SWIFT / BIC"
-          hint="Optional. Use the bank's official SWIFT/BIC code if available."
-        >
-          <Input
-            id="swift"
-            name="swift_bic"
-            value={swiftValue}
-            onChange={(event) => {
-              setSwiftValue(normalizeUppercaseAlphaNumeric(event.target.value));
-              setSwiftWasManuallyEdited(true);
-            }}
-            placeholder="e.g., RBKOXKPR"
-            pattern="^[A-Za-z0-9]{8}([A-Za-z0-9]{3})?$"
-            title="Must be 8 or 11 characters"
-            className="uppercase"
-          />
-        </FormField>
-      </div>
-
-      {detectionResult && ibanValue.trim() ? (
-        <Alert
-          variant={
-            !detectionResult.isValid
-              ? "destructive"
-              : detectionResult.matchedBank
-              ? "success"
-              : "warning"
-          }
-        >
-          <AlertTitle>Bank detection</AlertTitle>
-          <AlertDescription>
-            {!detectionResult.isValid
-              ? detectionResult.validationMessage
-              : detectionResult.matchedBank
-              ? `Matched ${detectionResult.matchedBank.bankName} using ${detectionResult.matchedBank.matchedBy} rule ${detectionResult.matchedBank.matchedValue}. Bank, display name, and SWIFT were auto-filled where available. You can still edit them.`
-              : detectionResult.availableRuleCount > 0
-              ? "The IBAN format looks valid, but no active bank rule matched it yet."
-              : "The IBAN format looks valid, but there are no active IBAN rules yet."}
-          </AlertDescription>
-        </Alert>
+            >
+              <AlertTitle>Bank detection</AlertTitle>
+              <AlertDescription>
+                {!detectionResult.isValid
+                  ? detectionResult.validationMessage
+                  : detectionResult.matchedBank
+                    ? `Matched ${detectionResult.matchedBank.bankName} using ${detectionResult.matchedBank.matchedBy} rule ${detectionResult.matchedBank.matchedValue}. Bank, display name, and SWIFT were auto-filled where available. You can still edit them.`
+                    : detectionResult.availableRuleCount > 0
+                      ? "The IBAN format looks valid, but no active bank rule matched it yet."
+                      : "The IBAN format looks valid, but there are no active IBAN rules yet."}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -333,7 +396,10 @@ export function BankAccountForm({
           <Checkbox
             id="show_on_invoice"
             name="show_on_invoice"
-            defaultChecked={initialValues?.show_on_invoice ?? true}
+            defaultChecked={
+              accountType === "cash" ? false : initialValues?.show_on_invoice ?? true
+            }
+            disabled={accountType === "cash"}
           />
           <span>Show on invoice</span>
         </label>

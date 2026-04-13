@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import { createPerfTimer } from "@/lib/perf";
 import {
   Badge,
   Button,
@@ -170,13 +171,16 @@ function QuickRow({
 }
 
 export default async function DashboardPage() {
+  const perf = createPerfTimer("page.dashboard");
   const { authUser, appUser } = await requireRole([
     "admin",
     "office",
     "field",
     "contractor",
   ]);
+  perf.mark("requireRole");
   const supabase = await createClient();
+  perf.mark("createClient");
   const todayIso = new Date().toISOString().slice(0, 10);
   const isOpsRole = appUser.role === "admin" || appUser.role === "office";
 
@@ -317,6 +321,14 @@ export default async function DashboardPage() {
     (sum, expense) => sum + (expense.amount_cents || 0),
     0,
   );
+  perf.mark("loadDashboardData");
+  perf.finish({
+    role: appUser.role,
+    isOpsRole,
+    recentTasks: recentTasks.length,
+    recentExpenses: recentExpenses.length,
+  });
+
   return (
     <main className="grid gap-6">
       <PageHeader

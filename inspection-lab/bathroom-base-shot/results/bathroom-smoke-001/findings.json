@@ -1,0 +1,66 @@
+{
+  "manifest": {
+    "case_id": "bathroom-smoke-001",
+    "room_type": "bathroom",
+    "capture_type": "base_shot"
+  },
+  "baseline": {
+    "path": "D:\\Personal\\Projects\\Strehe-Prona\\strehe-app\\docs\\manuals\\screenshots\\auth-login.png",
+    "qualityFlags": [
+      "Image height is low for reliable comparison.",
+      "Image contrast is low.",
+      "Image may be too blurry.",
+      "Base shot should ideally be portrait orientation."
+    ],
+    "metrics": {
+      "width": 1440,
+      "height": 1080,
+      "orientation": "landscape",
+      "brightness": 0.9721,
+      "contrast": 0.0816,
+      "blurScore": 1.09
+    }
+  },
+  "current": {
+    "path": "D:\\Personal\\Projects\\Strehe-Prona\\strehe-app\\docs\\manuals\\screenshots\\auth-login.png",
+    "qualityFlags": [
+      "Image height is low for reliable comparison.",
+      "Image contrast is low.",
+      "Image may be too blurry.",
+      "Base shot should ideally be portrait orientation."
+    ],
+    "metrics": {
+      "width": 1440,
+      "height": 1080,
+      "orientation": "landscape",
+      "brightness": 0.9721,
+      "contrast": 0.0816,
+      "blurScore": 1.09
+    }
+  },
+  "comparison": {
+    "sameRoomVerdict": "likely",
+    "changeSeverity": "minor",
+    "reviewRequired": true,
+    "metrics": {
+      "hashDistance": 0,
+      "histogramSimilarity": 1,
+      "pixelDifference": 0
+    },
+    "findings": [
+      {
+        "type": "baseline_low_quality",
+        "severity": "warning",
+        "confidence": "high",
+        "summary": "Image height is low for reliable comparison. Image contrast is low. Image may be too blurry. Base shot should ideally be portrait orientation."
+      },
+      {
+        "type": "current_low_quality",
+        "severity": "warning",
+        "confidence": "high",
+        "summary": "Image height is low for reliable comparison. Image contrast is low. Image may be too blurry. Base shot should ideally be portrait orientation."
+      }
+    ]
+  },
+  "narrative": "Case bathroom-smoke-001: bathroom base-shot comparison completed. The current photo is likely from the same bathroom and main direction. Only limited visible scene change is present. Human review is recommended before using this comparison in an operational report."
+}

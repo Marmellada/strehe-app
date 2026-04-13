@@ -77,6 +77,7 @@ type BankRow = {
 type PaymentRow = {
   id: string;
   invoice_id: string;
+  company_account_id: string | null;
   bank_id: string | null;
   amount_cents: number;
   payment_method: string;
@@ -88,6 +89,12 @@ type PaymentRow = {
 
 type PaymentDisplayRow = PaymentRow & {
   bank: BankRow | null;
+  companyAccount: {
+    id: string;
+    account_name: string | null;
+    account_type: string | null;
+    bank_name_snapshot: string | null;
+  } | null;
 };
 
 type InvoiceItemRow = {
@@ -161,6 +168,7 @@ export default async function InvoiceDetailPage({
     { data: paymentsRaw, error: paymentsError },
     { data: settings, error: settingsError },
     { data: banksRaw, error: banksError },
+    { data: companyAccountsRaw, error: companyAccountsError },
     { data: creditNotesRaw, error: creditNotesError },
     { data: originalInvoice, error: originalInvoiceError },
   ] = await Promise.all([
@@ -217,6 +225,7 @@ export default async function InvoiceDetailPage({
           .select(`
             id,
             invoice_id,
+            company_account_id,
             bank_id,
             amount_cents,
             payment_method,
@@ -251,6 +260,9 @@ export default async function InvoiceDetailPage({
     supabase
       .from("banks")
       .select("id, name, swift_code"),
+    supabase
+      .from("company_bank_accounts")
+      .select("id, account_name, account_type, bank_name_snapshot"),
 
     invoice.document_type === "invoice"
       ? supabase
@@ -297,6 +309,10 @@ export default async function InvoiceDetailPage({
     throw new Error(banksError.message);
   }
 
+  if (companyAccountsError) {
+    throw new Error(companyAccountsError.message);
+  }
+
   if (creditNotesError) {
     throw new Error(creditNotesError.message);
   }
@@ -308,11 +324,22 @@ export default async function InvoiceDetailPage({
   const bankMap = new Map(
     ((banksRaw || []) as BankRow[]).map((bank) => [bank.id, bank])
   );
+  const companyAccountMap = new Map(
+    ((companyAccountsRaw || []) as Array<{
+      id: string;
+      account_name: string | null;
+      account_type: string | null;
+      bank_name_snapshot: string | null;
+    }>).map((account) => [account.id, account])
+  );
 
   const payments =
     ((paymentsRaw || []) as PaymentRow[]).map((payment) => ({
       ...payment,
       bank: payment.bank_id ? bankMap.get(payment.bank_id) || null : null,
+      companyAccount: payment.company_account_id
+        ? companyAccountMap.get(payment.company_account_id) || null
+        : null,
     })) satisfies PaymentDisplayRow[];
 
   const creditNotes = (creditNotesRaw || []) as Array<{
@@ -756,7 +783,7 @@ export default async function InvoiceDetailPage({
                       <TableHead>Date</TableHead>
                       <TableHead>Method</TableHead>
                       <TableHead>Reference</TableHead>
-                      <TableHead>Bank</TableHead>
+                      <TableHead>Received Into</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -774,13 +801,21 @@ export default async function InvoiceDetailPage({
                           {payment.reference_number || "—"}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {payment.bank?.name
-                            ? `${payment.bank.name}${
-                                payment.bank.swift_code
-                                  ? ` (${payment.bank.swift_code})`
-                                  : ""
+                          {payment.companyAccount?.account_name
+                            ? `${payment.companyAccount.account_name}${
+                                payment.companyAccount.account_type === "cash"
+                                  ? " (Cash)"
+                                  : payment.bank?.name
+                                    ? ` — ${payment.bank.name}`
+                                    : ""
                               }`
-                            : "—"}
+                            : payment.bank?.name
+                              ? `${payment.bank.name}${
+                                  payment.bank.swift_code
+                                    ? ` (${payment.bank.swift_code})`
+                                    : ""
+                                }`
+                              : "—"}
                         </TableCell>
                         <TableCell className="text-right font-medium text-foreground">
                           {formatMoney(payment.amount_cents || 0)}

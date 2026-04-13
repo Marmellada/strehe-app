@@ -45,8 +45,8 @@ export default async function NewBankAccountPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Add Bank Account"
-        description="Add a company bank account for invoices and payment details."
+        title="Add Company Account"
+        description="Add a company bank account or a cash account for payment handling."
         actions={
           <Button asChild variant="outline">
             <Link href="/settings/banking">Back to Banking</Link>
@@ -56,9 +56,9 @@ export default async function NewBankAccountPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>New Bank Account</CardTitle>
+          <CardTitle>New Company Account</CardTitle>
           <CardDescription>
-            Capture the account exactly as it should appear in invoice payment instructions.
+            Use bank accounts for invoice payment instructions and cash accounts for petty cash or cash-box tracking.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -31,7 +31,7 @@ export default async function BankingSettingsPage() {
 
   const { data: accounts, error } = await supabase
     .from("company_bank_accounts")
-    .select("id, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, is_active, show_on_invoice")
+    .select("id, account_type, bank_id, account_name, bank_name_snapshot, iban, swift, is_primary, is_active, show_on_invoice")
     .order("is_primary", { ascending: false })
     .order("is_active", { ascending: false })
     .order("account_name");
@@ -51,6 +51,7 @@ export default async function BankingSettingsPage() {
   }
 
   const totalAccounts = accounts?.filter((account) => account.is_active).length ?? 0;
+  const cashAccounts = accounts?.filter((account) => account.account_type === "cash").length ?? 0;
   const primaryAccounts = accounts?.filter((account) => account.is_primary).length ?? 0;
   const visibleOnInvoices = accounts?.filter((account) => account.show_on_invoice).length ?? 0;
   const inactiveAccounts = accounts?.filter((account) => !account.is_active).length ?? 0;
@@ -61,7 +62,7 @@ export default async function BankingSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Banking"
-        description="Manage company bank accounts and the licensed-bank registry used for validation and autofill."
+        description="Manage company bank and cash accounts plus the licensed-bank registry used for validation and autofill."
         actions={
           <>
             <Button asChild variant="outline">
@@ -85,8 +86,9 @@ export default async function BankingSettingsPage() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 md:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-7">
         <StatCard title="Active Accounts" value={totalAccounts} />
+        <StatCard title="Cash Accounts" value={cashAccounts} />
         <StatCard title="Primary Accounts" value={primaryAccounts} />
         <StatCard title="Shown On Invoices" value={visibleOnInvoices} />
         <StatCard title="Inactive Accounts" value={inactiveAccounts} />
@@ -95,14 +97,15 @@ export default async function BankingSettingsPage() {
       </div>
 
       <SectionCard
-        title="Company Bank Accounts"
-        description="These are STREHË's own bank accounts used on invoices and payment instructions."
+        title="Company Accounts"
+        description="These are STREHË's own bank and cash accounts used for invoice payment instructions and payment tracking."
       >
         {accounts && accounts.length > 0 ? (
           <TableShell>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Type</TableHead>
                   <TableHead>Display Bank</TableHead>
                   <TableHead>Account Name</TableHead>
                   <TableHead>IBAN</TableHead>
@@ -115,14 +118,19 @@ export default async function BankingSettingsPage() {
               <TableBody>
                 {accounts.map((account) => (
                   <TableRow key={account.id}>
+                    <TableCell>
+                      <Badge variant={account.account_type === "cash" ? "warning" : "info"}>
+                        {account.account_type === "cash" ? "Cash" : "Bank"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="font-medium">
-                      {account.bank_name_snapshot || "Unnamed Bank"}
+                      {account.bank_name_snapshot || (account.account_type === "cash" ? "Cash" : "Unnamed Bank")}
                     </TableCell>
                     <TableCell>{account.account_name || "Not set"}</TableCell>
                     <TableCell className="font-mono text-xs">
-                      {maskIban(account.iban)}
+                      {account.account_type === "cash" ? "—" : maskIban(account.iban)}
                     </TableCell>
-                    <TableCell>{account.swift || "Not set"}</TableCell>
+                    <TableCell>{account.account_type === "cash" ? "—" : account.swift || "Not set"}</TableCell>
                     <TableCell>
                       <StatusBadge
                         status={account.is_active ? "active" : "inactive"}

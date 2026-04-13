@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole, AppUser } from "@/lib/auth/roles";
 import { isAppRole } from "@/lib/auth/roles";
+import { createPerfTimer } from "@/lib/perf";
 
 type CurrentUserWithRole = {
   authUser: {
@@ -20,10 +21,13 @@ type ClaimsShape = {
 };
 
 export async function getCurrentUserWithRole(): Promise<CurrentUserWithRole | null> {
+  const perf = createPerfTimer("auth.getCurrentUserWithRole");
   const supabase = await createClient();
+  perf.mark("createClient");
 
   const claimsResult = await supabase.auth.getClaims();
   const rawClaims = (claimsResult.data as ClaimsShape | null) ?? null;
+  perf.mark("auth.getClaims");
 
   const claims = rawClaims?.claims ?? rawClaims ?? null;
   const userId = claims?.sub ?? null;
@@ -35,6 +39,9 @@ export async function getCurrentUserWithRole(): Promise<CurrentUserWithRole | nu
   });
 
   if (!userId) {
+    perf.finish({
+      authenticated: false,
+    });
     return null;
   }
 
@@ -48,14 +55,25 @@ export async function getCurrentUserWithRole(): Promise<CurrentUserWithRole | nu
     appUserError: appUserError?.message ?? null,
     appUserRow,
   });
+  perf.mark("app_users.lookup");
 
   if (appUserError || !appUserRow) {
+    perf.finish({
+      authenticated: true,
+      appUserFound: false,
+    });
     return null;
   }
 
   if (!isAppRole(appUserRow.role)) {
     throw new Error(`Invalid role found for user ${userId}: ${appUserRow.role}`);
   }
+
+  perf.finish({
+    authenticated: true,
+    appUserFound: true,
+    role: appUserRow.role,
+  });
 
   return {
     authUser: {

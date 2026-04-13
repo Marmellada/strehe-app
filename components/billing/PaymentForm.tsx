@@ -6,7 +6,9 @@ import { Button, FormField, Input, Textarea } from "@/components/ui";
 
 type BankOption = {
   id: string;
+  account_type: "bank" | "cash";
   name: string;
+  bank_name?: string | null;
   swift_code: string | null;
 };
 
@@ -34,6 +36,15 @@ export function PaymentForm({
   const defaultAmount = useMemo(() => {
     return centsToEur(balanceDueCents).toFixed(2);
   }, [balanceDueCents]);
+  const filteredAccounts = useMemo(
+    () =>
+      banks.filter((account) =>
+        paymentMethod === "cash"
+          ? account.account_type === "cash"
+          : account.account_type === "bank"
+      ),
+    [banks, paymentMethod]
+  );
 
   return (
     <form action={action} className="space-y-4">
@@ -69,22 +80,48 @@ export function PaymentForm({
         </FormField>
       </div>
 
+      <FormField
+        id="payment-company-account"
+        label={paymentMethod === "cash" ? "Cash Account" : "Received Into"}
+        required
+        hint={
+          paymentMethod === "cash"
+            ? "Choose the cash box / petty cash account that received the payment."
+            : "Choose the company account that received the transfer."
+        }
+      >
+        <select
+          id="payment-company-account"
+          name="company_account_id"
+          className="input w-full"
+          defaultValue=""
+          required
+        >
+          <option value="">
+            {paymentMethod === "cash" ? "Select cash account" : "Select company account"}
+          </option>
+          {filteredAccounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name}
+              {account.account_type === "bank" && account.bank_name
+                ? ` — ${account.bank_name}${account.swift_code ? ` (${account.swift_code})` : ""}`
+                : ""}
+            </option>
+          ))}
+        </select>
+      </FormField>
+
       {paymentMethod === "bank_transfer" && (
         <FormField
           id="payment-bank"
-          label="Bank"
-          required
-          hint="Required when payment method is Bank Transfer."
+          label="Transfer Routing"
+          hint="The selected company account will be used as the receiving bank account."
         >
-          <select id="payment-bank" name="bank_id" className="input w-full" defaultValue="" required>
-            <option value="">Select bank</option>
-            {banks.map((bank) => (
-              <option key={bank.id} value={bank.id}>
-                {bank.name}
-                {bank.swift_code ? ` (${bank.swift_code})` : ""}
-              </option>
-            ))}
-          </select>
+          <Input
+            id="payment-bank"
+            value="Transfer received into the selected company account"
+            readOnly
+          />
         </FormField>
       )}
 

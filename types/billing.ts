@@ -46,6 +46,7 @@ export interface InvoiceItem {
 export interface Payment {
   id: string;
   invoice_id: string;
+  company_account_id: string | null;
   bank_id: string | null;
   amount_cents: number;
   payment_method: PaymentMethod;

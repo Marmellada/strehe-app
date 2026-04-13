@@ -22,6 +22,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { APP_ROLES, type AppRole } from "@/lib/auth/roles";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { createPerfTimer } from "@/lib/perf";
 
 type AppUserRow = {
   id: string;
@@ -438,10 +439,14 @@ export default async function SettingsUsersPage({
     page?: string;
   }>;
 }) {
+  const perf = createPerfTimer("page.settings.users");
   await requireRole(["admin"]);
+  perf.mark("requireRole");
 
   const supabase = await createClient();
+  perf.mark("createClient");
   const params = await searchParams;
+  perf.mark("resolveSearchParams");
   const currentPage = Math.max(1, Number.parseInt(params.page || "1", 10) || 1);
   const from = (currentPage - 1) * USERS_PER_PAGE;
   const to = from + USERS_PER_PAGE - 1;
@@ -468,6 +473,7 @@ export default async function SettingsUsersPage({
       return getAuthUsersForIds((pageData || []).map((row) => row.id));
     })(),
   ]);
+  perf.mark("loadUsersAndAuthDirectory");
 
   if (error) {
     throw new Error(`Users load error: ${error.message}`);
@@ -479,6 +485,13 @@ export default async function SettingsUsersPage({
   const authUserTotal = authUsersResult.authUserTotal;
   const authUsers = authUsersResult.authUsers;
   const missingAuthMatches = authUsersResult.missingCount;
+  perf.finish({
+    page: currentPage,
+    totalUsers,
+    pageUsers: users.length,
+    authUserTotal,
+    missingAuthMatches,
+  });
 
   return (
     <main className="space-y-6">

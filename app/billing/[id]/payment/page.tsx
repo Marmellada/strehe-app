@@ -19,12 +19,6 @@ import {
   sumIssuedCreditNoteCents,
 } from "@/lib/billing/settlement";
 
-type BankOption = {
-  id: string;
-  name: string;
-  swift_code: string | null;
-};
-
 function centsToEur(cents: number) {
   return (cents || 0) / 100;
 }
@@ -49,7 +43,7 @@ export default async function PaymentPage({
     notFound();
   }
 
-  const [{ data: payments }, { data: issuedCreditNotes }, { data: banks, error: banksError }] =
+  const [{ data: payments }, { data: issuedCreditNotes }, { data: accounts, error: accountsError }] =
     await Promise.all([
       supabase
         .from("payments")
@@ -63,14 +57,15 @@ export default async function PaymentPage({
         .eq("original_invoice_id", invoice.id),
 
       supabase
-        .from("banks")
-        .select("id, name, swift_code")
+        .from("company_bank_accounts")
+        .select("id, account_type, account_name, bank_name_snapshot, swift, is_active")
         .eq("is_active", true)
-        .order("name", { ascending: true }),
+        .order("account_type", { ascending: true })
+        .order("account_name", { ascending: true }),
     ]);
 
-  if (banksError) {
-    throw new Error(banksError.message);
+  if (accountsError) {
+    throw new Error(accountsError.message);
   }
 
   const amountPaid = sumAmountCents(payments || []);
@@ -201,10 +196,18 @@ export default async function PaymentPage({
           <PaymentForm
             invoiceId={invoice.id}
             balanceDueCents={settlement.remainingCents}
-            banks={((banks || []) as BankOption[]).map((bank) => ({
-              id: bank.id,
-              name: bank.name,
-              swift_code: bank.swift_code,
+            banks={((accounts || []) as Array<{
+              id: string;
+              account_type: "bank" | "cash";
+              account_name: string;
+              bank_name_snapshot: string | null;
+              swift: string | null;
+            }>).map((account) => ({
+              id: account.id,
+              account_type: account.account_type,
+              name: account.account_name,
+              bank_name: account.bank_name_snapshot,
+              swift_code: account.swift,
             }))}
             action={recordPayment}
           />

@@ -12,6 +12,8 @@ export type BathroomCaseSummary = {
   baselineExists: boolean;
   currentExists: boolean;
   reportExists: boolean;
+  reportStatus: string;
+  reportMarkdown: string | null;
   baselineSignedUrl: string | null;
   currentSignedUrl: string | null;
   findings: null | {
@@ -19,6 +21,7 @@ export type BathroomCaseSummary = {
     changeSeverity: string;
     reviewRequired: boolean;
     findingCount: number;
+    highlights: string[];
   };
 };
 
@@ -73,6 +76,19 @@ function parseFindings(summary: Json | null): BathroomCaseSummary["findings"] {
         : "unknown",
     reviewRequired: Boolean(source.reviewRequired),
     findingCount: Array.isArray(findings) ? findings.length : 0,
+    highlights: Array.isArray(findings)
+      ? findings
+          .map((finding) => {
+            if (!finding || typeof finding !== "object" || Array.isArray(finding)) {
+              return null;
+            }
+
+            const summary = (finding as Record<string, Json | undefined>).summary;
+            return typeof summary === "string" ? summary : null;
+          })
+          .filter((value): value is string => Boolean(value))
+          .slice(0, 3)
+      : [],
   };
 }
 
@@ -98,6 +114,8 @@ export async function listBathroomCases(
       baselineExists: Boolean(row.baseline_storage_path),
       currentExists: Boolean(row.current_storage_path),
       reportExists: Boolean(row.report_markdown),
+      reportStatus: row.report_status,
+      reportMarkdown: row.report_markdown,
       baselineSignedUrl: await createSignedUrlOrNull(bucket, row.baseline_storage_path),
       currentSignedUrl: await createSignedUrlOrNull(bucket, row.current_storage_path),
       findings: parseFindings(row.comparison_summary),

@@ -446,7 +446,7 @@ export async function recordPayment(formData: FormData) {
   const invoice_id = String(formData.get("invoice_id") || "").trim();
   const amount = Number(formData.get("amount") || 0);
   const payment_method = String(formData.get("payment_method") || "").trim();
-  const bank_id_raw = String(formData.get("bank_id") || "").trim();
+  const company_account_id = String(formData.get("company_account_id") || "").trim();
   const reference_number = String(formData.get("reference_number") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
 
@@ -460,6 +460,10 @@ export async function recordPayment(formData: FormData) {
 
   if (!payment_method) {
     throw new Error("Payment method is required");
+  }
+
+  if (!company_account_id) {
+    throw new Error("Receiving account is required");
   }
 
   const { data: invoice, error: invoiceError } = await supabase
@@ -519,14 +523,35 @@ export async function recordPayment(formData: FormData) {
     );
   }
 
-  const bank_id = bank_id_raw || null;
+  const { data: companyAccount, error: companyAccountError } = await supabase
+    .from("company_bank_accounts")
+    .select("id, account_type, bank_id, is_active")
+    .eq("id", company_account_id)
+    .single();
+
+  if (companyAccountError || !companyAccount) {
+    throw new Error("Receiving account not found");
+  }
+
+  if (!companyAccount.is_active) {
+    throw new Error("Receiving account is inactive");
+  }
+
+  if (payment_method === "cash" && companyAccount.account_type !== "cash") {
+    throw new Error("Cash payments must be recorded into a cash account");
+  }
+
+  if (payment_method === "bank_transfer" && companyAccount.account_type !== "bank") {
+    throw new Error("Bank transfers must be recorded into a bank account");
+  }
 
   const payload = {
     invoice_id,
     amount_cents,
     payment_method,
     payment_date: new Date().toISOString().slice(0, 10),
-    bank_id: payment_method === "bank_transfer" ? bank_id : null,
+    company_account_id,
+    bank_id: payment_method === "bank_transfer" ? companyAccount.bank_id : null,
     reference_number: reference_number || null,
     notes: notes || null,
   };

@@ -105,7 +105,8 @@ export async function resolveBillingSnapshot({
       `
       )
       .eq("is_active", true)
-      .eq("show_on_invoice", true),
+      .eq("show_on_invoice", true)
+      .eq("account_type", "bank"),
   ]);
 
   const clientName = client

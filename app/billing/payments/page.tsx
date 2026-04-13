@@ -31,6 +31,7 @@ type PaymentsPageSearchParams = Promise<{
 type PaymentRow = {
   id: string;
   invoice_id: string;
+  company_account_id: string | null;
   payment_date: string;
   payment_method: string;
   reference_number: string | null;
@@ -45,6 +46,20 @@ type PaymentRow = {
         id: string;
         invoice_number: string | null;
         total_cents: number | null;
+      }[]
+    | null;
+  company_bank_accounts:
+    | {
+        id: string;
+        account_name: string | null;
+        account_type: string | null;
+        bank_name_snapshot: string | null;
+      }
+    | {
+        id: string;
+        account_name: string | null;
+        account_type: string | null;
+        bank_name_snapshot: string | null;
       }[]
     | null;
   banks:
@@ -105,6 +120,12 @@ export default async function PaymentsPage({
         id,
         invoice_number,
         total_cents
+      ),
+      company_bank_accounts (
+        id,
+        account_name,
+        account_type,
+        bank_name_snapshot
       ),
       banks (
         id,
@@ -284,6 +305,7 @@ export default async function PaymentsPage({
                 {typedPayments.map((payment) => {
                   const invoice = getSingle(payment.invoices);
                   const bank = getSingle(payment.banks);
+                  const companyAccount = getSingle(payment.company_bank_accounts);
 
                   return (
                     <TableRow
@@ -308,7 +330,10 @@ export default async function PaymentsPage({
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">
-                        {bank?.name || "N/A"}
+                        {companyAccount?.account_name ||
+                          companyAccount?.bank_name_snapshot ||
+                          bank?.name ||
+                          "N/A"}
                       </TableCell>
 
                       <TableCell className="font-mono text-sm text-muted-foreground">

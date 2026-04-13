@@ -19,6 +19,7 @@ import {
   TableShell,
 } from "@/components/ui/Table";
 import { getStatusVariant, formatStatusLabel } from "@/lib/ui/status";
+import { createPerfTimer } from "@/lib/perf";
 
 const PAGE_SIZE = 20;
 
@@ -148,7 +149,9 @@ export default async function TasksPage({
 }: {
   searchParams?: Promise<FilterParams>;
 }) {
+  const perf = createPerfTimer("page.tasks");
   const params = (await searchParams) || {};
+  perf.mark("resolveSearchParams");
 
   const { authUser, appUser } = await requireRole([
     "admin",
@@ -156,8 +159,10 @@ export default async function TasksPage({
     "field",
     "contractor",
   ]);
+  perf.mark("requireRole");
 
   const supabase = await createClient();
+  perf.mark("createClient");
   const today = new Date().toISOString().slice(0, 10);
   const canCreate = appUser.role === "admin" || appUser.role === "office";
   const canUseAdminAssigneeFilter =
@@ -266,6 +271,7 @@ export default async function TasksPage({
     { data: tasks, error, count },
     { data: statsRows, error: statsError },
   ] = await Promise.all([query.range(from, to), statsQuery]);
+  perf.mark("loadTasksAndStats");
 
   if (error) {
     return (
@@ -341,6 +347,7 @@ export default async function TasksPage({
         .select("id, property_code, title")
         .order("property_code", { ascending: true }),
     ]);
+  perf.mark("loadTaskReferenceData");
 
   if (assigneeResult.error) {
     return (
@@ -513,6 +520,12 @@ export default async function TasksPage({
   const subscriptionQuickFilterActive = params.source === "subscription";
   const myTasksQuickFilterActive = params.assigned === "me";
   const unassignedQuickFilterActive = params.assigned === "unassigned";
+  perf.finish({
+    role: appUser.role,
+    page: currentPage,
+    total,
+    visibleRows: typedTasks.length,
+  });
 
   return (
     <div className="space-y-6">

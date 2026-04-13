@@ -17,6 +17,7 @@ import {
   TableRow,
   TableShell,
 } from "@/components/ui";
+import { createPerfTimer } from "@/lib/perf";
 
 type SearchParams = {
   search?: string;
@@ -46,9 +47,12 @@ export default async function ExpensesPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
+  const perf = createPerfTimer("page.expenses");
   await requireRole(["admin", "office"]);
+  perf.mark("requireRole");
 
   const params = (await searchParams) || {};
+  perf.mark("resolveSearchParams");
   const search = params.search?.trim() ?? "";
   const categoryId = params.category_id ?? "";
   const vendorId = params.vendor_id ?? "";
@@ -59,6 +63,7 @@ export default async function ExpensesPage({
     "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   const supabase = await createClient();
+  perf.mark("createClient");
 
   let expensesQuery = supabase.from("expenses").select(`
       id,
@@ -141,6 +146,7 @@ export default async function ExpensesPage({
       .select("amount_cents")
       .gte("expense_date", monthStart),
   ]);
+  perf.mark("loadExpensesData");
 
   if (error) throw new Error(error.message);
   if (categoriesError) throw new Error(categoriesError.message);
@@ -159,6 +165,11 @@ export default async function ExpensesPage({
     0,
   );
   const vendorLinkedCount = (expenses ?? []).filter((expense) => Boolean(expense.vendor_id)).length;
+  perf.finish({
+    filteredCount: expenses?.length ?? 0,
+    totalCount: totalCountResult.count ?? 0,
+    hasFilters: Boolean(search || categoryId || vendorId || propertyId || from || to),
+  });
 
   return (
     <div className="space-y-6">

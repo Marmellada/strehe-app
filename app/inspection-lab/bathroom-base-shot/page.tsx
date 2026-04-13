@@ -1,9 +1,11 @@
 import { revalidatePath } from "next/cache";
 import {
   analyzeBathroomBaseShot,
+  analyzeBathroomObjectsWithAi,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
+  mergeBathroomAiFindings,
 } from "@/lib/inspection-lab/bathroom-base-shot-engine.mjs";
 import { getAdminClient } from "@/lib/supabase/admin";
 import {
@@ -22,13 +24,6 @@ import {
   Input,
   PageHeader,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableShell,
 } from "@/components/ui";
 import { requireRole } from "@/lib/auth/require-role";
 import {
@@ -43,6 +38,23 @@ function isAllowedImageType(mimeType: string) {
   return ["image/jpeg", "image/png", "image/webp", "image/jpg"].includes(
     mimeType
   );
+}
+
+function getStatusBadgeVariant(status: string) {
+  switch (status) {
+    case "ready":
+      return "success" as const;
+    case "review_required":
+      return "warning" as const;
+    case "completed":
+      return "info" as const;
+    default:
+      return "neutral" as const;
+  }
+}
+
+function formatStatusLabel(status: string) {
+  return status.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 async function uploadBathroomBaseShot(formData: FormData) {
@@ -199,15 +211,31 @@ async function runBathroomCase(formData: FormData) {
       throw new Error(`Failed to download current photo: ${currentError?.message}`);
     }
 
-    const baseline = await analyzeBathroomBaseShot(
-      Buffer.from(await baselineBlob.arrayBuffer()),
-      "baseline"
-    );
-    const current = await analyzeBathroomBaseShot(
-      Buffer.from(await currentBlob.arrayBuffer()),
-      "current"
-    );
-    const comparison = compareBathroomBaseShots(baseline, current);
+    const baselineBuffer = Buffer.from(await baselineBlob.arrayBuffer());
+    const currentBuffer = Buffer.from(await currentBlob.arrayBuffer());
+
+    const baseline = await analyzeBathroomBaseShot(baselineBuffer, "baseline");
+    const current = await analyzeBathroomBaseShot(currentBuffer, "current");
+    const baseComparison = compareBathroomBaseShots(baseline, current);
+    let comparison = baseComparison;
+
+    try {
+      const aiAnalysis = await analyzeBathroomObjectsWithAi(
+        baselineBuffer,
+        currentBuffer,
+        baseComparison
+      );
+
+      if (aiAnalysis) {
+        comparison = mergeBathroomAiFindings(baseComparison, aiAnalysis);
+      }
+    } catch (aiError) {
+      console.error("[INSPECTION_LAB_AI_WARNING]", {
+        caseId,
+        message: aiError instanceof Error ? aiError.message : String(aiError),
+      });
+    }
+
     const narrative = buildBathroomNarrative(caseId, comparison);
     const reportMarkdown = buildBathroomMarkdownReport(
       caseId,
@@ -355,9 +383,9 @@ export default async function BathroomBaseShotLabPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Case Runner</CardTitle>
+            <CardTitle>Case Results</CardTitle>
             <CardDescription>
-              Once both photos exist, run the comparison engine and save the result in the app.
+              Uploads are done. This section is where each bathroom case becomes readable and usable.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -367,91 +395,115 @@ export default async function BathroomBaseShotLabPage() {
                 description="Upload a baseline or current photo from your phone to create the first case."
               />
             ) : (
-              <TableShell>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Case</TableHead>
-                      <TableHead>Baseline</TableHead>
-                      <TableHead>Current</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cases.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.caseId}</TableCell>
-                        <TableCell>
-                          <div className="space-y-2">
+              <div className="space-y-4">
+                {cases.map((item) => (
+                  <Card key={item.id} size="sm" className="border border-border/70">
+                    <CardHeader className="gap-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <CardTitle>{item.caseId}</CardTitle>
+                          <CardDescription>Bathroom base-shot comparison case</CardDescription>
+                        </div>
+                        <Badge variant={getStatusBadgeVariant(item.reportStatus)}>
+                          {formatStatusLabel(item.reportStatus)}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-border/70 p-3">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="font-medium">Baseline</div>
                             <Badge variant={item.baselineExists ? "success" : "neutral"}>
                               {item.baselineExists ? "Uploaded" : "Missing"}
                             </Badge>
-                            {item.baselineSignedUrl ? (
-                              <a
-                                href={item.baselineSignedUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block text-xs underline"
-                              >
-                                View
-                              </a>
-                            ) : null}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-2">
+                          {item.baselineSignedUrl ? (
+                            <Button asChild variant="outline" size="sm" className="w-full">
+                              <a href={item.baselineSignedUrl} target="_blank" rel="noreferrer">
+                                View Baseline Photo
+                              </a>
+                            </Button>
+                          ) : null}
+                        </div>
+
+                        <div className="rounded-lg border border-border/70 p-3">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="font-medium">Current</div>
                             <Badge variant={item.currentExists ? "success" : "neutral"}>
                               {item.currentExists ? "Uploaded" : "Missing"}
                             </Badge>
-                            {item.currentSignedUrl ? (
-                              <a
-                                href={item.currentSignedUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block text-xs underline"
-                              >
-                                View
-                              </a>
-                            ) : null}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          {item.findings ? (
-                            <div className="space-y-1 text-sm">
-                              <div>
-                                <strong>Room:</strong> {item.findings.sameRoomVerdict}
-                              </div>
-                              <div>
-                                <strong>Change:</strong> {item.findings.changeSeverity}
-                              </div>
-                              <div>
-                                <strong>Flags:</strong> {item.findings.findingCount}
-                              </div>
-                            </div>
-                          ) : item.reportExists ? (
-                            <Badge variant="info">Report saved</Badge>
-                          ) : (
-                            <Badge variant="neutral">Not run yet</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <form action={runBathroomCase}>
-                            <input type="hidden" name="case_id" value={item.caseId} />
-                            <Button
-                              type="submit"
-                              size="sm"
-                              disabled={!item.baselineExists || !item.currentExists}
-                            >
-                              Run Engine
+                          {item.currentSignedUrl ? (
+                            <Button asChild variant="outline" size="sm" className="w-full">
+                              <a href={item.currentSignedUrl} target="_blank" rel="noreferrer">
+                                View Current Photo
+                              </a>
                             </Button>
-                          </form>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableShell>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {item.findings ? (
+                        <div className="grid gap-3 rounded-lg border border-border/70 p-3 sm:grid-cols-3">
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Same Room</div>
+                            <div className="font-medium">{formatStatusLabel(item.findings.sameRoomVerdict)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Change</div>
+                            <div className="font-medium">{formatStatusLabel(item.findings.changeSeverity)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Flags</div>
+                            <div className="font-medium">{item.findings.findingCount}</div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {item.findings?.highlights?.length ? (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium">Top findings</div>
+                          <ul className="space-y-2 text-sm text-muted-foreground">
+                            {item.findings.highlights.map((highlight, index) => (
+                              <li key={`${item.id}-highlight-${index}`} className="rounded-lg border border-border/60 px-3 py-2">
+                                {highlight}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {item.reportMarkdown ? (
+                        <div className="space-y-2 rounded-lg border border-border/70 p-3">
+                          <div className="text-sm font-medium">Narrative report</div>
+                          <pre className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                            {item.reportMarkdown}
+                          </pre>
+                        </div>
+                      ) : (
+                        <Alert variant="info">
+                          <AlertTitle>Engine not run yet</AlertTitle>
+                          <AlertDescription>
+                            Upload both photos, then run the engine to generate findings and a report.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <form action={runBathroomCase}>
+                        <input type="hidden" name="case_id" value={item.caseId} />
+                        <Button
+                          type="submit"
+                          className="w-full sm:w-auto"
+                          disabled={!item.baselineExists || !item.currentExists}
+                        >
+                          Run Engine
+                        </Button>
+                      </form>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

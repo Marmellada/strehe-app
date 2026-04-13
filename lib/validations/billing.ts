@@ -31,18 +31,43 @@ export const createCreditNoteSchema = z.object({
 });
 
 export const bankAccountSchema = z.object({
+  account_type: z.enum(["bank", "cash"]).default("bank"),
   bank_id: z.string().uuid().optional().nullable(),
   bank_name: z.string().min(1, "Bank name is required"),
   bank_name_snapshot: z.string().min(1, "Display bank name is required").optional(),
   account_name: z.string().optional().nullable(),
   account_number: z.string().optional().nullable(),
-  iban: z
-    .string()
-    .min(1, "IBAN is required")
-    .regex(/^XK\d{18}$/, "IBAN must be in format: XK followed by 18 digits"),
+  iban: z.string(),
   swift_bic: z.string().optional().nullable(),
   show_on_invoice: z.boolean().default(true),
   is_primary: z.boolean().default(false),
+}).superRefine((value, ctx) => {
+  if (value.account_type === "cash") {
+    if (!value.account_name?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["account_name"],
+        message: "Cash account name is required.",
+      });
+    }
+    return;
+  }
+
+  if (!value.bank_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bank_id"],
+      message: "Bank is required.",
+    });
+  }
+
+  if (!/^XK\d{18}$/.test(value.iban)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["iban"],
+      message: "IBAN must be in format: XK followed by 18 digits",
+    });
+  }
 });
 
 export type LineItemInput = z.infer<typeof lineItemSchema>;
