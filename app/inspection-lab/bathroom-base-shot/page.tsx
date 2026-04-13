@@ -1,11 +1,11 @@
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import {
   analyzeBathroomBaseShot,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
 } from "@/lib/inspection-lab/bathroom-base-shot-engine.mjs";
+import { getAdminClient } from "@/lib/supabase/admin";
 import {
   Alert,
   AlertDescription,
@@ -49,7 +49,7 @@ async function uploadBathroomBaseShot(formData: FormData) {
   "use server";
 
   const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-  const supabase = await createClient();
+  const supabase = getAdminClient();
 
   const rawCaseId = String(formData.get("case_id") || "").trim();
   const slot = String(formData.get("slot") || "").trim() as BathroomCaptureSlot;
@@ -129,7 +129,7 @@ async function runBathroomCase(formData: FormData) {
   "use server";
 
   await requireRole(["admin", "office", "field", "contractor"]);
-  const supabase = await createClient();
+  const supabase = getAdminClient();
   const rawCaseId = String(formData.get("case_id") || "").trim();
 
   if (!rawCaseId) {
@@ -215,7 +215,7 @@ async function runBathroomCase(formData: FormData) {
 
 export default async function BathroomBaseShotLabPage() {
   await requireRole(["admin", "office", "field", "contractor"]);
-  const supabase = await createClient();
+  const supabase = getAdminClient();
   const { data: caseRows, error } = await supabase
     .from("inspection_lab_cases")
     .select("*")
