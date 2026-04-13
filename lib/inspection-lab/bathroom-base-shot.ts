@@ -1,39 +1,35 @@
-import fs from "node:fs/promises";
 import path from "node:path";
+import type { Database, Json } from "@/types/supabase";
 
-export const INSPECTION_LAB_ROOT = path.join(
-  process.cwd(),
-  "inspection-lab",
-  "bathroom-base-shot"
-);
-
-export const CASES_DIR = path.join(INSPECTION_LAB_ROOT, "cases");
-export const RESULTS_DIR = path.join(INSPECTION_LAB_ROOT, "results");
+export const INSPECTION_STORAGE_BUCKET = "task-attachments";
+export const INSPECTION_STORAGE_ROOT = "inspection-lab/bathroom-base-shot";
 
 export type BathroomCaptureSlot = "baseline" | "current";
 
-export type BathroomCaseManifest = {
-  case_id: string;
-  room_type: "bathroom";
-  capture_type: "base_shot";
-  baseline_photo: { path: string };
-  current_photo: { path: string };
-  output_dir: string;
-};
-
 export type BathroomCaseSummary = {
+  id: string;
   caseId: string;
-  caseDir: string;
-  manifestPath: string;
   baselineExists: boolean;
   currentExists: boolean;
   reportExists: boolean;
+  baselineSignedUrl: string | null;
+  currentSignedUrl: string | null;
   findings: null | {
     sameRoomVerdict: string;
     changeSeverity: string;
     reviewRequired: boolean;
     findingCount: number;
   };
+};
+
+type InspectionLabCaseRow =
+  Database["public"]["Tables"]["inspection_lab_cases"]["Row"];
+
+type SignedUrlFactory = {
+  createSignedUrl: (
+    filePath: string,
+    expiresIn: number
+  ) => Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>;
 };
 
 function sanitizeSegment(value: string) {
@@ -50,121 +46,62 @@ export function normalizeCaseId(value: string) {
   return safe || "bathroom-case";
 }
 
-export function getCaseDir(caseId: string) {
-  return path.join(CASES_DIR, normalizeCaseId(caseId));
+export function getStoragePath(caseId: string, slot: BathroomCaptureSlot) {
+  return path.posix.join(
+    INSPECTION_STORAGE_ROOT,
+    normalizeCaseId(caseId),
+    `${slot}.jpg`
+  );
 }
 
-export function getManifestPath(caseId: string) {
-  return path.join(getCaseDir(caseId), "manifest.json");
-}
+function parseFindings(summary: Json | null): BathroomCaseSummary["findings"] {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    return null;
+  }
 
-export function buildManifest(caseId: string): BathroomCaseManifest {
-  const normalizedCaseId = normalizeCaseId(caseId);
+  const source = summary as Record<string, Json | undefined>;
+  const findings = source.findings;
 
   return {
-    case_id: normalizedCaseId,
-    room_type: "bathroom",
-    capture_type: "base_shot",
-    baseline_photo: { path: "./baseline.jpg" },
-    current_photo: { path: "./current.jpg" },
-    output_dir: `../../results/${normalizedCaseId}`,
+    sameRoomVerdict:
+      typeof source.sameRoomVerdict === "string"
+        ? source.sameRoomVerdict
+        : "unknown",
+    changeSeverity:
+      typeof source.changeSeverity === "string"
+        ? source.changeSeverity
+        : "unknown",
+    reviewRequired: Boolean(source.reviewRequired),
+    findingCount: Array.isArray(findings) ? findings.length : 0,
   };
 }
 
-export async function ensureCaseManifest(caseId: string) {
-  const normalizedCaseId = normalizeCaseId(caseId);
-  const caseDir = getCaseDir(normalizedCaseId);
-  const manifestPath = getManifestPath(normalizedCaseId);
+async function createSignedUrlOrNull(
+  bucket: SignedUrlFactory,
+  storagePath: string | null
+) {
+  if (!storagePath) return null;
 
-  await fs.mkdir(caseDir, { recursive: true });
-
-  try {
-    await fs.access(manifestPath);
-  } catch {
-    await fs.writeFile(
-      manifestPath,
-      `${JSON.stringify(buildManifest(normalizedCaseId), null, 2)}\n`,
-      "utf8"
-    );
-  }
-
-  return { caseDir, manifestPath, caseId: normalizedCaseId };
+  const { data, error } = await bucket.createSignedUrl(storagePath, 60 * 60);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
 }
 
-export async function loadManifest(caseId: string) {
-  const manifestPath = getManifestPath(caseId);
-  const raw = await fs.readFile(manifestPath, "utf8");
-  return JSON.parse(raw) as BathroomCaseManifest;
-}
-
-export async function listBathroomCases(): Promise<BathroomCaseSummary[]> {
-  await fs.mkdir(CASES_DIR, { recursive: true });
-  await fs.mkdir(RESULTS_DIR, { recursive: true });
-
-  const entries = await fs.readdir(CASES_DIR, { withFileTypes: true });
+export async function listBathroomCases(
+  rows: InspectionLabCaseRow[],
+  bucket: SignedUrlFactory
+): Promise<BathroomCaseSummary[]> {
   const cases = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => {
-        const caseId = entry.name;
-        const caseDir = getCaseDir(caseId);
-        const manifestPath = getManifestPath(caseId);
-        const baselinePath = path.join(caseDir, "baseline.jpg");
-        const currentPath = path.join(caseDir, "current.jpg");
-        const findingsPath = path.join(RESULTS_DIR, caseId, "findings.json");
-        const reportPath = path.join(RESULTS_DIR, caseId, "report.md");
-
-        const [baselineExists, currentExists, reportExists] = await Promise.all([
-          fs
-            .access(baselinePath)
-            .then(() => true)
-            .catch(() => false),
-          fs
-            .access(currentPath)
-            .then(() => true)
-            .catch(() => false),
-          fs
-            .access(reportPath)
-            .then(() => true)
-            .catch(() => false),
-        ]);
-
-        let findings: BathroomCaseSummary["findings"] = null;
-        try {
-          const findingsRaw = await fs.readFile(findingsPath, "utf8");
-          const parsed = JSON.parse(findingsRaw) as {
-            comparison?: {
-              sameRoomVerdict?: string;
-              changeSeverity?: string;
-              reviewRequired?: boolean;
-              findings?: unknown[];
-            };
-          };
-
-          findings = parsed.comparison
-            ? {
-                sameRoomVerdict: parsed.comparison.sameRoomVerdict || "unknown",
-                changeSeverity: parsed.comparison.changeSeverity || "unknown",
-                reviewRequired: Boolean(parsed.comparison.reviewRequired),
-                findingCount: Array.isArray(parsed.comparison.findings)
-                  ? parsed.comparison.findings.length
-                  : 0,
-              }
-            : null;
-        } catch {
-          findings = null;
-        }
-
-        return {
-          caseId,
-          caseDir,
-          manifestPath,
-          baselineExists,
-          currentExists,
-          reportExists,
-          findings,
-        };
-      })
+    rows.map(async (row) => ({
+      id: row.id,
+      caseId: row.case_key,
+      baselineExists: Boolean(row.baseline_storage_path),
+      currentExists: Boolean(row.current_storage_path),
+      reportExists: Boolean(row.report_markdown),
+      baselineSignedUrl: await createSignedUrlOrNull(bucket, row.baseline_storage_path),
+      currentSignedUrl: await createSignedUrlOrNull(bucket, row.current_storage_path),
+      findings: parseFindings(row.comparison_summary),
+    }))
   );
 
   return cases.sort((left, right) => left.caseId.localeCompare(right.caseId));

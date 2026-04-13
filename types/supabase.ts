@@ -149,31 +149,43 @@ export type Database = {
       }
       company_bank_accounts: {
         Row: {
+          account_type: string
           account_name: string
           bank_id: string | null
+          bank_name_snapshot: string | null
           created_at: string | null
-          iban: string
+          iban: string | null
           id: string
           is_active: boolean | null
           is_primary: boolean | null
+          show_on_invoice: boolean | null
+          swift: string | null
         }
         Insert: {
+          account_type?: string
           account_name: string
           bank_id?: string | null
+          bank_name_snapshot?: string | null
           created_at?: string | null
-          iban: string
+          iban?: string | null
           id?: string
           is_active?: boolean | null
           is_primary?: boolean | null
+          show_on_invoice?: boolean | null
+          swift?: string | null
         }
         Update: {
+          account_type?: string
           account_name?: string
           bank_id?: string | null
+          bank_name_snapshot?: string | null
           created_at?: string | null
-          iban?: string
+          iban?: string | null
           id?: string
           is_active?: boolean | null
           is_primary?: boolean | null
+          show_on_invoice?: boolean | null
+          swift?: string | null
         }
         Relationships: [
           {
@@ -238,6 +250,78 @@ export type Database = {
           vat_rate?: number | null
         }
         Relationships: []
+      }
+      inspection_lab_cases: {
+        Row: {
+          baseline_storage_path: string | null
+          baseline_uploaded_at: string | null
+          capture_type: string
+          case_key: string
+          comparison_summary: Json | null
+          created_at: string | null
+          created_by_user_id: string | null
+          current_storage_path: string | null
+          current_uploaded_at: string | null
+          id: string
+          last_uploaded_by_user_id: string | null
+          report_generated_at: string | null
+          report_markdown: string | null
+          report_status: string
+          room_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          baseline_storage_path?: string | null
+          baseline_uploaded_at?: string | null
+          capture_type?: string
+          case_key: string
+          comparison_summary?: Json | null
+          created_at?: string | null
+          created_by_user_id?: string | null
+          current_storage_path?: string | null
+          current_uploaded_at?: string | null
+          id?: string
+          last_uploaded_by_user_id?: string | null
+          report_generated_at?: string | null
+          report_markdown?: string | null
+          report_status?: string
+          room_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          baseline_storage_path?: string | null
+          baseline_uploaded_at?: string | null
+          capture_type?: string
+          case_key?: string
+          comparison_summary?: Json | null
+          created_at?: string | null
+          created_by_user_id?: string | null
+          current_storage_path?: string | null
+          current_uploaded_at?: string | null
+          id?: string
+          last_uploaded_by_user_id?: string | null
+          report_generated_at?: string | null
+          report_markdown?: string | null
+          report_status?: string
+          room_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_lab_cases_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_lab_cases_last_uploaded_by_user_id_fkey"
+            columns: ["last_uploaded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoice_items: {
         Row: {
@@ -576,6 +660,7 @@ export type Database = {
         Row: {
           amount_cents: number
           bank_id: string | null
+          company_account_id: string | null
           created_at: string
           id: string
           invoice_id: string
@@ -587,6 +672,7 @@ export type Database = {
         Insert: {
           amount_cents: number
           bank_id?: string | null
+          company_account_id?: string | null
           created_at?: string
           id?: string
           invoice_id: string
@@ -598,6 +684,7 @@ export type Database = {
         Update: {
           amount_cents?: number
           bank_id?: string | null
+          company_account_id?: string | null
           created_at?: string
           id?: string
           invoice_id?: string
@@ -612,6 +699,13 @@ export type Database = {
             columns: ["bank_id"]
             isOneToOne: false
             referencedRelation: "banks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_company_account_id_fkey"
+            columns: ["company_account_id"]
+            isOneToOne: false
+            referencedRelation: "company_bank_accounts"
             referencedColumns: ["id"]
           },
           {

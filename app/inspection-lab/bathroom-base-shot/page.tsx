@@ -1,8 +1,11 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import {
+  analyzeBathroomBaseShot,
+  buildBathroomMarkdownReport,
+  buildBathroomNarrative,
+  compareBathroomBaseShots,
+} from "@/lib/inspection-lab/bathroom-base-shot-engine.mjs";
 import {
   Alert,
   AlertDescription,
@@ -30,12 +33,11 @@ import {
 import { requireRole } from "@/lib/auth/require-role";
 import {
   type BathroomCaptureSlot,
-  ensureCaseManifest,
+  getStoragePath,
+  INSPECTION_STORAGE_BUCKET,
   listBathroomCases,
   normalizeCaseId,
 } from "@/lib/inspection-lab/bathroom-base-shot";
-
-const execFileAsync = promisify(execFile);
 
 function isAllowedImageType(mimeType: string) {
   return ["image/jpeg", "image/png", "image/webp", "image/jpg"].includes(
@@ -46,7 +48,8 @@ function isAllowedImageType(mimeType: string) {
 async function uploadBathroomBaseShot(formData: FormData) {
   "use server";
 
-  await requireRole(["admin", "office", "field", "contractor"]);
+  const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
+  const supabase = await createClient();
 
   const rawCaseId = String(formData.get("case_id") || "").trim();
   const slot = String(formData.get("slot") || "").trim() as BathroomCaptureSlot;
@@ -72,11 +75,53 @@ async function uploadBathroomBaseShot(formData: FormData) {
     throw new Error("Photo exceeds the 12 MB limit.");
   }
 
-  const { caseDir } = await ensureCaseManifest(rawCaseId);
-  const targetPath = path.join(caseDir, `${slot}.jpg`);
-  const bytes = await file.arrayBuffer();
+  const caseId = normalizeCaseId(rawCaseId);
+  const storagePath = getStoragePath(caseId, slot);
+  const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-  await fs.writeFile(targetPath, Buffer.from(bytes));
+  const { error: uploadError } = await supabase.storage
+    .from(INSPECTION_STORAGE_BUCKET)
+    .upload(storagePath, fileBuffer, {
+      contentType: file.type || "image/jpeg",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(`Failed to upload photo: ${uploadError.message}`);
+  }
+
+  const now = new Date().toISOString();
+  const payload =
+    slot === "baseline"
+      ? {
+          case_key: caseId,
+          room_type: "bathroom",
+          capture_type: "base_shot",
+          baseline_storage_path: storagePath,
+          baseline_uploaded_at: now,
+          last_uploaded_by_user_id: appUser.id,
+          created_by_user_id: appUser.id,
+          updated_at: now,
+        }
+      : {
+          case_key: caseId,
+          room_type: "bathroom",
+          capture_type: "base_shot",
+          current_storage_path: storagePath,
+          current_uploaded_at: now,
+          last_uploaded_by_user_id: appUser.id,
+          created_by_user_id: appUser.id,
+          updated_at: now,
+        };
+
+  const { error: upsertError } = await supabase
+    .from("inspection_lab_cases")
+    .upsert(payload, { onConflict: "case_key" });
+
+  if (upsertError) {
+    throw new Error(`Failed to save case metadata: ${upsertError.message}`);
+  }
+
   revalidatePath("/inspection-lab/bathroom-base-shot");
 }
 
@@ -84,6 +129,7 @@ async function runBathroomCase(formData: FormData) {
   "use server";
 
   await requireRole(["admin", "office", "field", "contractor"]);
+  const supabase = await createClient();
   const rawCaseId = String(formData.get("case_id") || "").trim();
 
   if (!rawCaseId) {
@@ -91,20 +137,77 @@ async function runBathroomCase(formData: FormData) {
   }
 
   const caseId = normalizeCaseId(rawCaseId);
-  const manifestPath = path.join(
-    process.cwd(),
-    "inspection-lab",
-    "bathroom-base-shot",
-    "cases",
+
+  const { data: row, error } = await supabase
+    .from("inspection_lab_cases")
+    .select(
+      "id, case_key, baseline_storage_path, current_storage_path, room_type, capture_type"
+    )
+    .eq("case_key", caseId)
+    .single();
+
+  if (error || !row) {
+    throw new Error("Inspection case not found.");
+  }
+
+  if (!row.baseline_storage_path || !row.current_storage_path) {
+    throw new Error("Both baseline and current photos are required.");
+  }
+
+  const [{ data: baselineBlob, error: baselineError }, { data: currentBlob, error: currentError }] =
+    await Promise.all([
+      supabase.storage
+        .from(INSPECTION_STORAGE_BUCKET)
+        .download(row.baseline_storage_path),
+      supabase.storage
+        .from(INSPECTION_STORAGE_BUCKET)
+        .download(row.current_storage_path),
+    ]);
+
+  if (baselineError || !baselineBlob) {
+    throw new Error(`Failed to download baseline photo: ${baselineError?.message}`);
+  }
+
+  if (currentError || !currentBlob) {
+    throw new Error(`Failed to download current photo: ${currentError?.message}`);
+  }
+
+  const baseline = await analyzeBathroomBaseShot(
+    Buffer.from(await baselineBlob.arrayBuffer()),
+    "baseline"
+  );
+  const current = await analyzeBathroomBaseShot(
+    Buffer.from(await currentBlob.arrayBuffer()),
+    "current"
+  );
+  const comparison = compareBathroomBaseShots(baseline, current);
+  const narrative = buildBathroomNarrative(caseId, comparison);
+  const reportMarkdown = buildBathroomMarkdownReport(
     caseId,
-    "manifest.json"
+    baseline,
+    current,
+    comparison
   );
 
-  await execFileAsync(process.execPath, [
-    "scripts/run-bathroom-base-shot-engine.mjs",
-    manifestPath,
-  ], {
-    cwd: process.cwd(),
+  const { error: updateError } = await supabase
+    .from("inspection_lab_cases")
+    .update({
+      report_status: comparison.reviewRequired ? "review_required" : "ready",
+      comparison_summary: comparison,
+      report_markdown: reportMarkdown,
+      report_generated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
+
+  if (updateError) {
+    throw new Error(`Failed to save analysis result: ${updateError.message}`);
+  }
+
+  console.log("[INSPECTION_LAB]", {
+    caseId,
+    narrative,
+    comparison,
   });
 
   revalidatePath("/inspection-lab/bathroom-base-shot");
@@ -112,8 +215,20 @@ async function runBathroomCase(formData: FormData) {
 
 export default async function BathroomBaseShotLabPage() {
   await requireRole(["admin", "office", "field", "contractor"]);
+  const supabase = await createClient();
+  const { data: caseRows, error } = await supabase
+    .from("inspection_lab_cases")
+    .select("*")
+    .order("case_key");
 
-  const cases = await listBathroomCases();
+  if (error) {
+    throw new Error(`Failed to load inspection lab cases: ${error.message}`);
+  }
+
+  const cases = await listBathroomCases(
+    caseRows || [],
+    supabase.storage.from(INSPECTION_STORAGE_BUCKET)
+  );
   const readyCases = cases.filter((item) => item.baselineExists && item.currentExists);
   const reviewCases = cases.filter((item) => item.findings?.reviewRequired).length;
 
@@ -121,14 +236,14 @@ export default async function BathroomBaseShotLabPage() {
     <main className="space-y-6">
       <PageHeader
         title="Bathroom Base-Shot Lab"
-        description="Phone-friendly local capture page for the bathroom inspection prototype. Upload one baseline shot and one current shot, then run the comparison engine."
+        description="Phone-friendly bathroom capture page backed by Supabase storage. Upload one baseline shot and one current shot, then run the comparison engine."
       />
 
-      <Alert variant="warning">
-        <AlertTitle>Local lab workflow</AlertTitle>
+      <Alert variant="info">
+        <AlertTitle>Experimental but deployed-friendly</AlertTitle>
         <AlertDescription>
-          This is an experimental capture surface for local testing. It writes images into the repo
-          lab folders and runs the bathroom comparison engine from there.
+          This prototype stores photos and results in Supabase so the flow can be used from the
+          real app, even while the inspection model stays intentionally narrow.
         </AlertDescription>
       </Alert>
 
@@ -208,7 +323,7 @@ export default async function BathroomBaseShotLabPage() {
           <CardHeader>
             <CardTitle>Case Runner</CardTitle>
             <CardDescription>
-              Once both photos exist, run the local engine to generate findings and a report.
+              Once both photos exist, run the comparison engine and save the result in the app.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -231,17 +346,41 @@ export default async function BathroomBaseShotLabPage() {
                   </TableHeader>
                   <TableBody>
                     {cases.map((item) => (
-                      <TableRow key={item.caseId}>
+                      <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.caseId}</TableCell>
                         <TableCell>
-                          <Badge variant={item.baselineExists ? "success" : "neutral"}>
-                            {item.baselineExists ? "Uploaded" : "Missing"}
-                          </Badge>
+                          <div className="space-y-2">
+                            <Badge variant={item.baselineExists ? "success" : "neutral"}>
+                              {item.baselineExists ? "Uploaded" : "Missing"}
+                            </Badge>
+                            {item.baselineSignedUrl ? (
+                              <a
+                                href={item.baselineSignedUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block text-xs underline"
+                              >
+                                View
+                              </a>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={item.currentExists ? "success" : "neutral"}>
-                            {item.currentExists ? "Uploaded" : "Missing"}
-                          </Badge>
+                          <div className="space-y-2">
+                            <Badge variant={item.currentExists ? "success" : "neutral"}>
+                              {item.currentExists ? "Uploaded" : "Missing"}
+                            </Badge>
+                            {item.currentSignedUrl ? (
+                              <a
+                                href={item.currentSignedUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block text-xs underline"
+                              >
+                                View
+                              </a>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell>
                           {item.findings ? (
