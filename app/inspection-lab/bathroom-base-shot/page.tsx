@@ -48,114 +48,141 @@ function isAllowedImageType(mimeType: string) {
 async function uploadBathroomBaseShot(formData: FormData) {
   "use server";
 
-  const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-  const supabase = getAdminClient();
+  let caseId = "unknown";
+  let slot: BathroomCaptureSlot | "unknown" = "unknown";
+  let fileName = "unknown";
+  let fileType = "unknown";
+  let fileSize = 0;
 
-  const rawCaseId = String(formData.get("case_id") || "").trim();
-  const slot = String(formData.get("slot") || "").trim() as BathroomCaptureSlot;
-  const file = formData.get("photo");
+  try {
+    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
+    const supabase = getAdminClient();
 
-  if (!rawCaseId) {
-    throw new Error("Case ID is required.");
-  }
+    const rawCaseId = String(formData.get("case_id") || "").trim();
+    slot = String(formData.get("slot") || "").trim() as BathroomCaptureSlot;
+    const file = formData.get("photo");
 
-  if (slot !== "baseline" && slot !== "current") {
-    throw new Error("Capture slot must be baseline or current.");
-  }
+    if (!rawCaseId) {
+      throw new Error("Case ID is required.");
+    }
 
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Please choose a photo to upload.");
-  }
+    if (slot !== "baseline" && slot !== "current") {
+      throw new Error("Capture slot must be baseline or current.");
+    }
 
-  if (!isAllowedImageType(file.type)) {
-    throw new Error("Only JPG, PNG, and WEBP images are allowed.");
-  }
+    if (!(file instanceof File) || file.size === 0) {
+      throw new Error("Please choose a photo to upload.");
+    }
 
-  if (file.size > 12 * 1024 * 1024) {
-    throw new Error("Photo exceeds the 12 MB limit.");
-  }
+    fileName = file.name || "unknown";
+    fileType = file.type || "unknown";
+    fileSize = file.size || 0;
 
-  const caseId = normalizeCaseId(rawCaseId);
-  const storagePath = getStoragePath(caseId, slot);
-  const fileBuffer = Buffer.from(await file.arrayBuffer());
+    if (!isAllowedImageType(file.type)) {
+      throw new Error("Only JPG, PNG, and WEBP images are allowed.");
+    }
 
-  const { error: uploadError } = await supabase.storage
-    .from(INSPECTION_STORAGE_BUCKET)
-    .upload(storagePath, fileBuffer, {
-      contentType: file.type || "image/jpeg",
-      upsert: true,
+    if (file.size > 12 * 1024 * 1024) {
+      throw new Error("Photo exceeds the 12 MB limit.");
+    }
+
+    caseId = normalizeCaseId(rawCaseId);
+    const storagePath = getStoragePath(caseId, slot);
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    const { error: uploadError } = await supabase.storage
+      .from(INSPECTION_STORAGE_BUCKET)
+      .upload(storagePath, fileBuffer, {
+        contentType: file.type || "image/jpeg",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload photo: ${uploadError.message}`);
+    }
+
+    const now = new Date().toISOString();
+    const payload =
+      slot === "baseline"
+        ? {
+            case_key: caseId,
+            room_type: "bathroom",
+            capture_type: "base_shot",
+            baseline_storage_path: storagePath,
+            baseline_uploaded_at: now,
+            last_uploaded_by_user_id: appUser.id,
+            created_by_user_id: appUser.id,
+            updated_at: now,
+          }
+        : {
+            case_key: caseId,
+            room_type: "bathroom",
+            capture_type: "base_shot",
+            current_storage_path: storagePath,
+            current_uploaded_at: now,
+            last_uploaded_by_user_id: appUser.id,
+            created_by_user_id: appUser.id,
+            updated_at: now,
+          };
+
+    const { error: upsertError } = await supabase
+      .from("inspection_lab_cases")
+      .upsert(payload, { onConflict: "case_key" });
+
+    if (upsertError) {
+      throw new Error(`Failed to save case metadata: ${upsertError.message}`);
+    }
+
+    revalidatePath("/inspection-lab/bathroom-base-shot");
+  } catch (error) {
+    console.error("[INSPECTION_LAB_UPLOAD_ERROR]", {
+      caseId,
+      slot,
+      fileName,
+      fileType,
+      fileSize,
+      message: error instanceof Error ? error.message : String(error),
     });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload photo: ${uploadError.message}`);
+    throw error;
   }
-
-  const now = new Date().toISOString();
-  const payload =
-    slot === "baseline"
-      ? {
-          case_key: caseId,
-          room_type: "bathroom",
-          capture_type: "base_shot",
-          baseline_storage_path: storagePath,
-          baseline_uploaded_at: now,
-          last_uploaded_by_user_id: appUser.id,
-          created_by_user_id: appUser.id,
-          updated_at: now,
-        }
-      : {
-          case_key: caseId,
-          room_type: "bathroom",
-          capture_type: "base_shot",
-          current_storage_path: storagePath,
-          current_uploaded_at: now,
-          last_uploaded_by_user_id: appUser.id,
-          created_by_user_id: appUser.id,
-          updated_at: now,
-        };
-
-  const { error: upsertError } = await supabase
-    .from("inspection_lab_cases")
-    .upsert(payload, { onConflict: "case_key" });
-
-  if (upsertError) {
-    throw new Error(`Failed to save case metadata: ${upsertError.message}`);
-  }
-
-  revalidatePath("/inspection-lab/bathroom-base-shot");
 }
 
 async function runBathroomCase(formData: FormData) {
   "use server";
 
-  await requireRole(["admin", "office", "field", "contractor"]);
-  const supabase = getAdminClient();
-  const rawCaseId = String(formData.get("case_id") || "").trim();
+  let caseId = "unknown";
 
-  if (!rawCaseId) {
-    throw new Error("Case ID is required.");
-  }
+  try {
+    await requireRole(["admin", "office", "field", "contractor"]);
+    const supabase = getAdminClient();
+    const rawCaseId = String(formData.get("case_id") || "").trim();
 
-  const caseId = normalizeCaseId(rawCaseId);
+    if (!rawCaseId) {
+      throw new Error("Case ID is required.");
+    }
 
-  const { data: row, error } = await supabase
-    .from("inspection_lab_cases")
-    .select(
-      "id, case_key, baseline_storage_path, current_storage_path, room_type, capture_type"
-    )
-    .eq("case_key", caseId)
-    .single();
+    caseId = normalizeCaseId(rawCaseId);
 
-  if (error || !row) {
-    throw new Error("Inspection case not found.");
-  }
+    const { data: row, error } = await supabase
+      .from("inspection_lab_cases")
+      .select(
+        "id, case_key, baseline_storage_path, current_storage_path, room_type, capture_type"
+      )
+      .eq("case_key", caseId)
+      .single();
 
-  if (!row.baseline_storage_path || !row.current_storage_path) {
-    throw new Error("Both baseline and current photos are required.");
-  }
+    if (error || !row) {
+      throw new Error("Inspection case not found.");
+    }
 
-  const [{ data: baselineBlob, error: baselineError }, { data: currentBlob, error: currentError }] =
-    await Promise.all([
+    if (!row.baseline_storage_path || !row.current_storage_path) {
+      throw new Error("Both baseline and current photos are required.");
+    }
+
+    const [
+      { data: baselineBlob, error: baselineError },
+      { data: currentBlob, error: currentError },
+    ] = await Promise.all([
       supabase.storage
         .from(INSPECTION_STORAGE_BUCKET)
         .download(row.baseline_storage_path),
@@ -164,53 +191,60 @@ async function runBathroomCase(formData: FormData) {
         .download(row.current_storage_path),
     ]);
 
-  if (baselineError || !baselineBlob) {
-    throw new Error(`Failed to download baseline photo: ${baselineError?.message}`);
+    if (baselineError || !baselineBlob) {
+      throw new Error(`Failed to download baseline photo: ${baselineError?.message}`);
+    }
+
+    if (currentError || !currentBlob) {
+      throw new Error(`Failed to download current photo: ${currentError?.message}`);
+    }
+
+    const baseline = await analyzeBathroomBaseShot(
+      Buffer.from(await baselineBlob.arrayBuffer()),
+      "baseline"
+    );
+    const current = await analyzeBathroomBaseShot(
+      Buffer.from(await currentBlob.arrayBuffer()),
+      "current"
+    );
+    const comparison = compareBathroomBaseShots(baseline, current);
+    const narrative = buildBathroomNarrative(caseId, comparison);
+    const reportMarkdown = buildBathroomMarkdownReport(
+      caseId,
+      baseline,
+      current,
+      comparison
+    );
+
+    const { error: updateError } = await supabase
+      .from("inspection_lab_cases")
+      .update({
+        report_status: comparison.reviewRequired ? "review_required" : "ready",
+        comparison_summary: comparison,
+        report_markdown: reportMarkdown,
+        report_generated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+
+    if (updateError) {
+      throw new Error(`Failed to save analysis result: ${updateError.message}`);
+    }
+
+    console.log("[INSPECTION_LAB]", {
+      caseId,
+      narrative,
+      comparison,
+    });
+
+    revalidatePath("/inspection-lab/bathroom-base-shot");
+  } catch (error) {
+    console.error("[INSPECTION_LAB_RUN_ERROR]", {
+      caseId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  if (currentError || !currentBlob) {
-    throw new Error(`Failed to download current photo: ${currentError?.message}`);
-  }
-
-  const baseline = await analyzeBathroomBaseShot(
-    Buffer.from(await baselineBlob.arrayBuffer()),
-    "baseline"
-  );
-  const current = await analyzeBathroomBaseShot(
-    Buffer.from(await currentBlob.arrayBuffer()),
-    "current"
-  );
-  const comparison = compareBathroomBaseShots(baseline, current);
-  const narrative = buildBathroomNarrative(caseId, comparison);
-  const reportMarkdown = buildBathroomMarkdownReport(
-    caseId,
-    baseline,
-    current,
-    comparison
-  );
-
-  const { error: updateError } = await supabase
-    .from("inspection_lab_cases")
-    .update({
-      report_status: comparison.reviewRequired ? "review_required" : "ready",
-      comparison_summary: comparison,
-      report_markdown: reportMarkdown,
-      report_generated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", row.id);
-
-  if (updateError) {
-    throw new Error(`Failed to save analysis result: ${updateError.message}`);
-  }
-
-  console.log("[INSPECTION_LAB]", {
-    caseId,
-    narrative,
-    comparison,
-  });
-
-  revalidatePath("/inspection-lab/bathroom-base-shot");
 }
 
 export default async function BathroomBaseShotLabPage() {
