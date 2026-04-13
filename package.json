@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "inspect:bathroom": "node scripts/run-bathroom-base-shot-engine.mjs",
     "test:e2e": "playwright test",
     "test:smoke": "playwright test tests/e2e/smoke.spec.ts",
     "test:smoke:settings": "playwright test tests/e2e/settings-smoke.spec.ts",

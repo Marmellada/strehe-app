@@ -1,0 +1,12 @@
+{
+  "case_id": "bathroom-example-001",
+  "room_type": "bathroom",
+  "capture_type": "base_shot",
+  "baseline_photo": {
+    "path": "./baseline.jpg"
+  },
+  "current_photo": {
+    "path": "./current.jpg"
+  },
+  "output_dir": "../results/bathroom-example-001"
+}

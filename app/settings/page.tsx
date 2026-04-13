@@ -53,6 +53,13 @@ export default async function SettingsPage() {
       href: "/ui-preview",
       cta: "Open Appearance Editor",
     },
+    {
+      title: "Inspection Lab",
+      description:
+        "Experimental phone-friendly bathroom base-shot capture and comparison workflow for local testing.",
+      href: "/inspection-lab/bathroom-base-shot",
+      cta: "Open Inspection Lab",
+    },
   ];
 
   return (
