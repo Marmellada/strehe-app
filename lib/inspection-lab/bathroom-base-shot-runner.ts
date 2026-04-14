@@ -1,16 +1,18 @@
-import {
+import engine from "@/lib/inspection-lab/bathroom-base-shot-engine-wrapper";
+import type {
+  BathroomCaptureSlot,
+  BathroomTrackedTarget,
+  InspectionRoomType,
+} from "@/lib/inspection-lab/bathroom-base-shot";
+
+const {
   analyzeBathroomBaseShot,
   analyzeBathroomObjectsWithAi,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
   mergeBathroomAiFindings,
-} from "@/lib/inspection-lab/bathroom-base-shot-engine.mjs";
-import type {
-  BathroomCaptureSlot,
-  BathroomTrackedTarget,
-  InspectionRoomType,
-} from "@/lib/inspection-lab/bathroom-base-shot";
+} = engine;
 
 export type BathroomRunnerPhotoInput = {
   id: string;
@@ -28,9 +30,19 @@ export type BathroomRunnerResult = {
 };
 
 function getFallbackImportance(photoType: string | null): "high" | "medium" {
-  return ["wide", "entrance", "sofa", "tv", "table", "mirror", "sink", "toilet", "shower", "bathtub", "cabinet"].includes(
-    photoType || ""
-  )
+  return [
+    "wide",
+    "entrance",
+    "sofa",
+    "tv",
+    "table",
+    "mirror",
+    "sink",
+    "toilet",
+    "shower",
+    "bathtub",
+    "cabinet",
+  ].includes(photoType || "")
     ? "high"
     : "medium";
 }
