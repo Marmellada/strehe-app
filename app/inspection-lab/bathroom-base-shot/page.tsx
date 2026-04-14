@@ -193,11 +193,13 @@ async function uploadBathroomBaseShot(formData: FormData) {
     fileSize = file.size || 0;
 
     if (!isAllowedImageType(file.type)) {
-      throw new Error("Only JPG, PNG, and WEBP images are allowed.");
+      throw new Error(
+        `Unsupported image type: ${file.type || "unknown"}. Please use JPG, PNG, or WEBP.`
+      );
     }
 
-    if (file.size > 12 * 1024 * 1024) {
-      throw new Error("Photo exceeds the 12 MB limit.");
+    if (file.size > 20 * 1024 * 1024) {
+      throw new Error("Photo exceeds the 20 MB limit.");
     }
 
     caseId = normalizeCaseId(rawCaseId);
@@ -434,14 +436,6 @@ async function runBathroomCase(formData: FormData) {
   }
 }
 
-function renderPhotoTypeOptions(roomType: InspectionRoomType, selected?: string | null) {
-  return PHOTO_TYPE_OPTIONS[roomType].map((value) => (
-    <option key={value} value={value} selected={selected ? selected === value : undefined}>
-      {value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
-    </option>
-  ));
-}
-
 export default async function BathroomBaseShotLabPage() {
   await requireRole(["admin", "office", "field", "contractor"]);
   const supabase = getAdminClient();
@@ -596,14 +590,13 @@ export default async function BathroomBaseShotLabPage() {
                 id="photo"
                 label="Room Photo"
                 required
-                hint="Use one clear photo per order slot. Re-upload the same capture set and order to replace it."
+                hint="You can upload from camera or gallery/memory. Use JPG, PNG, or WEBP."
               >
                 <Input
                   id="photo"
                   name="photo"
                   type="file"
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
                   required
                 />
               </FormField>
