@@ -126,26 +126,39 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
       };
     }
 
-    const { data: upsertedPhoto, error: photoUpsertError } = await supabase
-      .from("inspection_lab_case_photos")
-      .upsert(
-        {
+    if (existingPhoto) {
+      const { error: updateError } = await supabase
+        .from("inspection_lab_case_photos")
+        .update({
+          storage_path: storagePath,
+          photo_type: photoType || null,
+          order_index: orderIndex,
+        })
+        .eq("id", existingPhoto.id);
+
+      if (updateError) {
+        return {
+          ok: false,
+          error: `Failed to update photo metadata: ${updateError.message}`,
+        };
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from("inspection_lab_case_photos")
+        .insert({
           case_id: caseRow.id,
           capture_slot: slot,
           storage_path: storagePath,
           photo_type: photoType || null,
           order_index: orderIndex,
-        },
-        { onConflict: "case_id,capture_slot,order_index" }
-      )
-      .select("id")
-      .single();
+        });
 
-    if (photoUpsertError || !upsertedPhoto) {
-      return {
-        ok: false,
-        error: `Failed to save photo metadata: ${photoUpsertError?.message || "unknown error"}`,
-      };
+      if (insertError) {
+        return {
+          ok: false,
+          error: `Failed to insert photo metadata: ${insertError.message}`,
+        };
+      }
     }
 
     if (existingPhoto?.storage_path && existingPhoto.storage_path !== storagePath) {
