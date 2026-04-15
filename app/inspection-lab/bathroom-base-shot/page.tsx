@@ -89,6 +89,28 @@ function formatRoomTypeLabel(roomType: InspectionRoomType) {
   return roomType.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+async function updateBathroomPhotoMetadataFormAction(
+  formData: FormData
+): Promise<void> {
+  "use server";
+
+  const result = await updateBathroomPhotoMetadataAction(formData);
+
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+}
+
+async function runBathroomCaseFormAction(formData: FormData): Promise<void> {
+  "use server";
+
+  const result = await runBathroomCaseAction(formData);
+
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+}
+
 export default async function BathroomBaseShotLabPage() {
   await requireRole(["admin", "office", "field", "contractor"]);
   const supabase = getAdminClient();
@@ -216,7 +238,7 @@ export default async function BathroomBaseShotLabPage() {
                                     ) : null}
                                   </div>
 
-                                  <form action={updateBathroomPhotoMetadataAction} className="space-y-3">
+                                  <form action={updateBathroomPhotoMetadataFormAction} className="space-y-3">
                                     <input type="hidden" name="photo_id" value={photo.id} />
                                     <input type="hidden" name="case_row_id" value={item.id} />
 
@@ -301,7 +323,7 @@ export default async function BathroomBaseShotLabPage() {
                                     ) : null}
                                   </div>
 
-                                  <form action={updateBathroomPhotoMetadataAction} className="space-y-3">
+                                  <form action={updateBathroomPhotoMetadataFormAction} className="space-y-3">
                                     <input type="hidden" name="photo_id" value={photo.id} />
                                     <input type="hidden" name="case_row_id" value={item.id} />
 
@@ -442,7 +464,7 @@ export default async function BathroomBaseShotLabPage() {
                         </Alert>
                       )}
 
-                      <form action={runBathroomCaseAction}>
+                      <form action={runBathroomCaseFormAction}>
                         <input type="hidden" name="case_id" value={item.caseId} />
                         <Button
                           type="submit"

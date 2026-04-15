@@ -115,18 +115,18 @@ export function RoomStateUploadForm() {
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      try {
-        await saveInspectionLabPhotoMetadataAction({
-          caseId: normalizedCaseId,
-          roomType,
-          slot,
-          orderIndex: parsedOrderIndex,
-          photoType: photoType || null,
-          storagePath,
-        });
-      } catch (metadataError) {
+      const metadataResult = await saveInspectionLabPhotoMetadataAction({
+        caseId: normalizedCaseId,
+        roomType,
+        slot,
+        orderIndex: parsedOrderIndex,
+        photoType: photoType || null,
+        storagePath,
+      });
+
+      if (!metadataResult.ok) {
         await supabase.storage.from(INSPECTION_STORAGE_BUCKET).remove([storagePath]);
-        throw metadataError;
+        throw new Error(metadataResult.error);
       }
 
       setMessage("Photo uploaded successfully.");
