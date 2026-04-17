@@ -39,12 +39,25 @@ function getDefaultTrackedObjectSeeds(
 ) {
   if (!photoType) return [];
 
-  const seededByRoom: Record<InspectionRoomType, string[]> = {
+  const directSeedsByRoom: Record<InspectionRoomType, string[]> = {
     bathroom: ["sink", "mirror", "toilet", "bathtub", "shower", "cabinet"],
     living_room: ["sofa", "coffee_table", "tv", "tv_stand", "armchair"],
   };
 
-  return seededByRoom[roomType].includes(photoType) ? [photoType] : [];
+  if (directSeedsByRoom[roomType].includes(photoType)) {
+    return [photoType];
+  }
+
+  const wideShotSeeds: Record<InspectionRoomType, string[]> = {
+    bathroom: ["sink", "mirror", "toilet", "cabinet"],
+    living_room: ["tv", "tv_stand", "sofa", "coffee_table", "armchair"],
+  };
+
+  if (["wide", "entrance"].includes(photoType)) {
+    return wideShotSeeds[roomType];
+  }
+
+  return [];
 }
 
 async function ensureInspectionCase(
@@ -116,7 +129,7 @@ async function seedBaselineTrackedObjects(options: {
   const seededNotes = new Map<string, string>();
 
   for (const label of seededLabels) {
-    seededNotes.set(label, "Seeded from the baseline photo type.");
+    seededNotes.set(label, "Seeded from the baseline photo type or wide-shot fallback.");
   }
 
   try {
