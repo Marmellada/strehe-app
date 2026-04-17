@@ -6,12 +6,13 @@ import { requireRole } from "@/lib/auth/require-role";
 import {
   INSPECTION_STORAGE_BUCKET,
   normalizeCaseId,
+  normalizeInspectionObjectKey,
   sortInspectionLabPhotoRows,
   type InspectionLabCasePhotoRow,
   type InspectionRoomType,
-  type BathroomCaptureSlot,
+  type InspectionCaptureSlot,
 } from "@/lib/inspection-lab/bathroom-base-shot";
-import { runBathroomBaseShotCase } from "@/lib/inspection-lab/bathroom-base-shot-runner";
+import { runInspectionCase } from "@/lib/inspection-lab/bathroom-base-shot-runner";
 
 function normalizeRoomType(value: string): InspectionRoomType {
   return value === "living_room" ? "living_room" : "bathroom";
@@ -20,6 +21,14 @@ function normalizeRoomType(value: string): InspectionRoomType {
 type ActionResult =
   | { ok: true; caseRowId?: string }
   | { ok: false; error: string };
+
+function normalizeTrackedObjectImportance(value: string) {
+  return value === "medium" ? "medium" : "high";
+}
+
+function normalizeTrackedObjectSource(value: string) {
+  return value === "manual_corrected" ? "manual_corrected" : "manual_added";
+}
 
 async function ensureInspectionCase(
   caseId: string,
@@ -77,7 +86,7 @@ async function resetCaseReport(caseRowId: string, userId: string) {
 export async function saveInspectionLabPhotoMetadataAction(input: {
   caseId: string;
   roomType: InspectionRoomType;
-  slot: BathroomCaptureSlot;
+  slot: InspectionCaptureSlot;
   orderIndex: number;
   photoType: string | null;
   storagePath: string;
@@ -88,7 +97,7 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
 
     const caseId = normalizeCaseId(String(input.caseId || "").trim());
     const roomType = normalizeRoomType(String(input.roomType || "").trim());
-    const slot = String(input.slot || "").trim() as BathroomCaptureSlot;
+    const slot = String(input.slot || "").trim() as InspectionCaptureSlot;
     const orderIndex = Number(input.orderIndex);
     const photoType = input.photoType ? String(input.photoType).trim() : null;
     const storagePath = String(input.storagePath || "").trim();
@@ -197,7 +206,7 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
   }
 }
 
-export async function updateBathroomPhotoMetadataAction(
+export async function updateInspectionPhotoMetadataAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
@@ -249,7 +258,7 @@ export async function updateBathroomPhotoMetadataAction(
   }
 }
 
-export async function runBathroomCaseAction(formData: FormData): Promise<ActionResult> {
+export async function runInspectionCaseAction(formData: FormData): Promise<ActionResult> {
   try {
     await requireRole(["admin", "office", "field", "contractor"]);
     const supabase = getAdminClient();
@@ -328,7 +337,7 @@ export async function runBathroomCaseAction(formData: FormData): Promise<ActionR
 
     const roomType = normalizeRoomType(String(row.room_type || "bathroom"));
 
-    const result = await runBathroomBaseShotCase(
+    const result = await runInspectionCase(
       caseId,
       roomType,
       baselinePhotos,
@@ -363,6 +372,142 @@ export async function runBathroomCaseAction(formData: FormData): Promise<ActionR
       error instanceof Error ? error.message : "Unexpected engine run failure.";
 
     console.error("[INSPECTION_LAB_RUN_ERROR]", {
+      message,
+    });
+
+    return {
+      ok: false,
+      error: message,
+    };
+  }
+}
+
+export async function saveInspectionTrackedObjectAction(
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
+    const supabase = getAdminClient();
+
+    const caseRowId = String(formData.get("case_row_id") || "").trim();
+    const label = String(formData.get("label") || "").trim();
+    const categoryValue = String(formData.get("category") || "").trim();
+    const importanceValue = String(formData.get("importance") || "").trim();
+    const sourceValue = String(formData.get("source") || "").trim();
+    const reviewNoteValue = String(formData.get("review_note") || "").trim();
+    const baselinePhotoIdValue = String(formData.get("baseline_photo_id") || "").trim();
+
+    if (!caseRowId || !label) {
+      return { ok: false, error: "Case and object label are required." };
+    }
+
+    const objectKey = normalizeInspectionObjectKey(label);
+    let baselineOrderIndex: number | null = null;
+    let baselinePhotoType: string | null = null;
+    let baselineStoragePath: string | null = null;
+
+    if (baselinePhotoIdValue) {
+      const { data: baselinePhotoRow, error: baselinePhotoError } = await supabase
+        .from("inspection_lab_case_photos")
+        .select("id, order_index, photo_type, storage_path")
+        .eq("id", baselinePhotoIdValue)
+        .eq("case_id", caseRowId)
+        .maybeSingle();
+
+      if (baselinePhotoError) {
+        return {
+          ok: false,
+          error: `Failed to load selected baseline photo: ${baselinePhotoError.message}`,
+        };
+      }
+
+      if (baselinePhotoRow) {
+        baselineOrderIndex = baselinePhotoRow.order_index;
+        baselinePhotoType = baselinePhotoRow.photo_type;
+        baselineStoragePath = baselinePhotoRow.storage_path;
+      }
+    }
+
+    const { error } = await supabase.from("inspection_lab_tracked_objects").upsert(
+      {
+        case_id: caseRowId,
+        object_key: objectKey,
+        label,
+        category: categoryValue || null,
+        source: normalizeTrackedObjectSource(sourceValue),
+        importance: normalizeTrackedObjectImportance(importanceValue),
+        is_active: true,
+        baseline_photo_id: baselinePhotoIdValue || null,
+        baseline_order_index: baselineOrderIndex,
+        baseline_photo_type: baselinePhotoType,
+        baseline_storage_path: baselineStoragePath,
+        review_note: reviewNoteValue || null,
+        created_by_user_id: appUser.id,
+        updated_by_user_id: appUser.id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "case_id,object_key" }
+    );
+
+    if (error) {
+      return { ok: false, error: `Failed to save tracked object: ${error.message}` };
+    }
+
+    revalidatePath("/inspection-lab/bathroom-base-shot");
+    return { ok: true };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unexpected tracked object save failure.";
+
+    console.error("[INSPECTION_LAB_TRACKED_OBJECT_SAVE_ERROR]", {
+      message,
+    });
+
+    return {
+      ok: false,
+      error: message,
+    };
+  }
+}
+
+export async function toggleInspectionTrackedObjectAction(
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
+    const supabase = getAdminClient();
+
+    const caseRowId = String(formData.get("case_row_id") || "").trim();
+    const objectKey = String(formData.get("object_key") || "").trim();
+    const nextStatus = String(formData.get("next_status") || "").trim();
+
+    if (!caseRowId || !objectKey) {
+      return { ok: false, error: "Case and object key are required." };
+    }
+
+    const isActive = nextStatus !== "inactive";
+
+    const { error } = await supabase
+      .from("inspection_lab_tracked_objects")
+      .update({
+        is_active: isActive,
+        updated_by_user_id: appUser.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("case_id", caseRowId)
+      .eq("object_key", objectKey);
+
+    if (error) {
+      return { ok: false, error: `Failed to update tracked object: ${error.message}` };
+    }
+
+    revalidatePath("/inspection-lab/bathroom-base-shot");
+    return { ok: true };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unexpected tracked object toggle failure.";
+
+    console.error("[INSPECTION_LAB_TRACKED_OBJECT_TOGGLE_ERROR]", {
       message,
     });
 

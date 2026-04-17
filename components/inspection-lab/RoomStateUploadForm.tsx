@@ -6,7 +6,7 @@ import { getBrowserSupabaseClient } from "@/lib/supabase/browser-client";
 import {
   getCasePhotoStoragePath,
   normalizeCaseId,
-  type BathroomCaptureSlot,
+  type InspectionCaptureSlot,
   type InspectionRoomType,
   INSPECTION_STORAGE_BUCKET,
 } from "@/lib/inspection-lab/bathroom-base-shot";
@@ -59,7 +59,7 @@ function isAllowedImageType(mimeType: string) {
 export function RoomStateUploadForm() {
   const [caseId, setCaseId] = useState("");
   const [roomType, setRoomType] = useState<InspectionRoomType>("living_room");
-  const [slot, setSlot] = useState<BathroomCaptureSlot>("baseline");
+  const [slot, setSlot] = useState<InspectionCaptureSlot>("baseline");
   const [orderIndex, setOrderIndex] = useState("1");
   const [photoType, setPhotoType] = useState("wide");
   const [file, setFile] = useState<File | null>(null);
@@ -166,7 +166,7 @@ export function RoomStateUploadForm() {
         id="room_type"
         label="Room Type"
         required
-        hint="Living room is better for daily movement and replacement tests."
+        hint="Use bathroom for fixtures first, or living room for larger furniture checks."
       >
         <select
           id="room_type"
@@ -229,7 +229,7 @@ export function RoomStateUploadForm() {
       <FormField
         id="photo_type"
         label="Photo Type"
-        hint="Pick a room-specific angle or object label."
+        hint="Pick the best room-specific angle or object label. The engine only treats some major objects as high-confidence tracked targets."
       >
         <select
           id="photo_type"

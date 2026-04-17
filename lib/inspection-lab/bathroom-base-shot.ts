@@ -5,12 +5,13 @@ export const INSPECTION_STORAGE_BUCKET = "task-attachments";
 export const INSPECTION_STORAGE_ROOT = "inspection-lab/bathroom-base-shot";
 
 export type InspectionRoomType = "bathroom" | "living_room";
-export type BathroomCaptureSlot = "baseline" | "current";
+export type InspectionCaptureSlot = "baseline" | "current";
+export type InspectionObjectActivityStatus = "active" | "inactive";
 
-export type BathroomCasePhotoSummary = {
+export type InspectionCasePhotoSummary = {
   id: string;
   caseId: string;
-  captureSlot: BathroomCaptureSlot;
+  captureSlot: InspectionCaptureSlot;
   storagePath: string;
   signedUrl: string | null;
   photoType: string | null;
@@ -18,16 +19,27 @@ export type BathroomCasePhotoSummary = {
   createdAt: string;
 };
 
-export type BathroomTrackedTarget = {
+export type InspectionTrackedObject = {
   key: string;
   label: string;
-  source: "engine" | "baseline_capture";
+  category: string | null;
+  source:
+    | "engine"
+    | "baseline_capture"
+    | "auto_detected"
+    | "manual_added"
+    | "manual_corrected";
   status: "tracked" | "candidate";
+  activityStatus: InspectionObjectActivityStatus;
   importance: "high" | "medium";
   reason: string;
+  baselinePhotoId: string | null;
+  baselineOrderIndex: number | null;
+  baselinePhotoType: string | null;
+  baselineStoragePath: string | null;
 };
 
-export type BathroomCaseSummary = {
+export type InspectionCaseSummary = {
   id: string;
   caseId: string;
   roomType: InspectionRoomType;
@@ -36,8 +48,8 @@ export type BathroomCaseSummary = {
   reportExists: boolean;
   reportStatus: string;
   reportMarkdown: string | null;
-  baselinePhotos: BathroomCasePhotoSummary[];
-  currentPhotos: BathroomCasePhotoSummary[];
+  baselinePhotos: InspectionCasePhotoSummary[];
+  currentPhotos: InspectionCasePhotoSummary[];
   findings: null | {
     sameRoomVerdict: string;
     changeSeverity: string;
@@ -45,7 +57,7 @@ export type BathroomCaseSummary = {
     findingCount: number;
     highlights: string[];
   };
-  trackedTargets: BathroomTrackedTarget[];
+  trackedTargets: InspectionTrackedObject[];
 };
 
 type InspectionLabCaseRow =
@@ -54,11 +66,29 @@ type InspectionLabCaseRow =
 export type InspectionLabCasePhotoRow = {
   id: string;
   case_id: string;
-  capture_slot: BathroomCaptureSlot;
+  capture_slot: InspectionCaptureSlot;
   storage_path: string;
   photo_type: string | null;
   order_index: number | null;
   created_at: string;
+};
+
+export type InspectionLabTrackedObjectRow = {
+  id: string;
+  case_id: string;
+  object_key: string;
+  label: string;
+  category: string | null;
+  source: string;
+  importance: string;
+  is_active: boolean;
+  baseline_photo_id: string | null;
+  baseline_order_index: number | null;
+  baseline_photo_type: string | null;
+  baseline_storage_path: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type SignedUrlFactory = {
@@ -85,6 +115,11 @@ export function normalizeCaseId(value: string) {
   return safe || "room-case";
 }
 
+export function normalizeInspectionObjectKey(value: string) {
+  const safe = sanitizeSegment(value);
+  return safe || "tracked-object";
+}
+
 function sanitizeFileBaseName(fileName: string) {
   const extension = path.extname(fileName).toLowerCase() || ".jpg";
   const base = path.basename(fileName, extension);
@@ -98,7 +133,7 @@ function sanitizeFileBaseName(fileName: string) {
 
 export function getCasePhotoStoragePath(
   caseId: string,
-  slot: BathroomCaptureSlot,
+  slot: InspectionCaptureSlot,
   orderIndex: number,
   fileName: string
 ) {
@@ -113,7 +148,7 @@ export function getCasePhotoStoragePath(
   );
 }
 
-function parseFindings(summary: Json | null): BathroomCaseSummary["findings"] {
+function parseFindings(summary: Json | null): InspectionCaseSummary["findings"] {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
     return null;
   }
@@ -148,7 +183,7 @@ function parseFindings(summary: Json | null): BathroomCaseSummary["findings"] {
   };
 }
 
-function parseTrackedTargets(summary: Json | null): BathroomTrackedTarget[] {
+function parseTrackedTargets(summary: Json | null): InspectionTrackedObject[] {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
     return [];
   }
@@ -161,7 +196,7 @@ function parseTrackedTargets(summary: Json | null): BathroomTrackedTarget[] {
   }
 
   return trackedTargets
-    .map((item) => {
+    .map((item): InspectionTrackedObject | null => {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
         return null;
       }
@@ -184,16 +219,79 @@ function parseTrackedTargets(summary: Json | null): BathroomTrackedTarget[] {
             ? record.key
             : label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
         label,
-        source: record.source === "baseline_capture" ? "baseline_capture" : "engine",
+        category: typeof record.category === "string" ? record.category : null,
+        source:
+          record.source === "baseline_capture"
+            ? "baseline_capture"
+            : record.source === "auto_detected"
+              ? "auto_detected"
+              : record.source === "manual_added"
+                ? "manual_added"
+                : record.source === "manual_corrected"
+                  ? "manual_corrected"
+                  : "engine",
         status: record.status === "candidate" ? "candidate" : "tracked",
+        activityStatus: "active",
         importance: record.importance === "medium" ? "medium" : "high",
         reason:
           typeof record.reason === "string"
             ? record.reason
             : "Derived from the current engine summary.",
-      } satisfies BathroomTrackedTarget;
+        baselinePhotoId:
+          typeof record.baselinePhotoId === "string" ? record.baselinePhotoId : null,
+        baselineOrderIndex:
+          typeof record.baselineOrderIndex === "number" ? record.baselineOrderIndex : null,
+        baselinePhotoType:
+          typeof record.baselinePhotoType === "string" ? record.baselinePhotoType : null,
+        baselineStoragePath:
+          typeof record.baselineStoragePath === "string"
+            ? record.baselineStoragePath
+            : null,
+      } satisfies InspectionTrackedObject;
     })
-    .filter((value): value is BathroomTrackedTarget => Boolean(value));
+    .filter((value): value is InspectionTrackedObject => Boolean(value));
+}
+
+function parseTrackedObjectsFromRows(
+  rows: InspectionLabTrackedObjectRow[]
+): InspectionTrackedObject[] {
+  return rows.map((row) => ({
+    key: row.object_key,
+    label: row.label,
+    category: row.category,
+    source:
+      row.source === "baseline_capture" ||
+      row.source === "auto_detected" ||
+      row.source === "manual_added" ||
+      row.source === "manual_corrected"
+        ? row.source
+        : "engine",
+    status: "tracked",
+    activityStatus: row.is_active ? "active" : "inactive",
+    importance: row.importance === "medium" ? "medium" : "high",
+    reason: row.review_note || "Saved during baseline review.",
+    baselinePhotoId: row.baseline_photo_id,
+    baselineOrderIndex: row.baseline_order_index,
+    baselinePhotoType: row.baseline_photo_type,
+    baselineStoragePath: row.baseline_storage_path,
+  }));
+}
+
+function mergeTrackedObjects(
+  persistedObjects: InspectionTrackedObject[],
+  derivedObjects: InspectionTrackedObject[]
+): InspectionTrackedObject[] {
+  const merged = new Map<string, InspectionTrackedObject>();
+
+  for (const item of derivedObjects) {
+    merged.set(item.key, item);
+  }
+
+  for (const item of persistedObjects) {
+    merged.set(item.key, item);
+  }
+
+  return [...merged.values()].sort((left, right) => left.label.localeCompare(right.label));
 }
 
 async function createSignedUrlOrNull(
@@ -221,11 +319,12 @@ function sortPhotos(
   return left.created_at.localeCompare(right.created_at);
 }
 
-export async function listBathroomCases(
+export async function listInspectionCases(
   caseRows: InspectionLabCaseRow[],
   photoRows: InspectionLabCasePhotoRow[],
+  trackedObjectRows: InspectionLabTrackedObjectRow[],
   bucket: SignedUrlFactory
-): Promise<BathroomCaseSummary[]> {
+): Promise<InspectionCaseSummary[]> {
   const photoSummaries = await Promise.all(
     photoRows.map(async (row) => ({
       id: row.id,
@@ -239,12 +338,20 @@ export async function listBathroomCases(
     }))
   );
 
-  const photosByCaseId = new Map<string, BathroomCasePhotoSummary[]>();
+  const photosByCaseId = new Map<string, InspectionCasePhotoSummary[]>();
+  const trackedObjectsByCaseId = new Map<string, InspectionTrackedObject[]>();
 
   for (const photo of photoSummaries) {
     const bucketPhotos = photosByCaseId.get(photo.caseId) || [];
     bucketPhotos.push(photo);
     photosByCaseId.set(photo.caseId, bucketPhotos);
+  }
+
+  for (const trackedObjectRow of trackedObjectRows) {
+    const caseTrackedObjects =
+      trackedObjectsByCaseId.get(trackedObjectRow.case_id) || [];
+    caseTrackedObjects.push(...parseTrackedObjectsFromRows([trackedObjectRow]));
+    trackedObjectsByCaseId.set(trackedObjectRow.case_id, caseTrackedObjects);
   }
 
   const cases = caseRows.map((row) => {
@@ -275,6 +382,9 @@ export async function listBathroomCases(
         return left.createdAt.localeCompare(right.createdAt);
       });
 
+    const persistedTrackedObjects = trackedObjectsByCaseId.get(row.id) || [];
+    const derivedTrackedObjects = parseTrackedTargets(row.comparison_summary);
+
     return {
       id: row.id,
       caseId: row.case_key,
@@ -288,8 +398,8 @@ export async function listBathroomCases(
       baselinePhotos,
       currentPhotos,
       findings: parseFindings(row.comparison_summary),
-      trackedTargets: parseTrackedTargets(row.comparison_summary),
-    } satisfies BathroomCaseSummary;
+      trackedTargets: mergeTrackedObjects(persistedTrackedObjects, derivedTrackedObjects),
+    } satisfies InspectionCaseSummary;
   });
 
   return cases.sort((left, right) => left.caseId.localeCompare(right.caseId));

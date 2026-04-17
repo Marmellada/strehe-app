@@ -1,8 +1,8 @@
 import engine from "@/lib/inspection-lab/bathroom-base-shot-engine-wrapper";
 import type {
-  BathroomCaptureSlot,
-  BathroomTrackedTarget,
+  InspectionCaptureSlot,
   InspectionRoomType,
+  InspectionTrackedObject,
 } from "@/lib/inspection-lab/bathroom-base-shot";
 
 const {
@@ -14,16 +14,16 @@ const {
   mergeBathroomAiFindings,
 } = engine;
 
-export type BathroomRunnerPhotoInput = {
+export type InspectionRunnerPhotoInput = {
   id: string;
-  captureSlot: BathroomCaptureSlot;
+  captureSlot: InspectionCaptureSlot;
   orderIndex: number | null;
   photoType: string | null;
   storagePath: string;
   buffer: Buffer;
 };
 
-export type BathroomRunnerResult = {
+export type InspectionRunnerResult = {
   comparison: Record<string, unknown>;
   narrative: string;
   reportMarkdown: string;
@@ -35,12 +35,15 @@ function getFallbackImportance(photoType: string | null): "high" | "medium" {
     "entrance",
     "sofa",
     "tv",
-    "table",
+    "coffee_table",
+    "tv_stand",
+    "armchair",
     "mirror",
     "sink",
     "toilet",
     "shower",
     "bathtub",
+    "bathtub_or_shower",
     "cabinet",
   ].includes(photoType || "")
     ? "high"
@@ -48,23 +51,34 @@ function getFallbackImportance(photoType: string | null): "high" | "medium" {
 }
 
 function fallbackTrackedTargetsFromBaselinePhotos(
-  photos: BathroomRunnerPhotoInput[]
-): BathroomTrackedTarget[] {
+  roomType: InspectionRoomType,
+  photos: InspectionRunnerPhotoInput[]
+): InspectionTrackedObject[] {
   const seen = new Set<string>();
+  const allowedHighConfidenceTypes =
+    roomType === "living_room"
+      ? new Set(["sofa", "coffee_table", "tv", "tv_stand", "armchair"])
+      : new Set(["sink", "mirror", "toilet", "shower", "bathtub", "bathtub_or_shower", "cabinet"]);
 
   return photos
-    .filter((photo) => Boolean(photo.photoType))
-    .map((photo): BathroomTrackedTarget => {
+    .filter((photo) => Boolean(photo.photoType) && allowedHighConfidenceTypes.has(photo.photoType || ""))
+    .map((photo): InspectionTrackedObject => {
       const label = (photo.photoType || "baseline_zone").replace(/_/g, " ");
       const key = `${photo.captureSlot}-${photo.orderIndex ?? "x"}-${photo.photoType || "baseline_zone"}`;
 
       return {
         key,
         label,
+        category: photo.photoType || null,
         source: "baseline_capture",
         status: "candidate",
+        activityStatus: "active",
         importance: getFallbackImportance(photo.photoType),
         reason: `Derived from baseline capture order ${photo.orderIndex ?? "?"}.`,
+        baselinePhotoId: photo.id,
+        baselineOrderIndex: photo.orderIndex,
+        baselinePhotoType: photo.photoType,
+        baselineStoragePath: photo.storagePath,
       };
     })
     .filter((item) => {
@@ -74,11 +88,11 @@ function fallbackTrackedTargetsFromBaselinePhotos(
     });
 }
 
-function normalizeTrackedTargets(value: unknown): BathroomTrackedTarget[] {
+function normalizeTrackedTargets(value: unknown): InspectionTrackedObject[] {
   if (!Array.isArray(value)) return [];
 
   return value
-    .map((item): BathroomTrackedTarget | null => {
+    .map((item): InspectionTrackedObject | null => {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
         return null;
       }
@@ -99,23 +113,35 @@ function normalizeTrackedTargets(value: unknown): BathroomTrackedTarget[] {
             ? record.key
             : rawLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
         label: rawLabel.replace(/_/g, " "),
+        category: typeof record.category === "string" ? record.category : null,
         source: record.source === "baseline_capture" ? "baseline_capture" : "engine",
         status: record.status === "candidate" ? "candidate" : "tracked",
+        activityStatus: record.activityStatus === "inactive" ? "inactive" : "active",
         importance: record.importance === "medium" ? "medium" : "high",
         reason:
           typeof record.reason === "string" && record.reason.trim()
             ? record.reason.trim()
             : "Derived from the latest engine run.",
+        baselinePhotoId:
+          typeof record.baselinePhotoId === "string" ? record.baselinePhotoId : null,
+        baselineOrderIndex:
+          typeof record.baselineOrderIndex === "number" ? record.baselineOrderIndex : null,
+        baselinePhotoType:
+          typeof record.baselinePhotoType === "string" ? record.baselinePhotoType : null,
+        baselineStoragePath:
+          typeof record.baselineStoragePath === "string"
+            ? record.baselineStoragePath
+            : null,
       };
     })
-    .filter((item): item is BathroomTrackedTarget => Boolean(item));
+    .filter((item): item is InspectionTrackedObject => Boolean(item));
 }
 
 function appendStructuredSections(
   markdown: string,
-  trackedTargets: BathroomTrackedTarget[],
-  baselinePhotos: BathroomRunnerPhotoInput[],
-  currentPhotos: BathroomRunnerPhotoInput[]
+  trackedTargets: InspectionTrackedObject[],
+  baselinePhotos: InspectionRunnerPhotoInput[],
+  currentPhotos: InspectionRunnerPhotoInput[]
 ) {
   const trackedSection =
     trackedTargets.length > 0
@@ -162,12 +188,12 @@ function appendStructuredSections(
   ].join("\n");
 }
 
-export async function runBathroomBaseShotCase(
+export async function runInspectionCase(
   caseId: string,
   roomType: InspectionRoomType,
-  baselinePhotos: BathroomRunnerPhotoInput[],
-  currentPhotos: BathroomRunnerPhotoInput[]
-): Promise<BathroomRunnerResult> {
+  baselinePhotos: InspectionRunnerPhotoInput[],
+  currentPhotos: InspectionRunnerPhotoInput[]
+): Promise<InspectionRunnerResult> {
   const orderedBaselinePhotos = [...baselinePhotos].sort(
     (left, right) =>
       (left.orderIndex ?? Number.MAX_SAFE_INTEGER) -
@@ -224,7 +250,7 @@ export async function runBathroomBaseShotCase(
   const trackedTargets =
     trackedTargetsFromEngine.length > 0
       ? trackedTargetsFromEngine
-      : fallbackTrackedTargetsFromBaselinePhotos(orderedBaselinePhotos);
+      : fallbackTrackedTargetsFromBaselinePhotos(roomType, orderedBaselinePhotos);
 
   const enrichedComparison: Record<string, unknown> = {
     ...comparison,

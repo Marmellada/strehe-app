@@ -56,7 +56,7 @@ export default async function SettingsPage() {
     {
       title: "Inspection Lab",
       description:
-        "Experimental phone-friendly bathroom base-shot capture and comparison workflow for local testing.",
+        "Experimental phone-friendly room-state capture and comparison workflow for inspection testing.",
       href: "/inspection-lab/bathroom-base-shot",
       cta: "Open Inspection Lab",
     },

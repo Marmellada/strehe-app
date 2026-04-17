@@ -17,14 +17,17 @@ import {
 import { requireRole } from "@/lib/auth/require-role";
 import { getAdminClient } from "@/lib/supabase/admin";
 import {
-  listBathroomCases,
+  listInspectionCases,
   INSPECTION_STORAGE_BUCKET,
   type InspectionLabCasePhotoRow,
+  type InspectionLabTrackedObjectRow,
   type InspectionRoomType,
 } from "@/lib/inspection-lab/bathroom-base-shot";
 import {
-  runBathroomCaseAction,
-  updateBathroomPhotoMetadataAction,
+  runInspectionCaseAction,
+  saveInspectionTrackedObjectAction,
+  toggleInspectionTrackedObjectAction,
+  updateInspectionPhotoMetadataAction,
 } from "@/app/inspection-lab/bathroom-base-shot/actions";
 import { RoomStateUploadForm } from "@/components/inspection-lab/RoomStateUploadForm";
 
@@ -89,36 +92,65 @@ function formatRoomTypeLabel(roomType: InspectionRoomType) {
   return roomType.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-async function updateBathroomPhotoMetadataFormAction(
+async function updateInspectionPhotoMetadataFormAction(
   formData: FormData
 ): Promise<void> {
   "use server";
 
-  const result = await updateBathroomPhotoMetadataAction(formData);
+  const result = await updateInspectionPhotoMetadataAction(formData);
 
   if (!result.ok) {
     throw new Error(result.error);
   }
 }
 
-async function runBathroomCaseFormAction(formData: FormData): Promise<void> {
+async function runInspectionCaseFormAction(formData: FormData): Promise<void> {
   "use server";
 
-  const result = await runBathroomCaseAction(formData);
+  const result = await runInspectionCaseAction(formData);
 
   if (!result.ok) {
     throw new Error(result.error);
   }
 }
 
-export default async function BathroomBaseShotLabPage() {
+async function saveInspectionTrackedObjectFormAction(
+  formData: FormData
+): Promise<void> {
+  "use server";
+
+  const result = await saveInspectionTrackedObjectAction(formData);
+
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+}
+
+async function toggleInspectionTrackedObjectFormAction(
+  formData: FormData
+): Promise<void> {
+  "use server";
+
+  const result = await toggleInspectionTrackedObjectAction(formData);
+
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+}
+
+export default async function RoomStateInspectionLabPage() {
   await requireRole(["admin", "office", "field", "contractor"]);
   const supabase = getAdminClient();
 
-  const [{ data: caseRows, error: casesError }, { data: photoRows, error: photosError }] =
+  const [
+    { data: caseRows, error: casesError },
+    { data: photoRows, error: photosError },
+    { data: trackedObjectRows, error: trackedObjectsError },
+  ] =
     await Promise.all([
       supabase.from("inspection_lab_cases").select("*").order("case_key"),
       supabase.from("inspection_lab_case_photos").select("*"),
+      supabase.from("inspection_lab_tracked_objects").select("*"),
     ]);
 
   if (casesError) {
@@ -129,16 +161,24 @@ export default async function BathroomBaseShotLabPage() {
     throw new Error(`Failed to load inspection lab photos: ${photosError.message}`);
   }
 
-  const cases = await listBathroomCases(
+  if (trackedObjectsError) {
+    throw new Error(
+      `Failed to load inspection tracked objects: ${trackedObjectsError.message}`
+    );
+  }
+
+  const cases = await listInspectionCases(
     caseRows || [],
     (photoRows || []) as InspectionLabCasePhotoRow[],
+    (trackedObjectRows || []) as InspectionLabTrackedObjectRow[],
     supabase.storage.from(INSPECTION_STORAGE_BUCKET)
   );
 
   const readyCases = cases.filter((item) => item.baselineExists && item.currentExists);
   const reviewCases = cases.filter((item) => item.findings?.reviewRequired).length;
   const trackedTargetsCount = cases.reduce(
-    (total, item) => total + item.trackedTargets.length,
+    (total, item) =>
+      total + item.trackedTargets.filter((trackedObject) => trackedObject.activityStatus === "active").length,
     0
   );
 
@@ -161,7 +201,7 @@ export default async function BathroomBaseShotLabPage() {
         <StatCard title="Cases" value={cases.length} />
         <StatCard title="Ready To Compare" value={readyCases.length} />
         <StatCard title="Review Flags" value={reviewCases} />
-        <StatCard title="Tracked Targets" value={trackedTargetsCount} />
+        <StatCard title="Tracked Objects" value={trackedTargetsCount} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px),1fr]">
@@ -170,7 +210,7 @@ export default async function BathroomBaseShotLabPage() {
             <CardTitle>Upload Ordered Capture</CardTitle>
             <CardDescription>
               Use one upload per order position. For living room, a good starting set is: 1 wide,
-              2 sofa, 3 coffee_table, 4 tv, 5 shelf or decor.
+              2 sofa, 3 coffee_table, 4 tv, 5 tv_stand or armchair.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -182,8 +222,8 @@ export default async function BathroomBaseShotLabPage() {
           <CardHeader>
             <CardTitle>Case Results</CardTitle>
             <CardDescription>
-              This is your daily testing surface: capture coverage, tracked targets, findings, and
-              report text.
+              This is your daily testing surface: capture coverage, high-confidence tracked objects,
+              findings, and report text.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -238,7 +278,7 @@ export default async function BathroomBaseShotLabPage() {
                                     ) : null}
                                   </div>
 
-                                  <form action={updateBathroomPhotoMetadataFormAction} className="space-y-3">
+                                  <form action={updateInspectionPhotoMetadataFormAction} className="space-y-3">
                                     <input type="hidden" name="photo_id" value={photo.id} />
                                     <input type="hidden" name="case_row_id" value={item.id} />
 
@@ -323,7 +363,7 @@ export default async function BathroomBaseShotLabPage() {
                                     ) : null}
                                   </div>
 
-                                  <form action={updateBathroomPhotoMetadataFormAction} className="space-y-3">
+                                  <form action={updateInspectionPhotoMetadataFormAction} className="space-y-3">
                                     <input type="hidden" name="photo_id" value={photo.id} />
                                     <input type="hidden" name="case_row_id" value={item.id} />
 
@@ -405,7 +445,7 @@ export default async function BathroomBaseShotLabPage() {
                       ) : null}
 
                       <div className="rounded-lg border border-border/70 p-3">
-                        <div className="mb-2 text-sm font-medium">Tracked From Baseline</div>
+                        <div className="mb-2 text-sm font-medium">High-Confidence Tracked From Baseline</div>
 
                         {item.trackedTargets.length ? (
                           <ul className="space-y-2 text-sm">
@@ -414,21 +454,156 @@ export default async function BathroomBaseShotLabPage() {
                                 key={`${item.id}-${target.key}`}
                                 className="rounded-lg border border-border/60 px-3 py-2"
                               >
-                                <div className="font-medium">
-                                  {target.label.replace(/_/g, " ")}
-                                </div>
-                                <div className="text-muted-foreground">
-                                  {target.status} · {target.importance} · {target.reason}
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <div className="font-medium">
+                                      {target.label.replace(/_/g, " ")}
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                      {target.status} · {target.importance} ·{" "}
+                                      {target.activityStatus}
+                                      {target.category ? ` · ${target.category}` : ""} ·{" "}
+                                      {target.reason}
+                                      {target.baselineOrderIndex
+                                        ? ` · baseline photo #${target.baselineOrderIndex}`
+                                        : ""}
+                                    </div>
+                                  </div>
+
+                                  <form action={toggleInspectionTrackedObjectFormAction}>
+                                    <input type="hidden" name="case_row_id" value={item.id} />
+                                    <input type="hidden" name="object_key" value={target.key} />
+                                    <input
+                                      type="hidden"
+                                      name="next_status"
+                                      value={
+                                        target.activityStatus === "active" ? "inactive" : "active"
+                                      }
+                                    />
+                                    <Button type="submit" variant="outline" size="sm">
+                                      {target.activityStatus === "active"
+                                        ? "Set Inactive"
+                                        : "Set Active"}
+                                    </Button>
+                                  </form>
                                 </div>
                               </li>
                             ))}
                           </ul>
                         ) : (
                           <div className="text-sm text-muted-foreground">
-                            Nothing explicit has been extracted yet. Run the engine after baseline
-                            and current sets are complete.
+                            Nothing high-confidence has been extracted yet. Run the engine after
+                            baseline and current sets are complete.
                           </div>
                         )}
+                      </div>
+
+                      <div className="rounded-lg border border-border/70 p-3">
+                        <div className="mb-2 text-sm font-medium">Add Manual Tracked Object</div>
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Use this when the engine missed something important like a figurine,
+                          painting, collectible, or special fixture. This saves the object as part
+                          of the case baseline review.
+                        </p>
+
+                        <form
+                          action={saveInspectionTrackedObjectFormAction}
+                          className="space-y-3"
+                        >
+                          <input type="hidden" name="case_row_id" value={item.id} />
+                          <input type="hidden" name="source" value="manual_added" />
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <label
+                                htmlFor={`tracked_label_${item.id}`}
+                                className="mb-1 block text-sm font-medium"
+                              >
+                                Object Label
+                              </label>
+                              <Input
+                                id={`tracked_label_${item.id}`}
+                                name="label"
+                                placeholder="e.g., bronze figurine"
+                                required
+                              />
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor={`tracked_category_${item.id}`}
+                                className="mb-1 block text-sm font-medium"
+                              >
+                                Category
+                              </label>
+                              <Input
+                                id={`tracked_category_${item.id}`}
+                                name="category"
+                                placeholder="e.g., decor, wall_art, collectible"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <label
+                                htmlFor={`tracked_importance_${item.id}`}
+                                className="mb-1 block text-sm font-medium"
+                              >
+                                Importance
+                              </label>
+                              <select
+                                id={`tracked_importance_${item.id}`}
+                                name="importance"
+                                className="input w-full"
+                                defaultValue="high"
+                              >
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor={`tracked_baseline_photo_${item.id}`}
+                                className="mb-1 block text-sm font-medium"
+                              >
+                                Baseline Photo
+                              </label>
+                              <select
+                                id={`tracked_baseline_photo_${item.id}`}
+                                name="baseline_photo_id"
+                                className="input w-full"
+                                defaultValue=""
+                              >
+                                <option value="">No specific photo yet</option>
+                                {item.baselinePhotos.map((photo) => (
+                                  <option key={photo.id} value={photo.id}>
+                                    #{photo.orderIndex ?? "?"} {photo.photoType || "unspecified"}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`tracked_review_note_${item.id}`}
+                              className="mb-1 block text-sm font-medium"
+                            >
+                              Review Note
+                            </label>
+                            <Input
+                              id={`tracked_review_note_${item.id}`}
+                              name="review_note"
+                              placeholder="Why this object matters or how to recognize it"
+                            />
+                          </div>
+
+                          <Button type="submit" variant="outline">
+                            Save Manual Object
+                          </Button>
+                        </form>
                       </div>
 
                       {item.findings?.highlights?.length ? (
@@ -464,7 +639,7 @@ export default async function BathroomBaseShotLabPage() {
                         </Alert>
                       )}
 
-                      <form action={runBathroomCaseFormAction}>
+                      <form action={runInspectionCaseFormAction}>
                         <input type="hidden" name="case_id" value={item.caseId} />
                         <Button
                           type="submit"
