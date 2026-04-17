@@ -20,6 +20,8 @@ export type InspectionCasePhotoSummary = {
   processingError: string | null;
   processedAt: string | null;
   seededCandidateCount: number;
+  seedModel: string | null;
+  seedDebugResult: Json | null;
   createdAt: string;
 };
 
@@ -81,6 +83,8 @@ export type InspectionLabCasePhotoRow = {
   processing_error: string | null;
   processed_at: string | null;
   seeded_candidate_count: number | null;
+  seed_model: string | null;
+  seed_debug_result: Json | null;
   created_at: string;
 };
 
@@ -356,6 +360,8 @@ export async function listInspectionCases(
       processingError: row.processing_error || null,
       processedAt: row.processed_at || null,
       seededCandidateCount: row.seeded_candidate_count ?? 0,
+      seedModel: row.seed_model || null,
+      seedDebugResult: row.seed_debug_result ?? null,
       createdAt: row.created_at,
     }))
   );

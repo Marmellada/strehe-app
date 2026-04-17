@@ -132,6 +132,8 @@ async function updateInspectionPhotoProcessingStatus(options: {
   status: "pending" | "processing" | "ready" | "failed";
   processingError?: string | null;
   seededCandidateCount?: number;
+  seedModel?: string | null;
+  seedDebugResult?: unknown;
 }) {
   const supabase = getAdminClient();
 
@@ -140,6 +142,8 @@ async function updateInspectionPhotoProcessingStatus(options: {
     processing_error: string | null;
     processed_at: string | null;
     seeded_candidate_count?: number;
+    seed_model?: string | null;
+    seed_debug_result?: unknown;
   } = {
     processing_status: options.status,
     processing_error: options.processingError || null,
@@ -151,6 +155,14 @@ async function updateInspectionPhotoProcessingStatus(options: {
 
   if (typeof options.seededCandidateCount === "number") {
     payload.seeded_candidate_count = options.seededCandidateCount;
+  }
+
+  if ("seedModel" in options) {
+    payload.seed_model = options.seedModel || null;
+  }
+
+  if ("seedDebugResult" in options) {
+    payload.seed_debug_result = options.seedDebugResult ?? null;
   }
 
   const { error } = await supabase
@@ -190,6 +202,21 @@ async function seedBaselineTrackedObjects(options: {
       centerY: number | null;
     }
   >();
+  let rawAiSeedResult: {
+    attempted: boolean;
+    model: string | null;
+    summary: string;
+    objectChecks: unknown[];
+    trackedObjects: unknown[];
+  } = {
+    attempted: aiEnabled,
+    model: null,
+    summary: aiEnabled
+      ? "AI baseline detection did not return any saved candidates."
+      : "AI baseline detection is disabled.",
+    objectChecks: [],
+    trackedObjects: [],
+  };
 
   const seededNotes = new Map<string, string>();
 
@@ -207,11 +234,19 @@ async function seedBaselineTrackedObjects(options: {
         options.roomType,
         Buffer.from(await imageBlob.arrayBuffer())
       );
+      const typedAiResult = aiResult as
+        | {
+            model?: string;
+            summary?: string;
+            objectChecks?: unknown[];
+            trackedObjects?: unknown[];
+          }
+        | null;
 
       const aiTrackedObjects = Array.isArray(
-        (aiResult as { trackedObjects?: unknown[] } | null)?.trackedObjects
+        typedAiResult?.trackedObjects
       )
-        ? ((aiResult as {
+        ? ((typedAiResult as {
             trackedObjects?: Array<{
               objectName?: string;
               visibility?: string;
@@ -222,6 +257,21 @@ async function seedBaselineTrackedObjects(options: {
             }>;
           }).trackedObjects || [])
         : [];
+
+      rawAiSeedResult = {
+        attempted: true,
+        model: typeof typedAiResult?.model === "string" ? typedAiResult.model : null,
+        summary:
+          typeof typedAiResult?.summary === "string"
+            ? typedAiResult.summary
+            : aiTrackedObjects.length
+              ? "AI baseline detection returned one or more tracked objects."
+              : "AI baseline detection returned no tracked objects.",
+        objectChecks: Array.isArray(typedAiResult?.objectChecks)
+          ? typedAiResult.objectChecks
+          : [],
+        trackedObjects: aiTrackedObjects,
+      };
 
       console.info("[INSPECTION_LAB_BASELINE_AI_SEED_RESULT]", {
         caseRowId: options.caseRowId,
@@ -286,6 +336,8 @@ async function seedBaselineTrackedObjects(options: {
   if (finalLabels.size === 0) {
     return {
       seededCandidateCount: 0,
+      seedModel: rawAiSeedResult.model,
+      seedDebugResult: rawAiSeedResult,
     };
   }
 
@@ -328,6 +380,16 @@ async function seedBaselineTrackedObjects(options: {
 
   return {
     seededCandidateCount: finalLabels.size,
+    seedModel: rawAiSeedResult.model,
+    seedDebugResult: {
+      ...rawAiSeedResult,
+      savedCandidates: rows.map((row) => ({
+        objectName: row.label,
+        source: row.source,
+        centerX: row.marker_x,
+        centerY: row.marker_y,
+      })),
+    },
   };
 }
 
@@ -432,6 +494,8 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
         status: slot === "baseline" ? "processing" : "ready",
         processingError: null,
         seededCandidateCount: 0,
+        seedModel: null,
+        seedDebugResult: null,
       });
     }
 
@@ -465,6 +529,8 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
           status: "ready",
           processingError: null,
           seededCandidateCount: seedResult.seededCandidateCount,
+          seedModel: seedResult.seedModel,
+          seedDebugResult: seedResult.seedDebugResult,
         });
       } catch (seedError) {
         await updateInspectionPhotoProcessingStatus({
@@ -475,6 +541,17 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
               ? seedError.message
               : "Baseline processing failed unexpectedly.",
           seededCandidateCount: 0,
+          seedModel: null,
+          seedDebugResult: {
+            attempted: Boolean(process.env.OPENAI_API_KEY),
+            model: null,
+            summary:
+              seedError instanceof Error
+                ? seedError.message
+                : "Baseline processing failed unexpectedly.",
+            objectChecks: [],
+            trackedObjects: [],
+          },
         });
 
         throw seedError;
@@ -485,6 +562,8 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
         status: "ready",
         processingError: null,
         seededCandidateCount: 0,
+        seedModel: null,
+        seedDebugResult: null,
       });
     }
 

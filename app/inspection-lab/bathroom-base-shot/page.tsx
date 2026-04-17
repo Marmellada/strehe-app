@@ -386,7 +386,9 @@ export default async function RoomStateInspectionLabPage() {
 
                                   <div className="mb-3 text-xs text-muted-foreground">
                                     {photo.processingStatus === "ready"
-                                      ? `Ready for review${photo.seededCandidateCount > 0 ? ` · ${photo.seededCandidateCount} candidate${photo.seededCandidateCount === 1 ? "" : "s"} seeded` : ""}.`
+                                      ? photo.seededCandidateCount > 0
+                                        ? `Ready for review · ${photo.seededCandidateCount} candidate${photo.seededCandidateCount === 1 ? "" : "s"} seeded.`
+                                        : "Ready for review · 0 candidates found."
                                       : photo.processingStatus === "processing"
                                         ? "Baseline processing is still running. Review unlocks automatically when it finishes."
                                         : photo.processingStatus === "failed"

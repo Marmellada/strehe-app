@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Badge, Button, Input } from "@/components/ui";
 import type { InspectionTrackedObject } from "@/lib/inspection-lab/bathroom-base-shot";
+import type { Json } from "@/types/supabase";
 
 const CATEGORY_OPTIONS = [
   "fixture",
@@ -41,6 +42,8 @@ type Props = {
   photoLabel: string;
   signedUrl: string;
   trackedObjects: InspectionTrackedObject[];
+  seedModel: string | null;
+  seedDebugResult: Json | null;
   saveTrackedObjectAction: (formData: FormData) => Promise<void>;
   saveMarkerAction: (formData: FormData) => Promise<void>;
 };
@@ -51,6 +54,8 @@ export function PhotoObjectReview({
   photoLabel,
   signedUrl,
   trackedObjects,
+  seedModel,
+  seedDebugResult,
   saveTrackedObjectAction,
   saveMarkerAction,
 }: Props) {
@@ -146,6 +151,20 @@ export function PhotoObjectReview({
           {draftPoint
             ? `Draft marker: x ${draftPoint.x.toFixed(3)}, y ${draftPoint.y.toFixed(3)}`
             : "Click on the image to create a draft marker."}
+        </div>
+
+        <div className="rounded-lg border border-border/70 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2 text-sm font-medium">
+            <span>Baseline Seed Debug</span>
+            <Badge variant={seedModel ? "info" : "neutral"}>
+              {seedModel || "No model recorded"}
+            </Badge>
+          </div>
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-black/5 p-3 text-xs text-muted-foreground">
+            {seedDebugResult
+              ? JSON.stringify(seedDebugResult, null, 2)
+              : "No raw seed result was stored for this photo."}
+          </pre>
         </div>
       </div>
 

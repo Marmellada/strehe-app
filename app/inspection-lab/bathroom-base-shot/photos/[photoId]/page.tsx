@@ -146,6 +146,8 @@ export default async function InspectionPhotoReviewPage({
           photoLabel={`#${typedPhotoRow.order_index ?? "?"} ${typedPhotoRow.photo_type || "unspecified"}`}
           signedUrl={signedUrlData.signedUrl}
           trackedObjects={trackedObjects}
+          seedModel={typedPhotoRow.seed_model || null}
+          seedDebugResult={typedPhotoRow.seed_debug_result ?? null}
           saveTrackedObjectAction={saveTrackedObjectFormAction}
           saveMarkerAction={saveTrackedObjectMarkerFormAction}
         />
