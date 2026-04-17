@@ -18,11 +18,15 @@ import { saveGlobalAppearanceTheme } from "@/lib/actions/settings";
 type AppearancePreviewPanelProps = {
   scopeLabel?: string;
   initialTheme?: Partial<PreviewTheme> | null;
+  visibleSections?: readonly string[];
+  focusLabel?: string;
 };
 
 export function AppearancePreviewPanel({
   scopeLabel = "Live app preview",
   initialTheme,
+  visibleSections,
+  focusLabel,
 }: AppearancePreviewPanelProps) {
   const sharedTheme = useMemo(
     () => normalizePreviewTheme(initialTheme),
@@ -55,13 +59,21 @@ export function AppearancePreviewPanel({
     const grouped = new Map<string, typeof previewTokenFields>();
 
     previewTokenFields.forEach((field) => {
+      if (
+        visibleSections &&
+        visibleSections.length > 0 &&
+        !visibleSections.includes(field.section)
+      ) {
+        return;
+      }
+
       const existing = grouped.get(field.section) ?? [];
       existing.push(field);
       grouped.set(field.section, existing);
     });
 
     return Array.from(grouped.entries());
-  }, []);
+  }, [visibleSections]);
 
   function updateDraftTheme(key: keyof PreviewTheme, value: string | number) {
     setMessage(null);
@@ -144,6 +156,12 @@ export function AppearancePreviewPanel({
             Appearance Controls
           </p>
           <p className="text-sm text-muted-foreground">{scopeLabel}</p>
+          {focusLabel ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Editing focus:{" "}
+              <span className="font-medium text-foreground">{focusLabel}</span>
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2">
@@ -203,8 +221,9 @@ export function AppearancePreviewPanel({
                 {section}
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Edit the draft here, review it on this page, then save it when
-                it feels right for the whole app.
+                {focusLabel
+                  ? `These controls currently shape the ${focusLabel.toLowerCase()} preview.`
+                  : "Edit the draft here, review it on this page, then save it when it feels right for the whole app."}
               </p>
             </div>
 

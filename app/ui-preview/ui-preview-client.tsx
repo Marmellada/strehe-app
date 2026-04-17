@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import {
   CircleAlert,
   Eye,
@@ -105,24 +105,89 @@ const pageLocalRows = [
   "module-specific action placement",
 ];
 
+const previewFocusOptions = [
+  {
+    key: "all",
+    label: "Everything",
+    description: "See and edit the whole shared system at once.",
+    sections: undefined,
+  },
+  {
+    key: "shell",
+    label: "Shell",
+    description: "Sidebar, topbar, main surfaces, and shared text.",
+    sections: ["Surfaces", "Sidebar", "Topbar", "Typography", "Layout"],
+  },
+  {
+    key: "buttons",
+    label: "Buttons",
+    description: "Primary, secondary, outline, ghost, and destructive actions.",
+    sections: ["Buttons", "Layout"],
+  },
+  {
+    key: "fields",
+    label: "Fields",
+    description: "Input, select, textarea, checkbox, and shared form rhythm.",
+    sections: [
+      "Input Fields",
+      "Select Fields",
+      "Textarea",
+      "Checkbox",
+      "Typography",
+      "Layout",
+    ],
+  },
+  {
+    key: "feedback",
+    label: "Badges & Alerts",
+    description: "Status pills, warnings, confirmations, and helper surfaces.",
+    sections: ["Badges", "Alerts", "Typography", "Layout"],
+  },
+  {
+    key: "cards",
+    label: "Cards & Empty States",
+    description: "Shared surfaces for detail blocks and no-data states.",
+    sections: ["Surfaces", "Empty States", "Typography", "Layout"],
+  },
+  {
+    key: "tables",
+    label: "Tables",
+    description: "Headers, rows, table text, and related action styling.",
+    sections: ["Tables", "Buttons", "Badges", "Typography", "Layout"],
+  },
+  {
+    key: "type",
+    label: "Typography",
+    description: "Page titles, body text, muted copy, and shared readability.",
+    sections: ["Typography", "Layout"],
+  },
+] as const;
+
+type PreviewFocusKey = (typeof previewFocusOptions)[number]["key"];
+
 function PreviewHint({
   controls,
   children,
   className = "",
   onHoverChange,
+  onSelect,
+  selected = false,
 }: {
   controls: string;
   children: ReactNode;
   className?: string;
   onHoverChange: (value: string | null) => void;
+  onSelect?: () => void;
+  selected?: boolean;
 }) {
   return (
     <div
-      className={`relative ${className}`}
+      className={`relative transition-shadow ${selected ? "rounded-xl ring-2 ring-foreground/20 ring-offset-2 ring-offset-background" : ""} ${onSelect ? "cursor-pointer" : ""} ${className}`}
       onMouseEnter={() => onHoverChange(controls)}
       onMouseLeave={() => onHoverChange(null)}
       onFocus={() => onHoverChange(controls)}
       onBlur={() => onHoverChange(null)}
+      onClick={onSelect}
     >
       {children}
     </div>
@@ -137,6 +202,28 @@ export function UiPreviewClient({
   const [checked, setChecked] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [hoveredControls, setHoveredControls] = useState<string | null>(null);
+  const [selectedFocus, setSelectedFocus] = useState<PreviewFocusKey>("all");
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedFocusOption = useMemo(
+    () =>
+      previewFocusOptions.find((option) => option.key === selectedFocus) ??
+      previewFocusOptions[0],
+    [selectedFocus]
+  );
+
+  function focusEditor(target: PreviewFocusKey, scrollToPanel = false) {
+    setSelectedFocus(target);
+
+    if (scrollToPanel) {
+      requestAnimationFrame(() => {
+        panelRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -145,10 +232,38 @@ export function UiPreviewClient({
         description="Visual preview of the shared UI system before page-by-page migration starts."
       />
 
-      <AppearancePreviewPanel
-        initialTheme={initialTheme}
-        scopeLabel="Appearance editor for the live app"
-      />
+      <div ref={panelRef}>
+        <AppearancePreviewPanel
+          initialTheme={initialTheme}
+          scopeLabel="Appearance editor for the live app"
+          visibleSections={selectedFocusOption.sections}
+          focusLabel={selectedFocusOption.label}
+        />
+      </div>
+
+      <SectionCard
+        title="Edit By Component"
+        description="Choose the part of the UI you want to refine, and the editor above will narrow itself to just those controls."
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {previewFocusOptions.map((option) => (
+              <Button
+                key={option.key}
+                type="button"
+                size="sm"
+                variant={selectedFocus === option.key ? "default" : "outline"}
+                onClick={() => focusEditor(option.key)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {selectedFocusOption.description}
+          </p>
+        </div>
+      </SectionCard>
 
       <SectionCard
         title="What This Page Is"
@@ -186,11 +301,23 @@ export function UiPreviewClient({
       <SectionCard
         title="Shell Preview"
         description="Mini preview of the sidebar and top bar so shell styling is visible here too."
+        action={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => focusEditor("shell", true)}
+          >
+            Edit Shell
+          </Button>
+        }
       >
         <PreviewHint
           controls="Sidebar Background, Sidebar Base Text, Sidebar Section Label, Sidebar Link Text, Sidebar Link Hover Background, Topbar Background, Topbar Text"
           className="block"
           onHoverChange={setHoveredControls}
+          onSelect={() => focusEditor("shell")}
+          selected={selectedFocus === "shell"}
         >
         <div className="overflow-hidden rounded-xl border">
           <div className="grid min-h-[320px] md:grid-cols-[220px_1fr]">
@@ -251,24 +378,34 @@ export function UiPreviewClient({
       <SectionCard
         title="Buttons"
         description="One small set of reusable button treatments."
+        action={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => focusEditor("buttons", true)}
+          >
+            Edit Buttons
+          </Button>
+        }
       >
         <div className="flex flex-wrap gap-3">
-          <PreviewHint controls="Primary Button Background, Primary Button Text, Shared Radius" onHoverChange={setHoveredControls}>
+          <PreviewHint controls="Primary Button Background, Primary Button Text, Shared Radius" onHoverChange={setHoveredControls} onSelect={() => focusEditor("buttons")} selected={selectedFocus === "buttons"}>
             <Button>Primary Button</Button>
           </PreviewHint>
-          <PreviewHint controls="Secondary Button Background, Secondary Button Text, Shared Radius" onHoverChange={setHoveredControls}>
+          <PreviewHint controls="Secondary Button Background, Secondary Button Text, Shared Radius" onHoverChange={setHoveredControls} onSelect={() => focusEditor("buttons")} selected={selectedFocus === "buttons"}>
             <Button variant="secondary">Secondary Button</Button>
           </PreviewHint>
-          <PreviewHint controls="Outline Button Background, Outline Button Text, Outline Button Border" onHoverChange={setHoveredControls}>
+          <PreviewHint controls="Outline Button Background, Outline Button Text, Outline Button Border" onHoverChange={setHoveredControls} onSelect={() => focusEditor("buttons")} selected={selectedFocus === "buttons"}>
             <Button variant="outline">Outline Button</Button>
           </PreviewHint>
-          <PreviewHint controls="Ghost Button Text, Ghost Button Hover Background, Ghost Button Hover Text" onHoverChange={setHoveredControls}>
+          <PreviewHint controls="Ghost Button Text, Ghost Button Hover Background, Ghost Button Hover Text" onHoverChange={setHoveredControls} onSelect={() => focusEditor("buttons")} selected={selectedFocus === "buttons"}>
             <Button variant="ghost">Ghost Button</Button>
           </PreviewHint>
-          <PreviewHint controls="Destructive Button Background, Destructive Button Text, Shared Radius" onHoverChange={setHoveredControls}>
+          <PreviewHint controls="Destructive Button Background, Destructive Button Text, Shared Radius" onHoverChange={setHoveredControls} onSelect={() => focusEditor("buttons")} selected={selectedFocus === "buttons"}>
             <Button variant="destructive">Destructive Button</Button>
           </PreviewHint>
-          <PreviewHint controls="Primary Button Background, Primary Button Text" onHoverChange={setHoveredControls}>
+          <PreviewHint controls="Primary Button Background, Primary Button Text" onHoverChange={setHoveredControls} onSelect={() => focusEditor("buttons")} selected={selectedFocus === "buttons"}>
             <Button disabled>Disabled Button</Button>
           </PreviewHint>
         </div>
@@ -277,6 +414,16 @@ export function UiPreviewClient({
       <SectionCard
         title="Fields"
         description="Shared field look only. Layout stays page-local."
+        action={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => focusEditor("fields", true)}
+          >
+            Edit Fields
+          </Button>
+        }
       >
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-4">
@@ -284,6 +431,8 @@ export function UiPreviewClient({
               controls="Input Background, Input Text, Input Border, Input Placeholder, Input Focus Ring"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <FormInput
                 label="Form Input"
@@ -297,6 +446,8 @@ export function UiPreviewClient({
               controls="Input Background, Input Border, Destructive Button Background"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <FormInput
                 label="Form Input With Error"
@@ -310,6 +461,8 @@ export function UiPreviewClient({
               controls="Input Background, Input Text, Input Border, Input Focus Ring"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <div className="space-y-2">
                 <Label htmlFor="plain-input">Input Primitive</Label>
@@ -321,6 +474,8 @@ export function UiPreviewClient({
               controls="Textarea Background, Textarea Text, Textarea Border, Textarea Placeholder, Textarea Focus Ring"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <div className="space-y-2">
                 <Label htmlFor="plain-textarea">Textarea Primitive</Label>
@@ -338,6 +493,8 @@ export function UiPreviewClient({
               controls="Select Background, Select Text, Select Border, Select Placeholder, Select Focus Ring"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <div className="space-y-2">
                 <Label>Select Primitive</Label>
@@ -358,6 +515,8 @@ export function UiPreviewClient({
               controls="Checkbox Background, Checkbox Border, Checkbox Focus Ring, Checkbox Checked Background, Checkbox Checked Border, Checkbox Checkmark"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <div className="space-y-2">
                 <Label className="text-sm text-foreground">Checkbox Primitive</Label>
@@ -375,6 +534,8 @@ export function UiPreviewClient({
               controls="Input Background, Input Border, Muted Text"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <div className="space-y-2">
                 <Label htmlFor="disabled-field">Disabled Field</Label>
@@ -447,6 +608,8 @@ export function UiPreviewClient({
               controls="Input Background, Input Text, Input Border, Input Placeholder"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <FormInput
                 label="IBAN"
@@ -460,6 +623,8 @@ export function UiPreviewClient({
               controls="Input Background, Input Border, Destructive Button Background"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("fields")}
+              selected={selectedFocus === "fields"}
             >
               <FormInput
                 label="IBAN With Validation Error"
@@ -473,6 +638,8 @@ export function UiPreviewClient({
               controls="Empty State Background, Empty State Border, Empty State Icon Background, Empty State Icon Color, Primary Text, Muted Text"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("cards")}
+              selected={selectedFocus === "cards"}
             >
               <Alert>
                 <div>
@@ -491,22 +658,32 @@ export function UiPreviewClient({
       <SectionCard
         title="Badges And Alerts"
         description="Reusable status and feedback treatments."
+        action={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => focusEditor("feedback", true)}
+          >
+            Edit Feedback
+          </Button>
+        }
       >
         <div className="space-y-5">
           <div className="flex flex-wrap gap-2">
-            <PreviewHint controls="Neutral Badge Fill, Neutral Badge Text, Neutral Badge Border" onHoverChange={setHoveredControls}>
+            <PreviewHint controls="Neutral Badge Fill, Neutral Badge Text, Neutral Badge Border" onHoverChange={setHoveredControls} onSelect={() => focusEditor("feedback")} selected={selectedFocus === "feedback"}>
               <Badge variant="neutral">neutral</Badge>
             </PreviewHint>
-            <PreviewHint controls="Info Badge Fill, Info Badge Text" onHoverChange={setHoveredControls}>
+            <PreviewHint controls="Info Badge Fill, Info Badge Text" onHoverChange={setHoveredControls} onSelect={() => focusEditor("feedback")} selected={selectedFocus === "feedback"}>
               <Badge variant="info">info</Badge>
             </PreviewHint>
-            <PreviewHint controls="Success Badge Fill, Success Badge Text" onHoverChange={setHoveredControls}>
+            <PreviewHint controls="Success Badge Fill, Success Badge Text" onHoverChange={setHoveredControls} onSelect={() => focusEditor("feedback")} selected={selectedFocus === "feedback"}>
               <Badge variant="success">success</Badge>
             </PreviewHint>
-            <PreviewHint controls="Warning Badge Fill, Warning Badge Text" onHoverChange={setHoveredControls}>
+            <PreviewHint controls="Warning Badge Fill, Warning Badge Text" onHoverChange={setHoveredControls} onSelect={() => focusEditor("feedback")} selected={selectedFocus === "feedback"}>
               <Badge variant="warning">warning</Badge>
             </PreviewHint>
-            <PreviewHint controls="Danger Badge Fill, Danger Badge Text" onHoverChange={setHoveredControls}>
+            <PreviewHint controls="Danger Badge Fill, Danger Badge Text" onHoverChange={setHoveredControls} onSelect={() => focusEditor("feedback")} selected={selectedFocus === "feedback"}>
               <Badge variant="danger">danger</Badge>
             </PreviewHint>
           </div>
@@ -516,6 +693,8 @@ export function UiPreviewClient({
                 controls="Neutral Alert Background, Neutral Alert Border, Neutral Alert Text, Neutral Alert Icon"
                 className="block"
                 onHoverChange={setHoveredControls}
+                onSelect={() => focusEditor("feedback")}
+                selected={selectedFocus === "feedback"}
               >
                 <Alert>
                   <CircleAlert className="h-4 w-4" />
@@ -532,6 +711,8 @@ export function UiPreviewClient({
               controls="Destructive Alert Background, Destructive Alert Border, Destructive Alert Text, Destructive Alert Icon"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("feedback")}
+              selected={selectedFocus === "feedback"}
             >
               <Alert variant="destructive">
                 <CircleAlert className="h-4 w-4" />
@@ -550,6 +731,8 @@ export function UiPreviewClient({
               controls="Info Alert Background, Info Alert Border, Info Alert Text, Info Alert Icon"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("feedback")}
+              selected={selectedFocus === "feedback"}
             >
               <Alert variant="info">
                 <Info className="h-4 w-4" />
@@ -564,6 +747,8 @@ export function UiPreviewClient({
               controls="Success Alert Background, Success Alert Border, Success Alert Text, Success Alert Icon"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("feedback")}
+              selected={selectedFocus === "feedback"}
             >
               <Alert variant="success">
                 <ShieldCheck className="h-4 w-4" />
@@ -578,6 +763,8 @@ export function UiPreviewClient({
               controls="Warning Alert Background, Warning Alert Border, Warning Alert Text, Warning Alert Icon"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("feedback")}
+              selected={selectedFocus === "feedback"}
             >
               <Alert variant="warning">
                 <TriangleAlert className="h-4 w-4" />
@@ -594,13 +781,25 @@ export function UiPreviewClient({
       <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
         <SectionCard
           title="Cards And Detail Fields"
-        description="How entity details should feel when built from shared surfaces."
-      >
+          description="How entity details should feel when built from shared surfaces."
+          action={
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => focusEditor("cards", true)}
+            >
+              Edit Cards
+            </Button>
+          }
+        >
         <div className="grid gap-4 lg:grid-cols-2">
             <PreviewHint
               controls="Card Background, Border Color, Primary Text, Muted Text, Shared Radius"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("cards")}
+              selected={selectedFocus === "cards"}
             >
             <Card>
               <CardHeader>
@@ -622,6 +821,8 @@ export function UiPreviewClient({
               controls="Card Background, Border Color, Primary Text, Muted Text"
               className="block"
               onHoverChange={setHoveredControls}
+              onSelect={() => focusEditor("cards")}
+              selected={selectedFocus === "cards"}
             >
               <EmptyState
                 title="Empty State"
@@ -635,40 +836,70 @@ export function UiPreviewClient({
         <SectionCard
           title="Typography Preview"
           description="These are the text roles we should be tuning globally, not page by page."
+          action={
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => focusEditor("type", true)}
+            >
+              Edit Type
+            </Button>
+          }
         >
-          <div className="space-y-4">
-            <div>
-              <p className="text-2xl font-semibold text-foreground">Page title style</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Supporting subtitle / descriptive copy
-              </p>
-            </div>
+          <PreviewHint
+            controls="Primary Text, Muted Text, Shared Radius"
+            className="block"
+            onHoverChange={setHoveredControls}
+            onSelect={() => focusEditor("type")}
+            selected={selectedFocus === "type"}
+          >
+            <div className="space-y-4">
+              <div>
+                <p className="text-2xl font-semibold text-foreground">Page title style</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Supporting subtitle / descriptive copy
+                </p>
+              </div>
 
-            <div>
-              <p className="text-base font-medium text-foreground">Section title style</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Muted text / helper content / meta copy
-              </p>
-            </div>
+              <div>
+                <p className="text-base font-medium text-foreground">Section title style</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Muted text / helper content / meta copy
+                </p>
+              </div>
 
-            <div>
-              <p className="text-sm text-foreground">
-                Body text preview for normal readable content inside cards and pages.
-              </p>
+              <div>
+                <p className="text-sm text-foreground">
+                  Body text preview for normal readable content inside cards and pages.
+                </p>
+              </div>
             </div>
-          </div>
+          </PreviewHint>
         </SectionCard>
       </div>
 
       <SectionCard
         title="Tables"
         description="Visual table treatment only. Columns, ordering, and meaning stay module-local."
+        action={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => focusEditor("tables", true)}
+          >
+            Edit Tables
+          </Button>
+        }
       >
         <div className="space-y-6">
           <PreviewHint
             controls="Card Background, Border Color, Primary Text, Field Background"
             className="block"
             onHoverChange={setHoveredControls}
+            onSelect={() => focusEditor("tables")}
+            selected={selectedFocus === "tables"}
           >
           <ListToolbar actions={<Button variant="outline">Toolbar Action</Button>}>
             <FormInput
@@ -696,6 +927,8 @@ export function UiPreviewClient({
             controls="Card Background, Border Color, Table Header, Table Header Text, Table Body Text, Table Row Border, Success Badge Fill"
             className="block"
             onHoverChange={setHoveredControls}
+            onSelect={() => focusEditor("tables")}
+            selected={selectedFocus === "tables"}
           >
           <TableShell>
             <Table>
@@ -732,6 +965,8 @@ export function UiPreviewClient({
             controls="Card Background, Border Color, Table Header, Table Header Text, Table Body Text, Table Row Border, Warning/Info badge colors"
             className="block"
             onHoverChange={setHoveredControls}
+            onSelect={() => focusEditor("tables")}
+            selected={selectedFocus === "tables"}
           >
           <TableShell>
             <Table>
