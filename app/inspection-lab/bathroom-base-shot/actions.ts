@@ -113,6 +113,11 @@ async function seedBaselineTrackedObjects(options: {
   const seededLabels = new Set<string>(
     getDefaultTrackedObjectSeeds(options.roomType, options.photoType)
   );
+  const seededNotes = new Map<string, string>();
+
+  for (const label of seededLabels) {
+    seededNotes.set(label, "Seeded from the baseline photo type.");
+  }
 
   try {
     const { data: imageBlob, error: imageError } = await supabase.storage
@@ -137,9 +142,29 @@ async function seedBaselineTrackedObjects(options: {
           }).trackedObjects || [])
         : [];
 
+      console.info("[INSPECTION_LAB_BASELINE_AI_SEED_RESULT]", {
+        caseRowId: options.caseRowId,
+        roomType: options.roomType,
+        storagePath: options.storagePath,
+        photoType: options.photoType,
+        detected: aiTrackedObjects.map((item) => ({
+          objectName: item.objectName,
+          visibility: item.visibility,
+          confidence: item.confidence,
+        })),
+      });
+
       for (const item of aiTrackedObjects) {
-        if (item?.objectName && item.visibility === "visible" && (item.confidence ?? 0) >= 0.45) {
+        if (
+          item?.objectName &&
+          ["visible", "uncertain"].includes(item.visibility || "") &&
+          (item.confidence ?? 0) >= 0.25
+        ) {
           seededLabels.add(item.objectName);
+          seededNotes.set(
+            item.objectName,
+            `AI seeded from baseline upload (${item.visibility || "uncertain"}, confidence ${(item.confidence ?? 0).toFixed(2)}).`
+          );
         }
       }
     }
@@ -167,7 +192,8 @@ async function seedBaselineTrackedObjects(options: {
     baseline_order_index: options.orderIndex,
     baseline_photo_type: options.photoType,
     baseline_storage_path: options.storagePath,
-    review_note: "Seeded from the baseline upload for photo review.",
+    review_note:
+      seededNotes.get(label) || "Seeded from the baseline upload for photo review.",
     created_by_user_id: options.userId,
     updated_by_user_id: options.userId,
     updated_at: new Date().toISOString(),

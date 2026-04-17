@@ -57,6 +57,12 @@ export function PhotoObjectReview({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string>("");
   const [draftPoint, setDraftPoint] = useState<{ x: number; y: number } | null>(null);
+  const engineSeededObjects = trackedObjects.filter(
+    (item) => item.source === "auto_detected" || item.source === "engine" || item.source === "baseline_capture"
+  );
+  const manualObjects = trackedObjects.filter(
+    (item) => item.source === "manual_added" || item.source === "manual_corrected"
+  );
 
   function handleImageClick(event: React.MouseEvent<HTMLDivElement>) {
     const target = imageRef.current;
@@ -140,17 +146,18 @@ export function PhotoObjectReview({
 
       <div className="space-y-4">
         <div className="rounded-lg border border-border/70 p-3">
-          <div className="mb-2 text-sm font-medium">Objects On This Photo</div>
-          {trackedObjects.length ? (
+          <div className="mb-2 text-sm font-medium">Engine Seeded Candidates</div>
+          {engineSeededObjects.length ? (
             <ul className="space-y-2">
-              {trackedObjects.map((item) => (
+              {engineSeededObjects.map((item) => (
                 <li key={item.id || item.key} className="rounded-lg border border-border/60 p-3">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <div className="font-medium">{item.label}</div>
                       <div className="text-sm text-muted-foreground">
-                        {item.category || "uncategorized"} · {item.activityStatus}
+                        {item.category || "uncategorized"} · {item.activityStatus} · {item.source}
                       </div>
+                      <div className="mt-1 text-sm text-muted-foreground">{item.reason}</div>
                     </div>
                     <Badge variant={item.markerX !== null && item.markerY !== null ? "success" : "neutral"}>
                       {item.markerX !== null && item.markerY !== null ? "Placed" : "Needs Marker"}
@@ -197,7 +204,73 @@ export function PhotoObjectReview({
             </ul>
           ) : (
             <div className="text-sm text-muted-foreground">
-              No tracked objects are linked to this photo yet.
+              The engine did not surface any candidates for this photo yet. If this image clearly
+              contains a major object like a TV or sofa, that means the auto-seed step needs
+              attention rather than you missing something.
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border/70 p-3">
+          <div className="mb-2 text-sm font-medium">Manual Objects On This Photo</div>
+          {manualObjects.length ? (
+            <ul className="space-y-2">
+              {manualObjects.map((item) => (
+                <li key={item.id || item.key} className="rounded-lg border border-border/60 p-3">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{item.label}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {item.category || "uncategorized"} · {item.activityStatus} · {item.source}
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">{item.reason}</div>
+                    </div>
+                    <Badge variant={item.markerX !== null && item.markerY !== null ? "success" : "neutral"}>
+                      {item.markerX !== null && item.markerY !== null ? "Placed" : "Needs Marker"}
+                    </Badge>
+                  </div>
+
+                  {item.id ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={selectedObjectId === item.id ? "default" : "outline"}
+                        onClick={() => setSelectedObjectId(item.id || "")}
+                      >
+                        {selectedObjectId === item.id ? "Selected" : "Select"}
+                      </Button>
+
+                      <form action={saveMarkerAction}>
+                        <input type="hidden" name="tracked_object_id" value={item.id} />
+                        <input type="hidden" name="baseline_photo_id" value={photoId} />
+                        <input
+                          type="hidden"
+                          name="marker_x"
+                          value={selectedObjectId === item.id && draftPoint ? String(draftPoint.x) : ""}
+                        />
+                        <input
+                          type="hidden"
+                          name="marker_y"
+                          value={selectedObjectId === item.id && draftPoint ? String(draftPoint.y) : ""}
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          disabled={selectedObjectId !== item.id || !draftPoint}
+                        >
+                          Save Marker
+                        </Button>
+                      </form>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No manual objects have been added for this photo yet.
             </div>
           )}
         </div>
