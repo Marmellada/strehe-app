@@ -208,15 +208,23 @@ async function seedBaselineTrackedObjects(options: {
     summary: string;
     objectChecks: unknown[];
     trackedObjects: unknown[];
+    error?: string | null;
+    savedCandidates?: unknown[];
   } = {
     attempted: aiEnabled,
-    model: null,
+    model: aiEnabled
+      ? process.env.OPENAI_INSPECTION_BASELINE_MODEL ||
+        process.env.OPENAI_INSPECTION_MODEL ||
+        "gpt-4.1"
+      : null,
     summary: aiEnabled
       ? "AI baseline detection did not return any saved candidates."
       : "AI baseline detection is disabled.",
     objectChecks: [],
     trackedObjects: [],
+    error: null,
   };
+  let aiSeedFailed = false;
 
   const seededNotes = new Map<string, string>();
 
@@ -271,6 +279,7 @@ async function seedBaselineTrackedObjects(options: {
           ? typedAiResult.objectChecks
           : [],
         trackedObjects: aiTrackedObjects,
+        error: null,
       };
 
       console.info("[INSPECTION_LAB_BASELINE_AI_SEED_RESULT]", {
@@ -314,6 +323,20 @@ async function seedBaselineTrackedObjects(options: {
       }
     }
   } catch (error) {
+    aiSeedFailed = true;
+    rawAiSeedResult = {
+      ...rawAiSeedResult,
+      summary:
+        error instanceof Error
+          ? error.message
+          : "Unknown baseline AI seed failure.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown baseline AI seed failure.",
+      objectChecks: [],
+      trackedObjects: [],
+    };
     console.error("[INSPECTION_LAB_BASELINE_AI_SEED_WARNING]", {
       caseRowId: options.caseRowId,
       storagePath: options.storagePath,
@@ -338,6 +361,7 @@ async function seedBaselineTrackedObjects(options: {
       seededCandidateCount: 0,
       seedModel: rawAiSeedResult.model,
       seedDebugResult: rawAiSeedResult,
+      seedFailed: aiSeedFailed,
     };
   }
 
@@ -388,8 +412,9 @@ async function seedBaselineTrackedObjects(options: {
         source: row.source,
         centerX: row.marker_x,
         centerY: row.marker_y,
-      })),
+        })),
     },
+    seedFailed: aiSeedFailed,
   };
 }
 
@@ -526,8 +551,14 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
 
         await updateInspectionPhotoProcessingStatus({
           photoId: savedPhotoId,
-          status: "ready",
-          processingError: null,
+          status: seedResult.seedFailed ? "failed" : "ready",
+          processingError:
+            seedResult.seedFailed
+              ? typeof (seedResult.seedDebugResult as { error?: unknown } | null)?.error ===
+                "string"
+                ? ((seedResult.seedDebugResult as { error?: string }).error ?? null)
+                : "Baseline processing did not complete successfully."
+              : null,
           seededCandidateCount: seedResult.seededCandidateCount,
           seedModel: seedResult.seedModel,
           seedDebugResult: seedResult.seedDebugResult,
