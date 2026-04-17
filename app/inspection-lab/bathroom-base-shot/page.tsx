@@ -135,6 +135,36 @@ function formatOptionLabel(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getPhotoProcessingBadgeVariant(status: string) {
+  switch (status) {
+    case "ready":
+      return "success" as const;
+    case "processing":
+      return "warning" as const;
+    case "failed":
+      return "danger" as const;
+    case "pending":
+      return "neutral" as const;
+    default:
+      return "neutral" as const;
+  }
+}
+
+function formatPhotoProcessingLabel(status: string) {
+  switch (status) {
+    case "processing":
+      return "Processing";
+    case "ready":
+      return "Ready";
+    case "failed":
+      return "Failed";
+    case "pending":
+      return "Pending";
+    default:
+      return "Unknown";
+  }
+}
+
 async function updateInspectionPhotoMetadataFormAction(
   formData: FormData
 ): Promise<void> {
@@ -224,6 +254,12 @@ export default async function RoomStateInspectionLabPage() {
       total + item.trackedTargets.filter((trackedObject) => trackedObject.activityStatus === "active").length,
     0
   );
+  const processingPhotosCount = cases.reduce(
+    (total, item) =>
+      total +
+      item.baselinePhotos.filter((photo) => photo.processingStatus === "processing").length,
+    0
+  );
 
   return (
     <main className="space-y-6">
@@ -240,11 +276,12 @@ export default async function RoomStateInspectionLabPage() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <StatCard title="Cases" value={cases.length} />
         <StatCard title="Ready To Compare" value={readyCases.length} />
         <StatCard title="Review Flags" value={reviewCases} />
         <StatCard title="Tracked Objects" value={trackedTargetsCount} />
+        <StatCard title="Processing" value={processingPhotosCount} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px),1fr]">
@@ -312,10 +349,28 @@ export default async function RoomStateInspectionLabPage() {
                                     <div className="text-sm font-medium">
                                       #{photo.orderIndex ?? "?"} {photo.photoType || "unspecified"}
                                     </div>
-                                    {photo.signedUrl ? (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge
+                                        variant={getPhotoProcessingBadgeVariant(photo.processingStatus)}
+                                      >
+                                        {formatPhotoProcessingLabel(photo.processingStatus)}
+                                      </Badge>
+                                      {photo.signedUrl ? (
                                       <div className="flex gap-2">
-                                        <Button asChild variant="outline" size="sm">
-                                          <a href={`/inspection-lab/bathroom-base-shot/photos/${photo.id}`}>
+                                        <Button
+                                          asChild
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={photo.processingStatus !== "ready"}
+                                        >
+                                          <a
+                                            href={
+                                              photo.processingStatus === "ready"
+                                                ? `/inspection-lab/bathroom-base-shot/photos/${photo.id}`
+                                                : "#"
+                                            }
+                                            aria-disabled={photo.processingStatus !== "ready"}
+                                          >
                                             Review
                                           </a>
                                         </Button>
@@ -325,7 +380,18 @@ export default async function RoomStateInspectionLabPage() {
                                           </a>
                                         </Button>
                                       </div>
-                                    ) : null}
+                                      ) : null}
+                                    </div>
+                                  </div>
+
+                                  <div className="mb-3 text-xs text-muted-foreground">
+                                    {photo.processingStatus === "ready"
+                                      ? `Ready for review${photo.seededCandidateCount > 0 ? ` · ${photo.seededCandidateCount} candidate${photo.seededCandidateCount === 1 ? "" : "s"} seeded` : ""}.`
+                                      : photo.processingStatus === "processing"
+                                        ? "Baseline processing is still running. Review unlocks automatically when it finishes."
+                                        : photo.processingStatus === "failed"
+                                          ? `Processing failed${photo.processingError ? ` · ${photo.processingError}` : ""}`
+                                          : "Waiting for processing to start."}
                                   </div>
 
                                   <form action={updateInspectionPhotoMetadataFormAction} className="space-y-3">

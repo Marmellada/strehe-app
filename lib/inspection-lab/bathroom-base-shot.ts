@@ -16,6 +16,10 @@ export type InspectionCasePhotoSummary = {
   signedUrl: string | null;
   photoType: string | null;
   orderIndex: number | null;
+  processingStatus: "pending" | "processing" | "ready" | "failed";
+  processingError: string | null;
+  processedAt: string | null;
+  seededCandidateCount: number;
   createdAt: string;
 };
 
@@ -73,6 +77,10 @@ export type InspectionLabCasePhotoRow = {
   storage_path: string;
   photo_type: string | null;
   order_index: number | null;
+  processing_status: "pending" | "processing" | "ready" | "failed";
+  processing_error: string | null;
+  processed_at: string | null;
+  seeded_candidate_count: number | null;
   created_at: string;
 };
 
@@ -344,6 +352,10 @@ export async function listInspectionCases(
       signedUrl: await createSignedUrlOrNull(bucket, row.storage_path),
       photoType: row.photo_type,
       orderIndex: row.order_index,
+      processingStatus: row.processing_status || "ready",
+      processingError: row.processing_error || null,
+      processedAt: row.processed_at || null,
+      seededCandidateCount: row.seeded_candidate_count ?? 0,
       createdAt: row.created_at,
     }))
   );

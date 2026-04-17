@@ -129,7 +129,11 @@ export function RoomStateUploadForm() {
         throw new Error(metadataResult.error);
       }
 
-      setMessage("Photo uploaded successfully.");
+      setMessage(
+        slot === "baseline"
+          ? "Photo uploaded. Baseline processing has started and review will unlock when it is ready."
+          : "Photo uploaded successfully."
+      );
       setFile(null);
       setOrderIndex(String(parsedOrderIndex + 1));
 

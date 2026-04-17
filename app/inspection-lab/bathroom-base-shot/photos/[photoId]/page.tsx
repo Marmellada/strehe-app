@@ -117,6 +117,7 @@ export default async function InspectionPhotoReviewPage({
   const trackedObjects = mapTrackedObjects(
     (trackedObjectRows || []) as InspectionLabTrackedObjectRow[]
   );
+  const processingStatus = typedPhotoRow.processing_status || "ready";
 
   return (
     <main className="space-y-6">
@@ -130,15 +131,25 @@ export default async function InspectionPhotoReviewPage({
         }
       />
 
-      <PhotoObjectReview
-        caseRowId={typedPhotoRow.case_id}
-        photoId={typedPhotoRow.id}
-        photoLabel={`#${typedPhotoRow.order_index ?? "?"} ${typedPhotoRow.photo_type || "unspecified"}`}
-        signedUrl={signedUrlData.signedUrl}
-        trackedObjects={trackedObjects}
-        saveTrackedObjectAction={saveTrackedObjectFormAction}
-        saveMarkerAction={saveTrackedObjectMarkerFormAction}
-      />
+      {processingStatus !== "ready" ? (
+        <div className="rounded-lg border border-border/70 p-4 text-sm text-muted-foreground">
+          {processingStatus === "processing"
+            ? "This baseline photo is still processing. Review will unlock automatically when it is ready."
+            : processingStatus === "failed"
+              ? `This baseline photo is not ready for review because processing failed${typedPhotoRow.processing_error ? `: ${typedPhotoRow.processing_error}` : "."}`
+              : "This baseline photo is not ready for review yet."}
+        </div>
+      ) : (
+        <PhotoObjectReview
+          caseRowId={typedPhotoRow.case_id}
+          photoId={typedPhotoRow.id}
+          photoLabel={`#${typedPhotoRow.order_index ?? "?"} ${typedPhotoRow.photo_type || "unspecified"}`}
+          signedUrl={signedUrlData.signedUrl}
+          trackedObjects={trackedObjects}
+          saveTrackedObjectAction={saveTrackedObjectFormAction}
+          saveMarkerAction={saveTrackedObjectMarkerFormAction}
+        />
+      )}
     </main>
   );
 }

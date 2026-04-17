@@ -127,6 +127,42 @@ async function resetCaseReport(caseRowId: string, userId: string) {
   }
 }
 
+async function updateInspectionPhotoProcessingStatus(options: {
+  photoId: string;
+  status: "pending" | "processing" | "ready" | "failed";
+  processingError?: string | null;
+  seededCandidateCount?: number;
+}) {
+  const supabase = getAdminClient();
+
+  const payload: {
+    processing_status: "pending" | "processing" | "ready" | "failed";
+    processing_error: string | null;
+    processed_at: string | null;
+    seeded_candidate_count?: number;
+  } = {
+    processing_status: options.status,
+    processing_error: options.processingError || null,
+    processed_at:
+      options.status === "ready" || options.status === "failed"
+        ? new Date().toISOString()
+        : null,
+  };
+
+  if (typeof options.seededCandidateCount === "number") {
+    payload.seeded_candidate_count = options.seededCandidateCount;
+  }
+
+  const { error } = await supabase
+    .from("inspection_lab_case_photos")
+    .update(payload)
+    .eq("id", options.photoId);
+
+  if (error) {
+    throw new Error(`Failed to update photo processing status: ${error.message}`);
+  }
+}
+
 async function seedBaselineTrackedObjects(options: {
   caseRowId: string;
   roomType: InspectionRoomType;
@@ -248,7 +284,9 @@ async function seedBaselineTrackedObjects(options: {
   ]);
 
   if (finalLabels.size === 0) {
-    return;
+    return {
+      seededCandidateCount: 0,
+    };
   }
 
   const rows = [...finalLabels].map((label) => {
@@ -287,6 +325,10 @@ async function seedBaselineTrackedObjects(options: {
       message: error.message,
     });
   }
+
+  return {
+    seededCandidateCount: finalLabels.size,
+  };
 }
 
 export async function saveInspectionLabPhotoMetadataAction(input: {
@@ -384,6 +426,15 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
       savedPhotoId = insertedPhoto.id;
     }
 
+    if (savedPhotoId) {
+      await updateInspectionPhotoProcessingStatus({
+        photoId: savedPhotoId,
+        status: slot === "baseline" ? "processing" : "ready",
+        processingError: null,
+        seededCandidateCount: 0,
+      });
+    }
+
     if (existingPhoto?.storage_path && existingPhoto.storage_path !== storagePath) {
       const { error: removeError } = await supabase.storage
         .from(INSPECTION_STORAGE_BUCKET)
@@ -398,14 +449,42 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
     }
 
     if (slot === "baseline" && savedPhotoId) {
-      await seedBaselineTrackedObjects({
-        caseRowId: caseRow.id,
-        roomType,
+      try {
+        const seedResult = await seedBaselineTrackedObjects({
+          caseRowId: caseRow.id,
+          roomType,
+          photoId: savedPhotoId,
+          photoType,
+          orderIndex,
+          storagePath,
+          userId: appUser.id,
+        });
+
+        await updateInspectionPhotoProcessingStatus({
+          photoId: savedPhotoId,
+          status: "ready",
+          processingError: null,
+          seededCandidateCount: seedResult.seededCandidateCount,
+        });
+      } catch (seedError) {
+        await updateInspectionPhotoProcessingStatus({
+          photoId: savedPhotoId,
+          status: "failed",
+          processingError:
+            seedError instanceof Error
+              ? seedError.message
+              : "Baseline processing failed unexpectedly.",
+          seededCandidateCount: 0,
+        });
+
+        throw seedError;
+      }
+    } else if (savedPhotoId) {
+      await updateInspectionPhotoProcessingStatus({
         photoId: savedPhotoId,
-        photoType,
-        orderIndex,
-        storagePath,
-        userId: appUser.id,
+        status: "ready",
+        processingError: null,
+        seededCandidateCount: 0,
       });
     }
 
