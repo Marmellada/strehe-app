@@ -1,6 +1,7 @@
 import {
   analyzeBathroomBaseShot,
   analyzeBathroomObjectsWithAi,
+  detectRoomObjectsInPhotoWithAi,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
@@ -17,6 +18,10 @@ const engine = {
     baselineInput: Buffer,
     currentInput: Buffer,
     deterministicComparison: Record<string, unknown>
+  ) => Promise<unknown>,
+  detectRoomObjectsInPhotoWithAi: detectRoomObjectsInPhotoWithAi as (
+    roomType: string,
+    imageInput: Buffer
   ) => Promise<unknown>,
   buildBathroomMarkdownReport: buildBathroomMarkdownReport as (
     caseId: string,

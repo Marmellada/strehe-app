@@ -79,6 +79,8 @@ function fallbackTrackedTargetsFromBaselinePhotos(
         baselineOrderIndex: photo.orderIndex,
         baselinePhotoType: photo.photoType,
         baselineStoragePath: photo.storagePath,
+        markerX: null,
+        markerY: null,
       };
     })
     .filter((item) => {
@@ -132,6 +134,8 @@ function normalizeTrackedTargets(value: unknown): InspectionTrackedObject[] {
           typeof record.baselineStoragePath === "string"
             ? record.baselineStoragePath
             : null,
+        markerX: typeof record.markerX === "number" ? record.markerX : null,
+        markerY: typeof record.markerY === "number" ? record.markerY : null,
       };
     })
     .filter((item): item is InspectionTrackedObject => Boolean(item));

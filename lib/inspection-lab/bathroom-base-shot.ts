@@ -20,6 +20,7 @@ export type InspectionCasePhotoSummary = {
 };
 
 export type InspectionTrackedObject = {
+  id?: string;
   key: string;
   label: string;
   category: string | null;
@@ -37,6 +38,8 @@ export type InspectionTrackedObject = {
   baselineOrderIndex: number | null;
   baselinePhotoType: string | null;
   baselineStoragePath: string | null;
+  markerX: number | null;
+  markerY: number | null;
 };
 
 export type InspectionCaseSummary = {
@@ -86,6 +89,8 @@ export type InspectionLabTrackedObjectRow = {
   baseline_order_index: number | null;
   baseline_photo_type: string | null;
   baseline_storage_path: string | null;
+  marker_x: number | null;
+  marker_y: number | null;
   review_note: string | null;
   created_at: string;
   updated_at: string;
@@ -247,6 +252,8 @@ function parseTrackedTargets(summary: Json | null): InspectionTrackedObject[] {
           typeof record.baselineStoragePath === "string"
             ? record.baselineStoragePath
             : null,
+        markerX: typeof record.markerX === "number" ? record.markerX : null,
+        markerY: typeof record.markerY === "number" ? record.markerY : null,
       } satisfies InspectionTrackedObject;
     })
     .filter((value): value is InspectionTrackedObject => Boolean(value));
@@ -256,6 +263,7 @@ function parseTrackedObjectsFromRows(
   rows: InspectionLabTrackedObjectRow[]
 ): InspectionTrackedObject[] {
   return rows.map((row) => ({
+    id: row.id,
     key: row.object_key,
     label: row.label,
     category: row.category,
@@ -274,6 +282,8 @@ function parseTrackedObjectsFromRows(
     baselineOrderIndex: row.baseline_order_index,
     baselinePhotoType: row.baseline_photo_type,
     baselineStoragePath: row.baseline_storage_path,
+    markerX: row.marker_x,
+    markerY: row.marker_y,
   }));
 }
 

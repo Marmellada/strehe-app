@@ -313,11 +313,18 @@ export default async function RoomStateInspectionLabPage() {
                                       #{photo.orderIndex ?? "?"} {photo.photoType || "unspecified"}
                                     </div>
                                     {photo.signedUrl ? (
-                                      <Button asChild variant="outline" size="sm">
-                                        <a href={photo.signedUrl} target="_blank" rel="noreferrer">
-                                          View
-                                        </a>
-                                      </Button>
+                                      <div className="flex gap-2">
+                                        <Button asChild variant="outline" size="sm">
+                                          <a href={`/inspection-lab/bathroom-base-shot/photos/${photo.id}`}>
+                                            Review
+                                          </a>
+                                        </Button>
+                                        <Button asChild variant="outline" size="sm">
+                                          <a href={photo.signedUrl} target="_blank" rel="noreferrer">
+                                            View
+                                          </a>
+                                        </Button>
+                                      </div>
                                     ) : null}
                                   </div>
 
