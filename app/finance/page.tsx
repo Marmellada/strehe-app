@@ -20,6 +20,7 @@ import {
   TableRow,
   TableShell,
 } from "@/components/ui";
+import { requireRole } from "@/lib/auth/require-role";
 import { getFinanceOverview } from "@/lib/finance/overview";
 
 type FinancePageSearchParams = Promise<{
@@ -47,6 +48,7 @@ export default async function FinancePage({
 }: {
   searchParams: FinancePageSearchParams;
 }) {
+  await requireRole(["admin", "office"]);
   const params = await searchParams;
 
   const data = await getFinanceOverview({

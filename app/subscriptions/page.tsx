@@ -143,7 +143,8 @@ function getPackageName(row: ContractRow) {
 }
 
 export default async function SubscriptionsPage() {
-  await requireRole(["admin"]);
+  const current = await requireRole(["admin", "office"]);
+  const isAdmin = current.appUser.role === "admin";
 
   const supabase = await createClient();
 
@@ -221,11 +222,11 @@ export default async function SubscriptionsPage() {
       <PageHeader
         title="Contracts"
         description="Manage service agreements for properties and owners"
-        actions={
+        actions={isAdmin ? (
           <Button asChild>
             <Link href="/subscriptions/create">New Contract</Link>
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -257,11 +258,11 @@ export default async function SubscriptionsPage() {
             <EmptyState
               title="No contracts found"
               description="Create your first contract to link a client, property, and package."
-              action={
+              action={isAdmin ? (
                 <Button asChild>
                   <Link href="/subscriptions/create">New Contract</Link>
                 </Button>
-              }
+              ) : undefined}
             />
           ) : (
             <TableShell>

@@ -353,9 +353,11 @@ export default async function DashboardPage() {
                 <Button asChild variant="ghost">
                   <Link href="/tasks/create">New Task</Link>
                 </Button>
-                <Button asChild variant="ghost">
-                  <Link href="/subscriptions/create">New Contract</Link>
-                </Button>
+                {appUser.role === "admin" ? (
+                  <Button asChild variant="ghost">
+                    <Link href="/subscriptions/create">New Contract</Link>
+                  </Button>
+                ) : null}
                 <Button asChild variant="ghost">
                   <Link href="/billing/new">New Invoice</Link>
                 </Button>
@@ -447,33 +449,7 @@ export default async function DashboardPage() {
               </div>
             )}
           </QuickList>
-        ) : (
-          <QuickList
-            title="Property Register"
-            description="A quick pulse on the estate you are working within."
-            actionHref="/properties"
-            actionLabel="Open Properties"
-          >
-            {recentProperties.length === 0 ? (
-              <EmptyState
-                title="No properties yet"
-                description="Once the register has properties, the newest ones will appear here."
-              />
-            ) : (
-              <div className="grid">
-                {recentProperties.map((property) => (
-                  <QuickRow
-                    key={property.id}
-                    title={property.title || "Untitled property"}
-                    meta={`${property.property_code || "No code"} • ${property.status || "Unknown"}`}
-                    href={`/properties/${property.id}`}
-                    badge={<StatusBadge status={property.status || "active"} />}
-                  />
-                ))}
-              </div>
-            )}
-          </QuickList>
-        )}
+        ) : null}
       </section>
 
       {isOpsRole ? (
@@ -608,20 +584,20 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Properties</CardTitle>
-            <CardDescription>Track properties, locations, and ownership.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="ghost">
-              <Link href="/properties">Open Properties</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
         {isOpsRole ? (
           <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Properties</CardTitle>
+                <CardDescription>Track properties, locations, and ownership.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="ghost">
+                  <Link href="/properties">Open Properties</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Billing</CardTitle>
@@ -646,6 +622,18 @@ export default async function DashboardPage() {
               </CardContent>
             </Card>
           </>
+        ) : appUser.role === "field" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Keys</CardTitle>
+              <CardDescription>Track assigned keys and custody status.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="ghost">
+                <Link href="/keys">Open Keys</Link>
+              </Button>
+            </CardContent>
+          </Card>
         ) : null}
       </section>
     </main>

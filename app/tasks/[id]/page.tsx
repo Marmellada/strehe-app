@@ -600,7 +600,28 @@ export default async function TaskDetailPage({ params }: PageProps) {
                   )
                 }
               />
-              <DetailField label="Subscription Link" value={typedTask.subscription_id || "—"} />
+              <DetailField
+                label="Contract"
+                value={
+                  typedTask.subscription_id ? (
+                    <div className="space-y-1">
+                      <Link
+                        href={`/subscriptions/${typedTask.subscription_id}`}
+                        className="font-medium text-foreground underline"
+                      >
+                        Open Contract
+                      </Link>
+                      {subscriptionPackageLabel !== "-" ? (
+                        <div className="text-sm text-muted-foreground">
+                          Package: {subscriptionPackageLabel}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
             </CardContent>
           </Card>
 

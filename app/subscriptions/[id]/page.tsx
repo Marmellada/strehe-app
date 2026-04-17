@@ -232,7 +232,8 @@ async function confirmPhysicalContract(formData: FormData) {
 export default async function SubscriptionDetailPage({
   params,
 }: SubscriptionPageProps) {
-  await requireRole(["admin"]);
+  const current = await requireRole(["admin", "office"]);
+  const isAdmin = current.appUser.role === "admin";
 
   const supabase = await createClient();
   const { id } = await params;
@@ -387,11 +388,13 @@ export default async function SubscriptionDetailPage({
         description={clientName}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link href={`/subscriptions/${subscription.id}/edit`}>
-                Edit Contract
-              </Link>
-            </Button>
+            {isAdmin ? (
+              <Button asChild variant="outline">
+                <Link href={`/subscriptions/${subscription.id}/edit`}>
+                  Edit Contract
+                </Link>
+              </Button>
+            ) : null}
 
             <Button asChild variant="outline">
               <Link
@@ -411,12 +414,14 @@ export default async function SubscriptionDetailPage({
               </Link>
             </Button>
 
-            <form action={deleteSubscription}>
-              <input type="hidden" name="id" value={subscription.id} />
-              <CancelContractButton />
-            </form>
+            {isAdmin ? (
+              <form action={deleteSubscription}>
+                <input type="hidden" name="id" value={subscription.id} />
+                <CancelContractButton />
+              </form>
+            ) : null}
 
-            {canConfirmPhysicalContract ? (
+            {isAdmin && canConfirmPhysicalContract ? (
               <form action={confirmPhysicalContract}>
                 <input type="hidden" name="id" value={subscription.id} />
                 <Button type="submit">Confirm Signed & Filed</Button>

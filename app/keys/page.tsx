@@ -121,7 +121,7 @@ export default async function KeysPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const { appUser } = await requireRole(["admin", "office", "field"]);
+  await requireRole(["admin", "office", "field"]);
 
   const supabase = await createClient();
   const params = await searchParams;
@@ -277,11 +277,6 @@ export default async function KeysPage({
         title="Keys"
         description="Operational overview of all keys across properties."
       />
-
-      <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-        Signed in as:{" "}
-        <span className="font-medium text-foreground">{appUser.role}</span>
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <StatCard title="All Keys" value={counts.total} />

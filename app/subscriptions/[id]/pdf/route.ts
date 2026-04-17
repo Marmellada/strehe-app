@@ -9,6 +9,7 @@ import {
 } from "pdf-lib";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithRole } from "@/lib/auth/get-current-user-with-role";
+import { hasRequiredRole } from "@/lib/auth/roles";
 
 export const runtime = "nodejs";
 
@@ -328,6 +329,13 @@ export async function GET(
 
   if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+   if (
+    !currentUser.appUser.is_active ||
+    !hasRequiredRole(currentUser.appUser.role, ["admin", "office"])
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const supabase = await createClient();

@@ -544,10 +544,6 @@ export default async function TasksPage({
         }
       />
 
-      <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-        Signed in as: <span className="font-medium text-foreground">{appUser.role}</span>
-      </div>
-
       <div className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Saved Views
