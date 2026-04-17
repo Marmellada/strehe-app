@@ -206,12 +206,7 @@ export async function unassignTask(formData: FormData) {
 export async function assignTaskToMe(formData: FormData) {
   const taskId = String(formData.get("taskId") || "").trim();
 
-  const { authUser, appUser } = await requireRole([
-    "admin",
-    "office",
-    "field",
-    "contractor",
-  ]);
+  const { authUser, appUser } = await requireRole(["admin", "office"]);
 
   const { supabase, task } = await loadTaskForAction(taskId);
 
@@ -223,11 +218,7 @@ export async function assignTaskToMe(formData: FormData) {
     throw new Error("Cancelled tasks cannot be reassigned. Reopen first.");
   }
 
-  const canAssign =
-    appUser.role === "admin" ||
-    appUser.role === "office" ||
-    appUser.role === "field" ||
-    appUser.role === "contractor";
+  const canAssign = appUser.role === "admin" || appUser.role === "office";
 
   if (!canAssign) {
     throw new Error("You are not allowed to assign this task.");
@@ -289,9 +280,9 @@ export async function deleteTask(formData: FormData) {
   redirect(`/tasks/${taskId}`);
 }
 
-export async function blockTask(formData: FormData) {
+export async function escalateTask(formData: FormData) {
   const taskId = String(formData.get("taskId") || "").trim();
-  const blockedReason = String(formData.get("blocked_reason") || "").trim();
+  const escalationReason = String(formData.get("blocked_reason") || "").trim();
 
   const { authUser, appUser } = await requireRole([
     "admin",
@@ -308,29 +299,29 @@ export async function blockTask(formData: FormData) {
     (canManageOwnAssignedTask(role) && task.assigned_user_id === authUser.id);
 
   if (!canManage) {
-    throw new Error("You are not allowed to block this task.");
+    throw new Error("You are not allowed to escalate this task.");
   }
 
   if (["completed", "cancelled"].includes(task.status || "")) {
-    throw new Error("Closed tasks cannot be blocked.");
+    throw new Error("Closed tasks cannot be escalated.");
   }
 
-  if (!blockedReason) {
-    throw new Error("Blocked tasks require a reason.");
+  if (!escalationReason) {
+    throw new Error("Escalated tasks require a reason.");
   }
 
   const { error } = await supabase
     .from("tasks")
     .update({
-      status: "blocked",
-      blocked_reason: blockedReason,
+      status: "escalated",
+      blocked_reason: escalationReason,
       cancelled_reason: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", taskId);
 
   if (error) {
-    throw new Error(`Failed to block task: ${error.message}`);
+    throw new Error(`Failed to escalate task: ${error.message}`);
   }
 
   revalidatePath("/tasks");

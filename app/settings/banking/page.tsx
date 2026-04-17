@@ -66,9 +66,6 @@ export default async function BankingSettingsPage() {
         actions={
           <>
             <Button asChild variant="outline">
-              <Link href="/settings/banking/detection">Detection Lab</Link>
-            </Button>
-            <Button asChild variant="outline">
               <Link href="/settings/banking/banks/new">Add Licensed Bank</Link>
             </Button>
             <Button asChild>
@@ -83,6 +80,13 @@ export default async function BankingSettingsPage() {
         <AlertDescription>
           Changes made here affect future invoices. Historical invoices keep their own
           bank account snapshot once created.
+        </AlertDescription>
+      </Alert>
+
+      <Alert variant="info">
+        <AlertTitle>Detection tooling is internal</AlertTitle>
+        <AlertDescription>
+          Bank detection and rule-testing tooling stays out of the normal v1 admin workflow for now. This page focuses on the production bank registry and company accounts.
         </AlertDescription>
       </Alert>
 

@@ -90,6 +90,11 @@ type TaskRow = {
   due_date: string | null;
 };
 
+type KeyRow = {
+  id: string;
+  status: string | null;
+};
+
 function getSingleRelation<T>(value: T | T[] | null): T | null {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] || null;
@@ -128,6 +133,11 @@ function formatLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (l: string) => l.toUpperCase());
 }
 
+function isOpenTaskStatus(status: string | null | undefined) {
+  const normalized = (status || "").toLowerCase();
+  return !["completed", "done", "cancelled"].includes(normalized);
+}
+
 type PropertyPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -142,9 +152,10 @@ export default async function PropertyDetailPage({
 
   const [
     propertyResult,
-    keysCountResult,
+    keysResult,
     contractsResult,
     tasksResult,
+    taskStatsResult,
   ] = await Promise.all([
     supabase
       .from("properties")
@@ -171,7 +182,7 @@ export default async function PropertyDetailPage({
 
     supabase
       .from("keys")
-      .select("*", { count: "exact", head: true })
+      .select("id, status")
       .eq("property_id", id),
 
     supabase
@@ -198,6 +209,11 @@ export default async function PropertyDetailPage({
       .eq("property_id", id)
       .order("created_at", { ascending: false })
       .limit(5),
+
+    supabase
+      .from("tasks")
+      .select("id, status")
+      .eq("property_id", id),
   ]);
 
   const { data, error } = propertyResult;
@@ -218,7 +234,12 @@ export default async function PropertyDetailPage({
 
   const contracts = (contractsResult.data || []) as ContractRow[];
   const tasks = (tasksResult.data || []) as TaskRow[];
-  const keysCount = keysCountResult.count || 0;
+  const allTaskStats = (taskStatsResult.data || []) as Array<{
+    id: string;
+    status: string | null;
+  }>;
+  const keys = (keysResult.data || []) as KeyRow[];
+  const keysCount = keys.length;
 
   const activeContract =
     contracts.find((contract) => (contract.status || "").toLowerCase() === "active") ||
@@ -228,10 +249,22 @@ export default async function PropertyDetailPage({
     ? getSingleRelation(activeContract.packages)
     : null;
 
-  const openTasksCount = tasks.filter((task) => {
+  const activeContractsCount = contracts.filter(
+    (contract) => (contract.status || "").toLowerCase() === "active"
+  ).length;
+  const openTasksCount = allTaskStats.filter((task) =>
+    isOpenTaskStatus(task.status)
+  ).length;
+  const escalatedTasksCount = allTaskStats.filter((task) => {
     const status = (task.status || "").toLowerCase();
-    return !["completed", "done", "cancelled"].includes(status);
+    return status === "escalated" || status === "blocked";
   }).length;
+  const availableKeysCount = keys.filter(
+    (key) => (key.status || "").toLowerCase() === "available"
+  ).length;
+  const assignedKeysCount = keys.filter(
+    (key) => (key.status || "").toLowerCase() === "assigned"
+  ).length;
 
   const deletePropertyWithId = deleteProperty.bind(null, id);
 
@@ -281,6 +314,88 @@ export default async function PropertyDetailPage({
         <Card size="sm"><CardContent><DetailField label="Location" value={location?.name || "-"} /></CardContent></Card>
         <Card size="sm"><CardContent><DetailField label="Tracked Keys" value={keysCount} /></CardContent></Card>
         <Card size="sm"><CardContent><DetailField label="Open Work Orders" value={openTasksCount} /></CardContent></Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Open Work</CardTitle>
+              <CardDescription>Current task pressure for this property.</CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/tasks?property=${id}`}>View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Open Tasks" value={openTasksCount} />
+            <DetailField label="Escalated Tasks" value={escalatedTasksCount} />
+            <DetailField label="Next Step" value={openTasksCount > 0 ? "Review active work" : "Create the next task"} />
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/tasks/create?property_id=${id}`}>New Task</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href={`/tasks?property=${id}&status=open`}>Open Tasks</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Contracts</CardTitle>
+              <CardDescription>Service agreements tied to this property.</CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/subscriptions">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Total Contracts" value={contracts.length} />
+            <DetailField label="Active Contracts" value={activeContractsCount} />
+            <DetailField
+              label="Current Plan"
+              value={activePlan?.name || (activeContract ? "Active contract" : "No active contract")}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/subscriptions/create?property_id=${id}`}>New Contract</Link>
+              </Button>
+              {activeContract ? (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/subscriptions/${activeContract.id}`}>Open Active Contract</Link>
+                </Button>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Keys</CardTitle>
+              <CardDescription>Access assets and handover readiness.</CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/properties/${id}/keys`}>View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Tracked Keys" value={keysCount} />
+            <DetailField label="Available Keys" value={availableKeysCount} />
+            <DetailField label="Assigned Keys" value={assignedKeysCount} />
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/properties/${id}/keys`}>Manage Keys</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href={`/properties/${id}/keys/new`}>Add Key</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">

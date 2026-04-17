@@ -21,7 +21,7 @@ import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
 import { deleteTask } from "./actions";
 import {
   assignTaskToMe,
-  blockTask,
+  escalateTask,
   markTaskCompleted,
   markTaskInProgress,
   reopenTask,
@@ -163,6 +163,7 @@ function getStatusClasses(status: string | null) {
     case "in_progress":
       return "warning" as const;
     case "blocked":
+    case "escalated":
       return "danger" as const;
     case "completed":
       return "success" as const;
@@ -246,7 +247,8 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
   const typedTask = task as TaskRow;
   const isAutoTask = Boolean(typedTask.subscription_id);
-  const isBlocked = typedTask.status === "blocked";
+  const isEscalated =
+    typedTask.status === "escalated" || typedTask.status === "blocked";
   const isCancelled = typedTask.status === "cancelled";
 
   const isRestrictedRole =
@@ -521,10 +523,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
         </Alert>
       ) : null}
 
-      {isBlocked && typedTask.blocked_reason ? (
+      {isEscalated && typedTask.blocked_reason ? (
         <Alert variant="warning">
           <div>
-            <div className="mb-1 font-medium">Blocked reason</div>
+            <div className="mb-1 font-medium">Escalation reason</div>
             <p className="text-sm whitespace-pre-wrap">{typedTask.blocked_reason}</p>
           </div>
         </Alert>
@@ -586,7 +588,18 @@ export default async function TaskDetailPage({ params }: PageProps) {
               <DetailField label="Status" value={formatLabel(typedTask.status)} />
               <DetailField label="Priority" value={formatLabel(typedTask.priority)} />
               <DetailField label="Due Date" value={formatDate(typedTask.due_date)} />
-              <DetailField label="Property" value={propertyLabel} />
+              <DetailField
+                label="Property"
+                value={
+                  typedTask.property_id ? (
+                    <Link href={`/properties/${typedTask.property_id}`} className="font-medium text-foreground underline">
+                      {propertyLabel}
+                    </Link>
+                  ) : (
+                    propertyLabel
+                  )
+                }
+              />
               <DetailField label="Subscription Link" value={typedTask.subscription_id || "—"} />
             </CardContent>
           </Card>
@@ -641,29 +654,29 @@ export default async function TaskDetailPage({ params }: PageProps) {
             </CardContent>
           </Card>
 
-          {canUseQuickStatusActions && !isBlocked ? (
+          {canUseQuickStatusActions && !isEscalated ? (
             <Card>
               <CardHeader>
-                <CardTitle>Block Task</CardTitle>
+                <CardTitle>Escalate Task</CardTitle>
                 <CardDescription>
-                  Record what is preventing progress so the next step is clear.
+                  Flag what needs office or admin attention so the next step is clear.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form action={blockTask} className="space-y-4">
+                <form action={escalateTask} className="space-y-4">
                   <input type="hidden" name="taskId" value={typedTask.id} />
-                  <FormField label="Blocked Reason" required>
+                  <FormField label="Escalation Reason" required>
                     <Textarea
                       id="blocked_reason"
                       name="blocked_reason"
                       rows={4}
-                      placeholder="Explain what is blocking this task and what is needed next."
+                      placeholder="Explain what needs intervention and what should happen next."
                       required
                     />
                   </FormField>
                   <div className="flex justify-end">
                     <Button type="submit" variant="outline">
-                      Mark Blocked
+                      Mark Escalated
                     </Button>
                   </div>
                 </form>
@@ -865,7 +878,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
                 <div>
                   <dt className="text-xs uppercase text-muted-foreground">
-                    Blocked Reason
+                    Escalation Reason
                   </dt>
                   <dd className="mt-1 text-sm text-foreground whitespace-pre-wrap">
                     {typedTask.blocked_reason || "—"}
@@ -902,7 +915,16 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     Subscription ID
                   </dt>
                   <dd className="mt-1 text-sm text-foreground break-all">
-                    {typedTask.subscription_id || "—"}
+                    {typedTask.subscription_id ? (
+                      <Link
+                        href={`/subscriptions/${typedTask.subscription_id}`}
+                        className="font-medium text-foreground underline"
+                      >
+                        {typedTask.subscription_id}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                   </dd>
                 </div>
 
@@ -911,7 +933,16 @@ export default async function TaskDetailPage({ params }: PageProps) {
                     Service
                   </dt>
                   <dd className="mt-1 text-sm text-foreground break-all">
-                    {serviceLabel}
+                    {typedTask.service_id ? (
+                      <Link
+                        href={`/services/${typedTask.service_id}`}
+                        className="font-medium text-foreground underline"
+                      >
+                        {serviceLabel}
+                      </Link>
+                    ) : (
+                      serviceLabel
+                    )}
                   </dd>
                 </div>
 

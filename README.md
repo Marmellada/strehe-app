@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+ok lets do it # STREHE Prona
 
-## Getting Started
+STREHE Prona is a property operations system for running the day-to-day work of a managed property business.
 
-First, run the development server:
+The current v1 focus is operational clarity and reliable office workflow:
+
+- clients
+- properties
+- contracts
+- recurring and manual tasks
+- keys
+- billing
+- expenses
+- finance overview
+- workers and admin settings
+
+## V1 Scope
+
+STREHE Prona v1 is for running property operations in one place.
+
+Main workflow:
+
+1. register clients and properties
+2. create contracts and service structure
+3. generate and manage work through tasks
+4. track keys and field activity
+5. issue invoices, record payments, and track expenses
+6. monitor the business through dashboard and finance views
+
+## Paused / Internal Work
+
+The inspection lab and AI-assisted inspection experiments are currently paused and are not part of the v1 product promise.
+
+They remain in the repository as internal exploratory work for a later phase.
+
+## Local Development
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Main App Areas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `app/page.tsx` - dashboard
+- `app/tasks` - operational work queue
+- `app/properties` - property register
+- `app/clients` - client register
+- `app/subscriptions` - contracts
+- `app/billing` - invoices and payments
+- `app/expenses` - operational spend
+- `app/finance` - finance overview
+- `app/keys` - key register
+- `app/workers` - staff records
+- `app/settings` - admin configuration
 
-## Learn More
+## Notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- The app uses Next.js App Router and Supabase.
+- Some internal tooling and labs remain in the repo but are intentionally not part of launch-facing v1.

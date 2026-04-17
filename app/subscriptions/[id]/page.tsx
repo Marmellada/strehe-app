@@ -100,6 +100,22 @@ type PackageServiceRow = {
   service: ServiceRelation;
 };
 
+type RelatedTaskRow = {
+  id: string;
+  title: string | null;
+  status: string | null;
+  priority: string | null;
+  due_date: string | null;
+};
+
+type RelatedInvoiceRow = {
+  id: string;
+  invoice_number: string | null;
+  status: string | null;
+  total_cents: number | null;
+  issue_date: string | null;
+};
+
 type SubscriptionRow = {
   id: string;
   client_id: string;
@@ -153,6 +169,10 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatMoneyFromCents(value: number | null | undefined) {
+  return `€${((value || 0) / 100).toFixed(2)}`;
 }
 
 async function deleteSubscription(formData: FormData) {
@@ -268,33 +288,61 @@ export default async function SubscriptionDetailPage({
   const property = getSingleRelation(subscription.property);
   const pkg = getSingleRelation(subscription.package);
 
-  const { data: includedServices, error: servicesError } = await supabase
-    .from("package_services")
-    .select(
-      `
-      id,
-      package_id,
-      service_id,
-      included_quantity,
-      service:services!package_services_service_fk (
+  const [
+    { data: includedServices, error: servicesError },
+    { data: relatedTasks, error: tasksError },
+    { data: relatedInvoices, error: invoicesError },
+  ] = await Promise.all([
+    supabase
+      .from("package_services")
+      .select(
+        `
         id,
-        name,
-        category,
-        base_price,
-        default_priority,
-        default_title,
-        is_active
+        package_id,
+        service_id,
+        included_quantity,
+        service:services!package_services_service_fk (
+          id,
+          name,
+          category,
+          base_price,
+          default_priority,
+          default_title,
+          is_active
+        )
+      `
       )
-    `
-    )
-    .eq("package_id", subscription.package_id)
-    .order("created_at", { ascending: true });
+      .eq("package_id", subscription.package_id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("tasks")
+      .select("id, title, status, priority, due_date")
+      .eq("subscription_id", subscription.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, status, total_cents, issue_date")
+      .eq("subscription_id", subscription.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
 
   if (servicesError) {
     throw new Error(servicesError.message);
   }
 
+  if (tasksError) {
+    throw new Error(tasksError.message);
+  }
+
+  if (invoicesError) {
+    throw new Error(invoicesError.message);
+  }
+
   const serviceRows = (includedServices || []) as PackageServiceRow[];
+  const taskRows = (relatedTasks || []) as RelatedTaskRow[];
+  const invoiceRows = (relatedInvoices || []) as RelatedInvoiceRow[];
 
   const clientName =
     subscription.client_name_snapshot ||
@@ -427,13 +475,120 @@ export default async function SubscriptionDetailPage({
         <StatCard title="Included Services" value={serviceRows.length} />
       </div>
 
+      <section className="grid gap-4 xl:grid-cols-2">
+        <SectionCard
+          title="Related Work"
+          description="Tasks already generated or linked to this contract."
+        >
+          {taskRows.length === 0 ? (
+            <EmptyState
+              title="No tasks linked yet"
+              description="Recurring work will show here once tasks are generated or created for this contract."
+            />
+          ) : (
+            <div className="grid gap-3">
+              {taskRows.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border p-4"
+                >
+                  <div>
+                    <div className="font-medium text-foreground">
+                      {task.title || "Untitled Task"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Due: {formatDate(task.due_date)} • Priority: {formatStatusLabel(task.priority)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={task.status} />
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/tasks/${task.id}`}>Open</Link>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Related Billing"
+          description="Invoices already tied to this contract."
+        >
+          {invoiceRows.length === 0 ? (
+            <EmptyState
+              title="No invoices linked yet"
+              description="Billing documents will appear here once invoices are created from this contract."
+            />
+          ) : (
+            <div className="grid gap-3">
+              {invoiceRows.map((invoice) => (
+                <div
+                  key={invoice.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border p-4"
+                >
+                  <div>
+                    <div className="font-medium text-foreground">
+                      {invoice.invoice_number || "Draft invoice"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatDate(invoice.issue_date)} • {formatMoneyFromCents(invoice.total_cents)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={invoice.status} />
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/billing/${invoice.id}`}>Open</Link>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </section>
+
       <SectionCard
         title="Contract Details"
         contentClassName="grid grid-cols-1 gap-4 md:grid-cols-2"
       >
-        <DetailField label="Client" value={clientName} />
-        <DetailField label="Property" value={propertyLabel} />
-        <DetailField label="Package" value={packageName} />
+        <DetailField
+          label="Client"
+          value={
+            client?.id ? (
+              <Link href={`/clients/${client.id}`} className="font-medium text-foreground underline">
+                {clientName}
+              </Link>
+            ) : (
+              clientName
+            )
+          }
+        />
+        <DetailField
+          label="Property"
+          value={
+            property?.id ? (
+              <Link href={`/properties/${property.id}`} className="font-medium text-foreground underline">
+                {propertyLabel}
+              </Link>
+            ) : (
+              propertyLabel
+            )
+          }
+        />
+        <DetailField
+          label="Package"
+          value={
+            pkg?.id ? (
+              <Link href={`/packages/${pkg.id}`} className="font-medium text-foreground underline">
+                {packageName}
+              </Link>
+            ) : (
+              packageName
+            )
+          }
+        />
         <DetailField
           label="Status"
           value={formatStatusLabel(subscription.status)}
@@ -482,6 +637,13 @@ export default async function SubscriptionDetailPage({
           value={property?.address_line_1 || "-"}
           className="md:col-span-2"
         />
+        {property?.id ? (
+          <div className="md:col-span-2">
+            <Button asChild variant="ghost">
+              <Link href={`/properties/${property.id}`}>Open Property</Link>
+            </Button>
+          </div>
+        ) : null}
       </SectionCard>
 
       <SectionCard
@@ -498,6 +660,13 @@ export default async function SubscriptionDetailPage({
           value={pkg?.description || "No description provided."}
           className="md:col-span-2"
         />
+        {pkg?.id ? (
+          <div className="md:col-span-2">
+            <Button asChild variant="ghost">
+              <Link href={`/packages/${pkg.id}`}>Open Package</Link>
+            </Button>
+          </div>
+        ) : null}
       </SectionCard>
 
       <SectionCard

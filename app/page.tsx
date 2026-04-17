@@ -92,7 +92,12 @@ function formatDate(value: string | null | undefined) {
 }
 
 function isTaskOpen(status: string | null) {
-  return status === "open" || status === "in_progress" || status === "blocked";
+  return (
+    status === "open" ||
+    status === "in_progress" ||
+    status === "escalated" ||
+    status === "blocked"
+  );
 }
 
 function isTaskOverdue(task: TaskRow, todayIso: string) {
@@ -103,7 +108,7 @@ function isTaskOverdue(task: TaskRow, todayIso: string) {
 
 function getTaskTone(task: TaskRow, todayIso: string) {
   if (isTaskOverdue(task, todayIso)) return "destructive";
-  if (task.status === "blocked") return "warning";
+  if (task.status === "escalated" || task.status === "blocked") return "warning";
   return "default";
 }
 
@@ -201,7 +206,7 @@ export default async function DashboardPage() {
   const [
     taskCountResult,
     openTasksResult,
-    blockedTasksResult,
+    escalatedTasksResult,
     overdueTasksResult,
     recentTasksResult,
     activeContractsResult,
@@ -223,34 +228,34 @@ export default async function DashboardPage() {
       ? supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
-          .in("status", ["open", "in_progress", "blocked"])
+          .in("status", ["open", "in_progress", "escalated", "blocked"])
       : supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
           .eq("assigned_user_id", authUser.id)
-          .in("status", ["open", "in_progress", "blocked"]),
+          .in("status", ["open", "in_progress", "escalated", "blocked"]),
     isOpsRole
       ? supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
-          .eq("status", "blocked")
+          .in("status", ["escalated", "blocked"])
       : supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
           .eq("assigned_user_id", authUser.id)
-          .eq("status", "blocked"),
+          .in("status", ["escalated", "blocked"]),
     isOpsRole
       ? supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
           .lt("due_date", todayIso)
-          .in("status", ["open", "in_progress", "blocked"])
+          .in("status", ["open", "in_progress", "escalated", "blocked"])
       : supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
           .eq("assigned_user_id", authUser.id)
           .lt("due_date", todayIso)
-          .in("status", ["open", "in_progress", "blocked"]),
+          .in("status", ["open", "in_progress", "escalated", "blocked"]),
     recentTasksQuery,
     supabase
       .from("subscriptions")
@@ -335,21 +340,24 @@ export default async function DashboardPage() {
         title="Dashboard"
         description={
           isOpsRole
-            ? "Operational view across work, contracts, billing, and expense activity."
-            : "Your work queue and the most recent operational activity connected to it."
+            ? "Day-to-day control across work, properties, contracts, billing, and expense activity."
+            : "Your assigned work and the latest operational context around it."
         }
         actions={
           <>
             <Button asChild>
-              <Link href="/tasks">Open Tasks</Link>
+              <Link href={isOpsRole ? "/tasks" : "/tasks?assigned=me"}>{isOpsRole ? "Open Tasks" : "Open My Tasks"}</Link>
             </Button>
             {isOpsRole ? (
               <>
                 <Button asChild variant="ghost">
-                  <Link href="/expenses/new">New Expense</Link>
+                  <Link href="/tasks/create">New Task</Link>
                 </Button>
                 <Button asChild variant="ghost">
                   <Link href="/subscriptions/create">New Contract</Link>
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link href="/billing/new">New Invoice</Link>
                 </Button>
               </>
             ) : null}
@@ -359,7 +367,7 @@ export default async function DashboardPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title={isOpsRole ? "Open Work" : "My Open Work"} value={openTasksResult.count ?? 0} />
-        <StatCard title="Blocked Tasks" value={blockedTasksResult.count ?? 0} />
+        <StatCard title="Escalated Tasks" value={escalatedTasksResult.count ?? 0} />
         <StatCard title="Overdue Tasks" value={overdueTasksResult.count ?? 0} />
         <StatCard title={isOpsRole ? "Tracked Tasks" : "My Total Tasks"} value={taskCountResult.count ?? 0} />
       </section>
@@ -385,7 +393,7 @@ export default async function DashboardPage() {
       <section className="grid gap-4 xl:grid-cols-2">
         <QuickList
           title={isOpsRole ? "Recent Tasks" : "My Recent Tasks"}
-          description="The freshest task activity, with blocked and overdue work easy to spot."
+          description="The work queue that should drive the rest of the daily operation."
           actionHref="/tasks"
           actionLabel="View All"
         >
@@ -416,7 +424,7 @@ export default async function DashboardPage() {
         {isOpsRole ? (
           <QuickList
             title="Recent Expenses"
-            description="Latest recorded spend so finance and operations stay in sync."
+            description="Latest recorded spend so field activity, vendors, and finance stay aligned."
             actionHref="/expenses"
             actionLabel="View All"
           >
@@ -472,7 +480,7 @@ export default async function DashboardPage() {
         <section className="grid gap-4 xl:grid-cols-2">
           <QuickList
             title="Recent Contracts"
-            description="Keep an eye on prepared agreements and newly active work."
+            description="Prepared and active agreements that feed recurring operational work."
             actionHref="/subscriptions"
             actionLabel="View All"
           >
@@ -498,7 +506,7 @@ export default async function DashboardPage() {
 
           <QuickList
             title="Recent Invoices"
-            description="Fresh billing documents so finance work is visible from the first screen."
+            description="Fresh billing documents so office follow-up stays visible from the first screen."
             actionHref="/billing"
             actionLabel="View All"
           >

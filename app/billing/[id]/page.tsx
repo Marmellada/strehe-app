@@ -482,6 +482,14 @@ export default async function InvoiceDetailPage({
                   </Link>
                 </Button>
               )}
+
+            {invoice.subscription_id ? (
+              <Button asChild variant="outline">
+                <Link href={`/subscriptions/${invoice.subscription_id}`}>
+                  Open Contract
+                </Link>
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -579,6 +587,30 @@ export default async function InvoiceDetailPage({
                     </div>
                   )}
                 </div>
+              }
+            />
+            <DetailField
+              label="Client Record"
+              value={
+                invoice.client_id ? (
+                  <Link href={`/clients/${invoice.client_id}`} className="font-medium text-foreground underline">
+                    Open client
+                  </Link>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <DetailField
+              label="Property Record"
+              value={
+                invoice.property_id ? (
+                  <Link href={`/properties/${invoice.property_id}`} className="font-medium text-foreground underline">
+                    Open property
+                  </Link>
+                ) : (
+                  "—"
+                )
               }
             />
           </div>

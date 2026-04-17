@@ -24,6 +24,10 @@ export function getStatusVariant(status: string | null | undefined): StatusBadge
     case "open":
       return "info";
 
+    case "blocked":
+    case "escalated":
+      return "warning";
+
     case "pending":
     case "draft":
     case "scheduled":
@@ -53,6 +57,7 @@ export function formatStatusLabel(status: string | null | undefined): string {
     .toLowerCase();
 
   if (!normalized) return "Unknown";
+  if (normalized === "blocked") return "Escalated";
 
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
 }

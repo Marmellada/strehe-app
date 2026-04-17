@@ -55,12 +55,12 @@ async function updateTask(formData: FormData) {
   const status = String(formData.get("status") || "").trim();
   const due_date = String(formData.get("due_date") || "").trim();
   const property_id = String(formData.get("property_id") || "").trim();
-  const blocked_reason = String(formData.get("blocked_reason") || "").trim();
+  const escalation_reason = String(formData.get("blocked_reason") || "").trim();
   const cancelled_reason = String(formData.get("cancelled_reason") || "").trim();
 
   if (!title) throw new Error("Title is required.");
-  if (status === "blocked" && !blocked_reason) {
-    throw new Error("Blocked tasks require a reason.");
+  if (status === "escalated" && !escalation_reason) {
+    throw new Error("Escalated tasks require a reason.");
   }
   if (status === "cancelled" && !cancelled_reason) {
     throw new Error("Cancelled tasks require a reason.");
@@ -91,7 +91,7 @@ async function updateTask(formData: FormData) {
     status,
     due_date: due_date || null,
     property_code_snapshot: null,
-    blocked_reason: status === "blocked" ? blocked_reason : null,
+    blocked_reason: status === "escalated" ? escalation_reason : null,
     cancelled_reason: status === "cancelled" ? cancelled_reason : null,
   };
 

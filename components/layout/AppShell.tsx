@@ -22,6 +22,44 @@ type AppShellProps = {
 export function AppShell({ children, role, current }: AppShellProps) {
   const pathname = usePathname();
   const isAuthRoute = pathname?.startsWith("/auth");
+  const isAdmin = role === "admin";
+  const isOffice = role === "office";
+  const isField = role === "field";
+  const isContractor = role === "contractor";
+  const canUseOfficeSurface = isAdmin || isOffice;
+
+  const workLinks = canUseOfficeSurface
+    ? [
+        { href: "/tasks", label: "Tasks" },
+        { href: "/properties", label: "Properties" },
+        { href: "/clients", label: "Clients" },
+        { href: "/keys", label: "Keys" },
+      ]
+    : isField
+      ? [
+          { href: "/tasks", label: "Tasks" },
+          { href: "/keys", label: "Keys" },
+        ]
+      : isContractor
+        ? [{ href: "/tasks", label: "Tasks" }]
+        : [];
+
+  const businessLinks = canUseOfficeSurface
+    ? [
+        { href: "/subscriptions", label: "Contracts" },
+        { href: "/billing", label: "Billing" },
+        { href: "/expenses", label: "Expenses" },
+        { href: "/finance", label: "Finance" },
+      ]
+    : [];
+
+  const setupLinks = canUseOfficeSurface
+    ? [
+        { href: "/workers", label: "Staff" },
+        { href: "/services", label: "Services" },
+        { href: "/packages", label: "Packages" },
+      ]
+    : [];
 
   if (isAuthRoute) {
     return (
@@ -44,33 +82,43 @@ export function AppShell({ children, role, current }: AppShellProps) {
             <Link href="/">Dashboard</Link>
           </div>
 
-          <div className="shell-nav-group">
-            <p className="shell-nav-label">Operations</p>
+          {workLinks.length > 0 ? (
+            <div className="shell-nav-group">
+              <p className="shell-nav-label">Work</p>
 
-            <Link href="/clients">Clients</Link>
-            <Link href="/properties">Properties</Link>
+              {workLinks.map((link) => (
+                <Link key={link.href} href={link.href}>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
 
-            {role === "admin" || role === "office" || role === "field" ? (
-              <Link href="/keys">Keys</Link>
-            ) : null}
+          {businessLinks.length > 0 ? (
+            <div className="shell-nav-group">
+              <p className="shell-nav-label">Business</p>
 
-            <Link href="/tasks">Tasks</Link>
-            <Link href="/subscriptions">Contracts</Link>
-            <Link href="/billing">Billing</Link>
-            <Link href="/expenses">Expenses</Link>
-            {role === "admin" || role === "office" ? (
-              <Link href="/workers">Staff</Link>
-            ) : null}
-          </div>
+              {businessLinks.map((link) => (
+                <Link key={link.href} href={link.href}>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
 
-          <div className="shell-nav-group">
-            <p className="shell-nav-label">Configuration</p>
+          {setupLinks.length > 0 ? (
+            <div className="shell-nav-group">
+              <p className="shell-nav-label">Setup</p>
 
-            <Link href="/services">Services</Link>
-            <Link href="/packages">Packages</Link>
-          </div>
+              {setupLinks.map((link) => (
+                <Link key={link.href} href={link.href}>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
 
-          {role === "admin" ? (
+          {isAdmin ? (
             <div className="shell-nav-group">
               <p className="shell-nav-label">System</p>
 

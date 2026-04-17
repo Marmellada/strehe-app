@@ -31,12 +31,17 @@ type BillingListRow = {
   total_cents: number | null;
   created_at: string | null;
   client_name_snapshot: string | null;
+  client_id: string | null;
+  property_id: string | null;
+  subscription_id: string | null;
   client:
     | {
+        id: string | null;
         full_name: string | null;
         company_name: string | null;
       }
     | {
+        id: string | null;
         full_name: string | null;
         company_name: string | null;
       }[]
@@ -73,7 +78,11 @@ export default async function BillingPage() {
       total_cents,
       created_at,
       client_name_snapshot,
+      client_id,
+      property_id,
+      subscription_id,
       client:clients (
+        id,
         full_name,
         company_name
       )
@@ -97,7 +106,7 @@ export default async function BillingPage() {
     <div className="space-y-6">
       <PageHeader
         title="Invoices"
-        subtitle="Manage billing documents"
+        subtitle="Manage billing documents and jump back into the related operational records."
         actions={
           <Link href="/billing/new">
             <Button>Create Invoice</Button>
@@ -187,7 +196,13 @@ export default async function BillingPage() {
                     </TableCell>
 
                     <TableCell className="text-muted-foreground">
-                      {clientName}
+                      {invoice.client_id ? (
+                        <Link href={`/clients/${invoice.client_id}`} className="hover:underline">
+                          {clientName}
+                        </Link>
+                      ) : (
+                        clientName
+                      )}
                     </TableCell>
 
                     <TableCell>
@@ -220,11 +235,27 @@ export default async function BillingPage() {
                     </TableCell>
 
                     <TableCell className="text-right">
-                      <Link href={`/billing/${invoice.id}`}>
-                        <Button variant="outline" size="sm">
-                          View
-                        </Button>
-                      </Link>
+                      <div className="flex justify-end gap-2">
+                        {invoice.property_id ? (
+                          <Link href={`/properties/${invoice.property_id}`}>
+                            <Button variant="ghost" size="sm">
+                              Property
+                            </Button>
+                          </Link>
+                        ) : null}
+                        {invoice.subscription_id ? (
+                          <Link href={`/subscriptions/${invoice.subscription_id}`}>
+                            <Button variant="ghost" size="sm">
+                              Contract
+                            </Button>
+                          </Link>
+                        ) : null}
+                        <Link href={`/billing/${invoice.id}`}>
+                          <Button variant="outline" size="sm">
+                            View
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

@@ -35,15 +35,15 @@ async function createTask(formData: FormData) {
   const dueDateRaw = String(formData.get("due_date") || "").trim();
   const assignedUserIdRaw = String(formData.get("assigned_user_id") || "").trim();
   const propertyIdRaw = String(formData.get("property_id") || "").trim();
-  const blockedReason = String(formData.get("blocked_reason") || "").trim();
+  const escalationReason = String(formData.get("blocked_reason") || "").trim();
   const cancelledReason = String(formData.get("cancelled_reason") || "").trim();
 
   if (!title) throw new Error("Title is required.");
   if (!status) throw new Error("Status is required.");
   if (!priority) throw new Error("Priority is required.");
   if (!propertyIdRaw) throw new Error("Property is required.");
-  if (status === "blocked" && !blockedReason) {
-    throw new Error("Blocked tasks require a reason.");
+  if (status === "escalated" && !escalationReason) {
+    throw new Error("Escalated tasks require a reason.");
   }
   if (status === "cancelled" && !cancelledReason) {
     throw new Error("Cancelled tasks require a reason.");
@@ -89,7 +89,7 @@ async function createTask(formData: FormData) {
       appUser.full_name?.trim() || appUser.email || authUser.id,
     property_id: propertyIdRaw,
     property_code_snapshot: property.property_code || null,
-    blocked_reason: status === "blocked" ? blockedReason : null,
+    blocked_reason: status === "escalated" ? escalationReason : null,
     cancelled_reason: status === "cancelled" ? cancelledReason : null,
   };
 

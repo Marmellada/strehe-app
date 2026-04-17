@@ -13,52 +13,57 @@ import { requireRole } from "@/lib/auth/require-role";
 export default async function SettingsPage() {
   const { appUser } = await requireRole(["admin"]);
 
-  const cards = [
+  const sections = [
     {
-      title: "General Settings",
-      description:
-        "Manage company information, branding, contact details, and VAT defaults.",
-      href: "/settings/general",
-      cta: "Open General Settings",
+      title: "Company",
+      description: "Core business identity, contact details, and banking setup.",
+      cards: [
+        {
+          title: "General Settings",
+          description:
+            "Manage company information, branding, contact details, and VAT defaults.",
+          href: "/settings/general",
+          cta: "Open General Settings",
+        },
+        {
+          title: "Banking",
+          description:
+            "Manage company bank accounts used for invoices and payment details.",
+          href: "/settings/banking",
+          cta: "Open Banking",
+        },
+      ],
     },
     {
-      title: "Banking",
-      description:
-        "Manage company bank accounts used for invoices and payment details.",
-      href: "/settings/banking",
-      cta: "Open Banking",
+      title: "Operations Setup",
+      description: "Reference data used by expenses and day-to-day office work.",
+      cards: [
+        {
+          title: "Expense Categories",
+          description:
+            "Manage active and inactive expense categories used by expenses.",
+          href: "/settings/expense-categories",
+          cta: "Manage Categories",
+        },
+        {
+          title: "Vendors",
+          description: "Manage vendors used on expense records.",
+          href: "/settings/vendors",
+          cta: "Manage Vendors",
+        },
+      ],
     },
     {
-      title: "Users",
-      description: "Manage system users and access roles.",
-      href: "/settings/users",
-      cta: "Manage Users",
-    },
-    {
-      title: "Expense Categories",
-      description: "Manage active and inactive expense categories used by expenses.",
-      href: "/settings/expense-categories",
-      cta: "Manage Categories",
-    },
-    {
-      title: "Vendors",
-      description: "Manage vendors used on expense records.",
-      href: "/settings/vendors",
-      cta: "Manage Vendors",
-    },
-    {
-      title: "Appearance",
-      description:
-        "Open the shared UI preview and adjust visual tokens for buttons, fields, cards, tables, alerts, and shell colors.",
-      href: "/ui-preview",
-      cta: "Open Appearance Editor",
-    },
-    {
-      title: "Inspection Lab",
-      description:
-        "Experimental phone-friendly room-state capture and comparison workflow for inspection testing.",
-      href: "/inspection-lab/bathroom-base-shot",
-      cta: "Open Inspection Lab",
+      title: "Access",
+      description: "User accounts and permission control for the admin system.",
+      cards: [
+        {
+          title: "Users",
+          description: "Manage system users and access roles.",
+          href: "/settings/users",
+          cta: "Manage Users",
+        },
+      ],
     },
   ];
 
@@ -69,21 +74,36 @@ export default async function SettingsPage() {
         description={`Configure company settings, banking, and user access. Signed in as ${appUser.role}.`}
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => (
-          <Card key={card.href} className="h-full">
-            <CardHeader>
-              <CardTitle>{card.title}</CardTitle>
-              <CardDescription>{card.description}</CardDescription>
-            </CardHeader>
-            <CardFooter className="mt-auto">
-              <Button asChild>
-                <Link href={card.href}>{card.cta}</Link>
-              </Button>
-            </CardFooter>
-          </Card>
+      <div className="space-y-8">
+        {sections.map((section) => (
+          <section key={section.title} className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-foreground">
+                {section.title}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {section.description}
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {section.cards.map((card) => (
+                <Card key={card.href} className="h-full">
+                  <CardHeader>
+                    <CardTitle>{card.title}</CardTitle>
+                    <CardDescription>{card.description}</CardDescription>
+                  </CardHeader>
+                  <CardFooter className="mt-auto">
+                    <Button asChild>
+                      <Link href={card.href}>{card.cta}</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          </section>
         ))}
-      </section>
+      </div>
     </main>
   );
 }

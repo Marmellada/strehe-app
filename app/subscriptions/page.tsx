@@ -283,12 +283,43 @@ export default async function SubscriptionsPage() {
                   {rows.map((contract) => (
                     <TableRow key={contract.id}>
                       <TableCell className="font-medium">
-                        {getClientName(contract)}
+                        {getSingleRelation(contract.client)?.id ? (
+                          <Link
+                            href={`/clients/${getSingleRelation(contract.client)!.id}`}
+                            className="hover:underline"
+                          >
+                            {getClientName(contract)}
+                          </Link>
+                        ) : (
+                          getClientName(contract)
+                        )}
                       </TableCell>
 
-                      <TableCell>{getPropertyLabel(contract)}</TableCell>
+                      <TableCell>
+                        {getSingleRelation(contract.property)?.id ? (
+                          <Link
+                            href={`/properties/${getSingleRelation(contract.property)!.id}`}
+                            className="hover:underline"
+                          >
+                            {getPropertyLabel(contract)}
+                          </Link>
+                        ) : (
+                          getPropertyLabel(contract)
+                        )}
+                      </TableCell>
 
-                      <TableCell>{getPackageName(contract)}</TableCell>
+                      <TableCell>
+                        {getSingleRelation(contract.package)?.id ? (
+                          <Link
+                            href={`/packages/${getSingleRelation(contract.package)!.id}`}
+                            className="hover:underline"
+                          >
+                            {getPackageName(contract)}
+                          </Link>
+                        ) : (
+                          getPackageName(contract)
+                        )}
+                      </TableCell>
 
                       <TableCell>
                         <StatusBadge status={contract.status} />

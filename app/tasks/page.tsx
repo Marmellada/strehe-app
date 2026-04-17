@@ -423,8 +423,8 @@ export default async function TasksPage({
   const inProgressCount = typedTaskStats.filter(
     (task) => task.status === "in_progress"
   ).length;
-  const blockedCount = typedTaskStats.filter(
-    (task) => task.status === "blocked"
+  const escalatedCount = typedTaskStats.filter(
+    (task) => task.status === "escalated" || task.status === "blocked"
   ).length;
   const completedCount = typedTaskStats.filter(
     (task) => task.status === "completed"
@@ -459,8 +459,8 @@ export default async function TasksPage({
     page: "1",
   });
 
-  const blockedHref = buildQueryString(params, {
-    status: "blocked",
+  const escalatedHref = buildQueryString(params, {
+    status: "escalated",
     due: undefined,
     source: undefined,
     assigned: undefined,
@@ -514,6 +514,7 @@ export default async function TasksPage({
     !params.status && !params.due && !params.source && !params.assigned;
   const openQuickFilterActive = params.status === "open";
   const overdueQuickFilterActive = params.due === "overdue";
+  const escalatedQuickFilterActive = params.status === "escalated";
   const completedQuickFilterActive = params.status === "completed";
   const cancelledQuickFilterActive = params.status === "cancelled";
   const manualQuickFilterActive = params.source === "manual";
@@ -577,6 +578,9 @@ export default async function TasksPage({
         <Button asChild variant={overdueQuickFilterActive ? "default" : "secondary"} size="sm">
           <Link href="/tasks?due=overdue">Overdue</Link>
         </Button>
+        <Button asChild variant={escalatedQuickFilterActive ? "default" : "secondary"} size="sm">
+          <Link href="/tasks?status=escalated">Escalated</Link>
+        </Button>
         <Button asChild variant={completedQuickFilterActive ? "default" : "secondary"} size="sm">
           <Link href="/tasks?status=completed">Completed</Link>
         </Button>
@@ -623,14 +627,14 @@ export default async function TasksPage({
         </Link>
 
         <Link
-          href={blockedHref}
-          className={getKpiCardClasses(params.status === "blocked")}
+          href={escalatedHref}
+          className={getKpiCardClasses(params.status === "escalated")}
         >
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Blocked
+            Escalated
           </div>
           <div className="mt-2 text-2xl font-semibold text-foreground">
-            {blockedCount}
+            {escalatedCount}
           </div>
         </Link>
 
@@ -723,7 +727,7 @@ export default async function TasksPage({
               <option value="">All Status</option>
               <option value="open">Open</option>
               <option value="in_progress">In Progress</option>
-              <option value="blocked">Blocked</option>
+              <option value="escalated">Escalated</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -928,13 +932,32 @@ export default async function TasksPage({
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">
-                        {propertyLabel}
+                        {task.property_id ? (
+                          <Link
+                            href={`/properties/${task.property_id}`}
+                            className="hover:underline"
+                          >
+                            {propertyLabel}
+                          </Link>
+                        ) : (
+                          propertyLabel
+                        )}
                       </TableCell>
 
                       <TableCell>
-                        <Badge variant={getSourceVariant(isAutoTask)}>
-                          {isAutoTask ? "Subscription" : "Manual"}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={getSourceVariant(isAutoTask)}>
+                            {isAutoTask ? "Subscription" : "Manual"}
+                          </Badge>
+                          {task.subscription_id ? (
+                            <Link
+                              href={`/subscriptions/${task.subscription_id}`}
+                              className="text-xs text-muted-foreground underline"
+                            >
+                              Open Contract
+                            </Link>
+                          ) : null}
+                        </div>
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">

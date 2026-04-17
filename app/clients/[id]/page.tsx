@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { DetailField } from "@/components/ui/DetailField";
-import { Card, CardContent } from "@/components/ui/Card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/Card";
 import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
 import { requireRole } from "@/lib/auth/require-role";
 import DeleteClientButton from "./DeleteClientButton";
@@ -45,6 +51,15 @@ type TaskRow = {
     | null;
 };
 
+type InvoiceRow = {
+  id: string;
+  invoice_number: string | null;
+  status: string | null;
+  total_cents: number | null;
+  property_id: string | null;
+  property_label_snapshot: string | null;
+};
+
 async function deleteClient(id: string) {
   "use server";
 
@@ -70,6 +85,15 @@ function getSingle<T>(value: T | T[] | null): T | null {
   if (!value) return null;
   if (Array.isArray(value)) return value[0] || null;
   return value;
+}
+
+function formatMoneyFromCents(value: number | null | undefined) {
+  return `€${((value || 0) / 100).toFixed(2)}`;
+}
+
+function isOpenTaskStatus(status: string | null | undefined) {
+  const normalized = (status || "").toLowerCase();
+  return !["completed", "done", "cancelled"].includes(normalized);
 }
 
 export default async function ClientDetailPage({
@@ -107,7 +131,7 @@ export default async function ClientDetailPage({
   const properties = (ownedProperties || []) as OwnedPropertyRow[];
   const propertyIds = properties.map((property) => property.id);
 
-  const [contractsResult, tasksResult] = propertyIds.length
+  const [contractsResult, tasksResult, allTasksResult, invoicesResult] = propertyIds.length
     ? await Promise.all([
         supabase
           .from("subscriptions")
@@ -136,23 +160,54 @@ export default async function ClientDetailPage({
           .in("property_id", propertyIds)
           .order("created_at", { ascending: false })
           .limit(5),
+        supabase
+          .from("tasks")
+          .select("id, status")
+          .in("property_id", propertyIds),
+        supabase
+          .from("invoices")
+          .select(
+            `
+            id,
+            invoice_number,
+            status,
+            total_cents,
+            property_id,
+            property_label_snapshot
+          `
+          )
+          .eq("client_id", id)
+          .order("created_at", { ascending: false })
+          .limit(5),
       ])
     : [
         { data: [] as ContractRow[] },
         { data: [] as TaskRow[] },
+        { data: [] as Array<{ id: string; status: string | null }> },
+        { data: [] as InvoiceRow[] },
       ];
 
   const municipality = getSingle(client.municipality);
   const location = getSingle(client.location);
   const contracts = (contractsResult.data || []) as ContractRow[];
   const tasks = (tasksResult.data || []) as TaskRow[];
+  const allTasks = (allTasksResult.data || []) as Array<{
+    id: string;
+    status: string | null;
+  }>;
+  const invoices = (invoicesResult.data || []) as InvoiceRow[];
   const activeContractsCount = contracts.filter(
     (contract) => (contract.status || "").toLowerCase() === "active"
   ).length;
-  const openTasksCount = tasks.filter((task) => {
-    const status = (task.status || "").toLowerCase();
-    return !["completed", "done", "cancelled"].includes(status);
-  }).length;
+  const openTasksCount = allTasks.filter((task) =>
+    isOpenTaskStatus(task.status)
+  ).length;
+  const draftInvoicesCount = invoices.filter(
+    (invoice) => (invoice.status || "").toLowerCase() === "draft"
+  ).length;
+  const issuedInvoicesCount = invoices.filter(
+    (invoice) => (invoice.status || "").toLowerCase() === "issued"
+  ).length;
 
   const name =
     client.client_type === "business"
@@ -197,6 +252,86 @@ export default async function ClientDetailPage({
         <Card size="sm"><CardContent><DetailField label="Active Contracts" value={activeContractsCount} /></CardContent></Card>
         <Card size="sm"><CardContent><DetailField label="Recent Open Tasks" value={openTasksCount} /></CardContent></Card>
         <Card size="sm"><CardContent><DetailField label="Status" value={formatStatusLabel(client.status)} /></CardContent></Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Properties</CardTitle>
+              <CardDescription>
+                Estate and ownership context for this client.
+              </CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/properties/new?owner_client_id=${id}`}>New Property</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Owned Properties" value={properties.length} />
+            <DetailField
+              label="Active Properties"
+              value={
+                properties.filter(
+                  (property) => (property.status || "").toLowerCase() === "active"
+                ).length
+              }
+            />
+            <DetailField
+              label="Next Step"
+              value={
+                properties.length > 0
+                  ? "Review linked properties"
+                  : "Add the first property"
+              }
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Contracts</CardTitle>
+              <CardDescription>
+                Service agreements tied to this client&apos;s properties.
+              </CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/subscriptions">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Total Contracts" value={contracts.length} />
+            <DetailField label="Active Contracts" value={activeContractsCount} />
+            <DetailField
+              label="Next Step"
+              value={
+                activeContractsCount > 0
+                  ? "Keep active agreements on track"
+                  : "Prepare the next contract"
+              }
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Billing</CardTitle>
+              <CardDescription>
+                Invoice activity for this client record.
+              </CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/billing">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <DetailField label="Recent Invoices" value={invoices.length} />
+            <DetailField label="Draft Invoices" value={draftInvoicesCount} />
+            <DetailField label="Issued Invoices" value={issuedInvoicesCount} />
+          </CardContent>
+        </Card>
       </section>
 
       <SectionCard
@@ -358,6 +493,45 @@ export default async function ClientDetailPage({
           )}
         </SectionCard>
       </div>
+
+      <SectionCard title="Recent Invoices">
+        {invoices.length === 0 ? (
+          <Card size="sm">
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                No invoices are linked to this client yet.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {invoices.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="flex items-center justify-between gap-4 rounded-xl border p-4"
+              >
+                <div>
+                  <div className="font-medium text-foreground">
+                    {invoice.invoice_number || "Draft invoice"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {invoice.property_label_snapshot || "Client-level billing"} •{" "}
+                    {formatMoneyFromCents(invoice.total_cents)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={getStatusVariant(invoice.status)}>
+                    {formatStatusLabel(invoice.status)}
+                  </Badge>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={`/billing/${invoice.id}`}>Open</Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard title="Meta" contentClassName="flex flex-wrap gap-2">
         <Badge variant="neutral">

@@ -60,7 +60,7 @@ export default function TaskForm({
     "flex h-10 w-full items-center justify-between rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)] ring-offset-background focus:outline-none focus:ring-2 focus:ring-[var(--select-ring-color)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   const [status, setStatus] = useState(task?.status ?? "open");
-  const [blockedReason, setBlockedReason] = useState(
+  const [escalationReason, setEscalationReason] = useState(
     task?.blocked_reason ?? ""
   );
   const [cancelledReason, setCancelledReason] = useState(
@@ -105,7 +105,7 @@ export default function TaskForm({
               >
                 <option value="open">Open</option>
                 <option value="in_progress">In Progress</option>
-                <option value="blocked">Blocked</option>
+                <option value="escalated">Escalated</option>
                 <option value="cancelled">Cancelled</option>
                 <option value="completed">Completed</option>
               </select>
@@ -190,19 +190,19 @@ export default function TaskForm({
             </>
           </FormField>
 
-          {status === "blocked" ? (
+          {status === "escalated" ? (
             <FormField
               id="blocked_reason"
-              label="Blocked Reason"
+              label="Escalation Reason"
               required
-              hint="Explain what is preventing the task from moving forward."
+              hint="Explain what needs office or admin attention so the task can move again."
             >
               <Textarea
                 id="blocked_reason"
                 name="blocked_reason"
                 rows={4}
-                value={blockedReason}
-                onChange={(event) => setBlockedReason(event.target.value)}
+                value={escalationReason}
+                onChange={(event) => setEscalationReason(event.target.value)}
                 required
               />
             </FormField>
