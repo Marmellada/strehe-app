@@ -37,7 +37,12 @@ function getDefaultTrackedObjectSeeds(
   roomType: InspectionRoomType,
   photoType: string | null
 ) {
-  if (!photoType) return [];
+  if (!photoType) {
+    return {
+      direct: [] as string[],
+      wideFallback: [] as string[],
+    };
+  }
 
   const directSeedsByRoom: Record<InspectionRoomType, string[]> = {
     bathroom: ["sink", "mirror", "toilet", "bathtub", "shower", "cabinet"],
@@ -45,7 +50,10 @@ function getDefaultTrackedObjectSeeds(
   };
 
   if (directSeedsByRoom[roomType].includes(photoType)) {
-    return [photoType];
+    return {
+      direct: [photoType],
+      wideFallback: [] as string[],
+    };
   }
 
   const wideShotSeeds: Record<InspectionRoomType, string[]> = {
@@ -54,10 +62,16 @@ function getDefaultTrackedObjectSeeds(
   };
 
   if (["wide", "entrance"].includes(photoType)) {
-    return wideShotSeeds[roomType];
+    return {
+      direct: [] as string[],
+      wideFallback: wideShotSeeds[roomType],
+    };
   }
 
-  return [];
+  return {
+    direct: [] as string[],
+    wideFallback: [] as string[],
+  };
 }
 
 async function ensureInspectionCase(
@@ -123,13 +137,27 @@ async function seedBaselineTrackedObjects(options: {
   userId: string;
 }) {
   const supabase = getAdminClient();
-  const seededLabels = new Set<string>(
-    getDefaultTrackedObjectSeeds(options.roomType, options.photoType)
+  const { direct, wideFallback } = getDefaultTrackedObjectSeeds(
+    options.roomType,
+    options.photoType
   );
+  const directSeedLabels = new Set<string>(direct);
+  const wideFallbackLabels = new Set<string>(wideFallback);
+  const aiSeededObjects = new Map<
+    string,
+    {
+      visibility: string;
+      confidence: number;
+      reason: string;
+      centerX: number | null;
+      centerY: number | null;
+    }
+  >();
+
   const seededNotes = new Map<string, string>();
 
-  for (const label of seededLabels) {
-    seededNotes.set(label, "Seeded from the baseline photo type or wide-shot fallback.");
+  for (const label of directSeedLabels) {
+    seededNotes.set(label, "Seeded directly from the baseline photo type.");
   }
 
   try {
@@ -151,6 +179,9 @@ async function seedBaselineTrackedObjects(options: {
               objectName?: string;
               visibility?: string;
               confidence?: number;
+              centerX?: number | null;
+              centerY?: number | null;
+              reason?: string;
             }>;
           }).trackedObjects || [])
         : [];
@@ -164,6 +195,8 @@ async function seedBaselineTrackedObjects(options: {
           objectName: item.objectName,
           visibility: item.visibility,
           confidence: item.confidence,
+          centerX: item.centerX,
+          centerY: item.centerY,
         })),
       });
 
@@ -173,7 +206,19 @@ async function seedBaselineTrackedObjects(options: {
           ["visible", "uncertain"].includes(item.visibility || "") &&
           (item.confidence ?? 0) >= 0.25
         ) {
-          seededLabels.add(item.objectName);
+          aiSeededObjects.set(item.objectName, {
+            visibility: item.visibility || "uncertain",
+            confidence: item.confidence ?? 0,
+            reason: item.reason || "",
+            centerX:
+              typeof item.centerX === "number" && item.centerX >= 0 && item.centerX <= 1
+                ? item.centerX
+                : null,
+            centerY:
+              typeof item.centerY === "number" && item.centerY >= 0 && item.centerY <= 1
+                ? item.centerY
+                : null,
+          });
           seededNotes.set(
             item.objectName,
             `AI seeded from baseline upload (${item.visibility || "uncertain"}, confidence ${(item.confidence ?? 0).toFixed(2)}).`
@@ -189,28 +234,46 @@ async function seedBaselineTrackedObjects(options: {
     });
   }
 
-  if (seededLabels.size === 0) {
+  const fallbackLabelsToUse = aiSeededObjects.size === 0 ? wideFallbackLabels : new Set<string>();
+  for (const label of fallbackLabelsToUse) {
+    seededNotes.set(label, "Suggested from a wide baseline shot because AI did not localize a stronger candidate.");
+  }
+
+  const finalLabels = new Set<string>([
+    ...directSeedLabels,
+    ...fallbackLabelsToUse,
+    ...aiSeededObjects.keys(),
+  ]);
+
+  if (finalLabels.size === 0) {
     return;
   }
 
-  const rows = [...seededLabels].map((label) => ({
-    case_id: options.caseRowId,
-    object_key: `${normalizeInspectionObjectKey(label)}-${options.photoId}`,
-    label,
-    category: label,
-    source: "auto_detected",
-    importance: "high",
-    is_active: true,
-    baseline_photo_id: options.photoId,
-    baseline_order_index: options.orderIndex,
-    baseline_photo_type: options.photoType,
-    baseline_storage_path: options.storagePath,
-    review_note:
-      seededNotes.get(label) || "Seeded from the baseline upload for photo review.",
-    created_by_user_id: options.userId,
-    updated_by_user_id: options.userId,
-    updated_at: new Date().toISOString(),
-  }));
+  const rows = [...finalLabels].map((label) => {
+    const aiSeed = aiSeededObjects.get(label);
+    const isAiSeeded = Boolean(aiSeed);
+
+    return {
+      case_id: options.caseRowId,
+      object_key: `${normalizeInspectionObjectKey(label)}-${options.photoId}`,
+      label,
+      category: label,
+      source: isAiSeeded ? "engine" : "auto_detected",
+      importance: "high",
+      is_active: true,
+      baseline_photo_id: options.photoId,
+      baseline_order_index: options.orderIndex,
+      baseline_photo_type: options.photoType,
+      baseline_storage_path: options.storagePath,
+      marker_x: aiSeed?.centerX ?? null,
+      marker_y: aiSeed?.centerY ?? null,
+      review_note:
+        seededNotes.get(label) || "Seeded from the baseline upload for photo review.",
+      created_by_user_id: options.userId,
+      updated_by_user_id: options.userId,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const { error } = await supabase
     .from("inspection_lab_tracked_objects")
