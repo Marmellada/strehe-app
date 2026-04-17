@@ -137,6 +137,7 @@ async function seedBaselineTrackedObjects(options: {
   userId: string;
 }) {
   const supabase = getAdminClient();
+  const aiEnabled = Boolean(process.env.OPENAI_API_KEY);
   const { direct, wideFallback } = getDefaultTrackedObjectSeeds(
     options.roomType,
     options.photoType
@@ -234,7 +235,8 @@ async function seedBaselineTrackedObjects(options: {
     });
   }
 
-  const fallbackLabelsToUse = aiSeededObjects.size === 0 ? wideFallbackLabels : new Set<string>();
+  const fallbackLabelsToUse =
+    !aiEnabled && aiSeededObjects.size === 0 ? wideFallbackLabels : new Set<string>();
   for (const label of fallbackLabelsToUse) {
     seededNotes.set(label, "Suggested from a wide baseline shot because AI did not localize a stronger candidate.");
   }
