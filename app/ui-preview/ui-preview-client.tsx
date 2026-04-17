@@ -180,14 +180,25 @@ function PreviewHint({
   onSelect?: () => void;
   selected?: boolean;
 }) {
+  const isInteractive = Boolean(onSelect);
+
   return (
     <div
-      className={`relative transition-shadow ${selected ? "rounded-xl ring-2 ring-foreground/20 ring-offset-2 ring-offset-background" : ""} ${onSelect ? "cursor-pointer" : ""} ${className}`}
+      className={`relative transition-shadow focus-visible:outline-none ${selected ? "rounded-xl ring-2 ring-foreground/20 ring-offset-2 ring-offset-background" : ""} ${isInteractive ? "cursor-pointer" : ""} ${className}`}
       onMouseEnter={() => onHoverChange(controls)}
       onMouseLeave={() => onHoverChange(null)}
       onFocus={() => onHoverChange(controls)}
       onBlur={() => onHoverChange(null)}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (!onSelect) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onSelect();
+      }}
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-pressed={isInteractive ? selected : undefined}
     >
       {children}
     </div>
@@ -283,11 +294,11 @@ export function UiPreviewClient({
 
       <Alert>
         <div>
-          <div className="mb-1 font-medium">Hover Guidance</div>
+          <div className="mb-1 font-medium">Hover And Focus Guidance</div>
           <p className="text-sm">
             {hoveredControls
               ? `Change in panel: ${hoveredControls}`
-              : "Hover a preview element to see exactly which controls affect it."}
+              : `Selected editor target: ${selectedFocusOption.label}. Hover or focus a preview element to see exactly which controls affect it.`}
           </p>
         </div>
       </Alert>
