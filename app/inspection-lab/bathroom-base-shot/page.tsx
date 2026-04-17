@@ -69,6 +69,45 @@ const PHOTO_TYPE_OPTIONS: Record<InspectionRoomType, readonly string[]> = {
   ],
 };
 
+const TRACKED_OBJECT_CATEGORY_OPTIONS = [
+  "fixture",
+  "furniture",
+  "appliance",
+  "lighting",
+  "wall_art",
+  "mirror",
+  "electronics",
+  "decor",
+  "collectible",
+  "storage",
+  "other",
+] as const;
+
+const TRACKED_OBJECT_LABEL_SUGGESTIONS: Record<InspectionRoomType, readonly string[]> = {
+  bathroom: [
+    "sink",
+    "mirror",
+    "toilet",
+    "shower fixture",
+    "bathtub",
+    "cabinet",
+    "wall light",
+    "special mirror",
+    "collectible decor",
+  ],
+  living_room: [
+    "sofa",
+    "tv",
+    "tv stand",
+    "coffee table",
+    "armchair",
+    "painting",
+    "floor lamp",
+    "wall mirror",
+    "bronze figurine",
+  ],
+};
+
 function getStatusBadgeVariant(status: string) {
   switch (status) {
     case "ready":
@@ -90,6 +129,10 @@ function formatStatusLabel(status: string) {
 
 function formatRoomTypeLabel(roomType: InspectionRoomType) {
   return roomType.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatOptionLabel(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 async function updateInspectionPhotoMetadataFormAction(
@@ -506,6 +549,14 @@ export default async function RoomStateInspectionLabPage() {
                           of the case baseline review.
                         </p>
 
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          {TRACKED_OBJECT_LABEL_SUGGESTIONS[item.roomType].map((label) => (
+                            <Badge key={`${item.id}-${label}`} variant="neutral">
+                              {formatOptionLabel(label)}
+                            </Badge>
+                          ))}
+                        </div>
+
                         <form
                           action={saveInspectionTrackedObjectFormAction}
                           className="space-y-3"
@@ -524,9 +575,15 @@ export default async function RoomStateInspectionLabPage() {
                               <Input
                                 id={`tracked_label_${item.id}`}
                                 name="label"
+                                list={`tracked_label_suggestions_${item.id}`}
                                 placeholder="e.g., bronze figurine"
                                 required
                               />
+                              <datalist id={`tracked_label_suggestions_${item.id}`}>
+                                {TRACKED_OBJECT_LABEL_SUGGESTIONS[item.roomType].map((label) => (
+                                  <option key={`${item.id}-label-${label}`} value={label} />
+                                ))}
+                              </datalist>
                             </div>
 
                             <div>
@@ -536,11 +593,19 @@ export default async function RoomStateInspectionLabPage() {
                               >
                                 Category
                               </label>
-                              <Input
+                              <select
                                 id={`tracked_category_${item.id}`}
                                 name="category"
-                                placeholder="e.g., decor, wall_art, collectible"
-                              />
+                                className="input w-full"
+                                defaultValue=""
+                              >
+                                <option value="">Choose category</option>
+                                {TRACKED_OBJECT_CATEGORY_OPTIONS.map((category) => (
+                                  <option key={`${item.id}-category-${category}`} value={category}>
+                                    {formatOptionLabel(category)}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
 
@@ -574,7 +639,7 @@ export default async function RoomStateInspectionLabPage() {
                                 id={`tracked_baseline_photo_${item.id}`}
                                 name="baseline_photo_id"
                                 className="input w-full"
-                                defaultValue=""
+                                defaultValue={item.baselinePhotos[0]?.id ?? ""}
                               >
                                 <option value="">No specific photo yet</option>
                                 {item.baselinePhotos.map((photo) => (
@@ -583,6 +648,9 @@ export default async function RoomStateInspectionLabPage() {
                                   </option>
                                 ))}
                               </select>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Link the object to the baseline photo where it is easiest to see.
+                              </p>
                             </div>
                           </div>
 
