@@ -31,7 +31,7 @@ export default function UnauthorizedPage() {
 
           <div className="flex gap-2">
             <Button asChild>
-              <Link href="/">Go to dashboard</Link>
+              <Link href="/dashboard">Go to dashboard</Link>
             </Button>
             <Button asChild variant="secondary">
               <Link href="/auth/logout">Logout</Link>

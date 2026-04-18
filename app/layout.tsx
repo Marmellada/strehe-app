@@ -2,6 +2,7 @@ import "../assets/css/tokens.css";
 import "../assets/css/components.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Figtree } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
@@ -27,8 +28,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "STREHË Admin",
-  description: "STREHË Prona management app",
+  title: "STREHË",
+  description:
+    "Trusted local care for your apartment in Prishtina or Fushë Kosovë while you live abroad.",
 };
 
 export default async function RootLayout({
@@ -36,8 +38,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const current = await getCurrentUser();
-  const role = current?.appUser.role ?? null;
+  const headerStore = await headers();
+  const surface = headerStore.get("x-strehe-surface") ?? "app";
   const supabase = await createClient();
   const { data: companySettings } = await supabase
     .from("company_settings")
@@ -48,6 +50,8 @@ export default async function RootLayout({
     (companySettings?.appearance_theme as Partial<PreviewTheme> | null | undefined) ??
       null
   );
+  const current = surface === "app" ? await getCurrentUser() : null;
+  const role = current?.appUser.role ?? null;
 
   return (
     <html
@@ -62,12 +66,16 @@ export default async function RootLayout({
         figtree.variable
       )}
     >
-      <body className="min-h-full">
+      <body className="min-h-full bg-background text-foreground">
         <ToastProvider>
           <AppearanceThemeClient initialTheme={initialTheme} />
-          <AppShell role={role} current={current}>
-            {children}
-          </AppShell>
+          {surface === "app" ? (
+            <AppShell role={role} current={current}>
+              {children}
+            </AppShell>
+          ) : (
+            children
+          )}
         </ToastProvider>
       </body>
     </html>

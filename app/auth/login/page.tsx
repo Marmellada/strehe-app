@@ -30,7 +30,7 @@ async function loginAction(formData: FormData) {
     );
   }
 
-  const safeNext = next.startsWith("/") ? next : "/";
+  const safeNext = next.startsWith("/") ? next : "/dashboard";
   let email = identifier.toLowerCase();
 
   if (!identifier.includes("@")) {
@@ -70,7 +70,7 @@ async function loginAction(formData: FormData) {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const nextPath =
-    params?.next && params.next.startsWith("/") ? params.next : "/";
+    params?.next && params.next.startsWith("/") ? params.next : "/dashboard";
   const error = params?.error || "";
 
   return (

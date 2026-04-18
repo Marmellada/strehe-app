@@ -53,7 +53,7 @@ async function updatePasswordAction(formData: FormData) {
     redirect(`/auth/setup-password?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export default async function SetupPasswordPage({

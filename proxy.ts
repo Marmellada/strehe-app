@@ -1,12 +1,41 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PATHS = ["/auth/login", "/auth/logout", "/unauthorized"];
+const AUTH_PUBLIC_PATHS = [
+  "/auth/login",
+  "/auth/logout",
+  "/auth/setup-password",
+  "/auth/callback",
+  "/unauthorized",
+];
+
+const MARKETING_LOCALES = new Set(["en", "sq", "de"]);
+const MARKETING_PAGES = new Set(["services", "how-it-works", "about", "contact"]);
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`)
-  );
+  if (
+    AUTH_PUBLIC_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    )
+  ) {
+    return true;
+  }
+
+  if (pathname === "/") {
+    return true;
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+
+  if (segments.length === 0) {
+    return true;
+  }
+
+  if (!MARKETING_LOCALES.has(segments[0])) {
+    return false;
+  }
+
+  return segments.length === 1 || (segments.length === 2 && MARKETING_PAGES.has(segments[1]));
 }
 
 export async function proxy(request: NextRequest) {
@@ -21,7 +50,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
-  let response = NextResponse.next({ request });
+  const isPublic = isPublicPath(pathname);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-strehe-surface", isPublic ? "public" : "app");
+
+  let response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,7 +71,9 @@ export async function proxy(request: NextRequest) {
             request.cookies.set(name, value);
           });
 
-          response = NextResponse.next({ request });
+          response = NextResponse.next({
+            request: { headers: requestHeaders },
+          });
 
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
@@ -46,12 +83,13 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  if (isPublicPath(pathname)) {
+  if (isPublic) {
     return response;
   }
 
   const claimsResult = await supabase.auth.getClaims();
-  const rawClaims = (claimsResult.data as { claims?: { sub?: string }; sub?: string } | null);
+  const rawClaims =
+    (claimsResult.data as { claims?: { sub?: string }; sub?: string } | null);
 
   const claims = rawClaims?.claims ?? rawClaims ?? null;
   const userId = claims?.sub ?? null;

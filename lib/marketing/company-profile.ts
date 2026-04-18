@@ -1,0 +1,43 @@
+import { createClient } from "@/lib/supabase/server";
+
+export type CompanyProfile = {
+  companyName: string;
+  email: string;
+  phone: string;
+  city: string;
+  country: string;
+  logoUrl: string | null;
+};
+
+const FALLBACK_PROFILE: CompanyProfile = {
+  companyName: "STREHË",
+  email: "info@strehe.com",
+  phone: "+383 44 000 000",
+  city: "Prishtina",
+  country: "Kosovo",
+  logoUrl: null,
+};
+
+export async function getCompanyProfile(): Promise<CompanyProfile> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("company_settings")
+    .select("company_name, email, phone, city, country, logo_url")
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    companyName: data?.company_name || FALLBACK_PROFILE.companyName,
+    email: data?.email || FALLBACK_PROFILE.email,
+    phone: data?.phone || FALLBACK_PROFILE.phone,
+    city: data?.city || FALLBACK_PROFILE.city,
+    country: data?.country || FALLBACK_PROFILE.country,
+    logoUrl: data?.logo_url || null,
+  };
+}
+
+export function toWhatsAppHref(phone: string, message: string) {
+  const digits = phone.replace(/[^\d+]/g, "");
+  const normalized = digits.startsWith("+") ? digits.slice(1) : digits;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+}

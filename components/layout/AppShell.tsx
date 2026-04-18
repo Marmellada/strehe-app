@@ -79,7 +79,7 @@ export function AppShell({ children, role, current }: AppShellProps) {
 
         <nav className="shell-nav">
           <div className="shell-nav-group">
-            <Link href="/">Dashboard</Link>
+            <Link href="/dashboard">Dashboard</Link>
           </div>
 
           {workLinks.length > 0 ? (
