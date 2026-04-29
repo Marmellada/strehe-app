@@ -183,7 +183,7 @@ export async function getFinanceOverview(
       )
     `)
     .eq("document_type", "invoice")
-.eq("status", "issued")
+    .in("status", ["issued", "paid"])
     .order("issue_date", { ascending: false })
     .order("created_at", { ascending: false });
 

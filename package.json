@@ -16,7 +16,8 @@
     "test:smoke:keys": "playwright test tests/e2e/keys-smoke.spec.ts",
     "test:smoke:tasks": "playwright test tests/e2e/tasks-smoke.spec.ts",
     "test:smoke:operations": "playwright test tests/e2e/operations-smoke.spec.ts",
-    "test:launch-checklist": "playwright test --project=smoke-chromium --project=settings-smoke-chromium --project=generator-smoke-chromium --project=editing-smoke-chromium --project=keys-smoke-chromium --project=tasks-smoke-chromium --project=operations-smoke-chromium",
+    "test:smoke:finance": "playwright test tests/e2e/finance-smoke.spec.ts",
+    "test:launch-checklist": "playwright test --project=smoke-chromium --project=settings-smoke-chromium --project=generator-smoke-chromium --project=editing-smoke-chromium --project=keys-smoke-chromium --project=tasks-smoke-chromium --project=operations-smoke-chromium --project=finance-smoke-chromium",
     "test:smoke:headed": "playwright test tests/e2e/smoke.spec.ts --headed",
     "playwright:install": "playwright install chromium"
   },

@@ -55,6 +55,7 @@ Last updated: 2026-04-29
 - [x] Dedicated key custody smoke covers key status changes and key log history
 - [x] Dedicated task assignment smoke covers assigned task creation, unassign, assign-to-me, in-progress status, and report submission
 - [x] Dedicated operations smoke covers package/service create-edit, worker creation, expense entry, and task report attachments
+- [x] Dedicated finance smoke covers paid invoice collection and settled invoice finance summary
 
 ### Current Known E2E Findings
 
@@ -71,7 +72,7 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, and operations smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, and finance smoke with the shared Playwright auth setup.
 
 Run focused key custody coverage with:
 
@@ -89,6 +90,12 @@ Run focused package/service/worker/expense/attachment coverage with:
 
 ```bash
 npm run test:smoke:operations
+```
+
+Run focused finance overview coverage with:
+
+```bash
+npm run test:smoke:finance
 ```
 
 ---
@@ -209,7 +216,7 @@ Future policy posture:
 - [x] Test package editing
 - [x] Test service creation
 - [x] Test service editing
-- [ ] Confirm package services are read correctly by task generation
+- [x] Confirm package services are read correctly by task generation
 
 ### Current Pricing Direction To Validate
 
@@ -230,11 +237,11 @@ Future policy posture:
 - [x] Test task attachments
 - [x] Test subscription-generated task creation
 - [x] Test duplicate prevention
-- [ ] Test monthly service generation
+- [x] Test monthly service generation
 - [ ] Test weekly service generation if used
 - [ ] Configure Vercel cron for task generation
 - [ ] Confirm cron secret is set in Vercel
-- [ ] Confirm generated task snapshots are correct
+- [x] Confirm generated task snapshots are correct
 
 ### Important
 
@@ -381,7 +388,7 @@ Personal email/testing sender is acceptable only before real launch.
 - [x] Test vendor creation
 - [x] Test expense category creation
 - [x] Test expense entry
-- [ ] Confirm finance overview includes expected numbers
+- [x] Confirm finance overview includes expected numbers
 - [ ] Decide whether workers are needed at launch or later
 - [ ] Decide first hire type and monthly wage range
 

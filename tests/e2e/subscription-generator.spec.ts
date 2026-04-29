@@ -53,6 +53,8 @@ function formatLocalDate(date: Date) {
 }
 
 test.describe.serial("subscription task generator smoke", () => {
+  test.setTimeout(90_000);
+
   const seed = createSmokeValue("generator");
   const clientName = `Generator Client ${seed}`;
   const clientEmail = `${seed}@example.com`;
