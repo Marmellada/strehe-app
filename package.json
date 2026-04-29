@@ -14,7 +14,8 @@
     "test:smoke:generator": "playwright test tests/e2e/subscription-generator.spec.ts",
     "test:smoke:editing": "playwright test tests/e2e/editing-flows.spec.ts",
     "test:smoke:keys": "playwright test tests/e2e/keys-smoke.spec.ts",
-    "test:launch-checklist": "playwright test --project=smoke-chromium --project=settings-smoke-chromium --project=generator-smoke-chromium --project=editing-smoke-chromium --project=keys-smoke-chromium",
+    "test:smoke:tasks": "playwright test tests/e2e/tasks-smoke.spec.ts",
+    "test:launch-checklist": "playwright test --project=smoke-chromium --project=settings-smoke-chromium --project=generator-smoke-chromium --project=editing-smoke-chromium --project=keys-smoke-chromium --project=tasks-smoke-chromium",
     "test:smoke:headed": "playwright test tests/e2e/smoke.spec.ts --headed",
     "playwright:install": "playwright install chromium"
   },

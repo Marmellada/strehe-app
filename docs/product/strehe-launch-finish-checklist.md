@@ -53,6 +53,7 @@ Last updated: 2026-04-29
 - [x] Subscription cancellation smoke flow works
 - [x] Dedicated edit-flow smoke covers category, vendor, client, property, contract, task, and invoice editing without touching UI appearance/settings pages
 - [x] Dedicated key custody smoke covers key status changes and key log history
+- [x] Dedicated task assignment smoke covers assigned task creation, unassign, assign-to-me, in-progress status, and report submission
 
 ### Current Known E2E Findings
 
@@ -69,12 +70,18 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, and key custody smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, and task assignment smoke with the shared Playwright auth setup.
 
 Run focused key custody coverage with:
 
 ```bash
 npm run test:smoke:keys
+```
+
+Run focused task assignment coverage with:
+
+```bash
+npm run test:smoke:tasks
 ```
 
 ---
@@ -210,7 +217,7 @@ Future policy posture:
 ## 8. Tasks And Visit Engine
 
 - [x] Test manual task creation
-- [ ] Test task assignment
+- [x] Test task assignment
 - [x] Test task status flow
 - [x] Test task report submission
 - [ ] Test task attachments
