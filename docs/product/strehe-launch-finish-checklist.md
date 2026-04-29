@@ -231,10 +231,12 @@ Launch SOP: `docs/operations/launch-operations-sop.md`
 
 ## 7. Packages And Services
 
-- [ ] Finalize launch package structure
-- [ ] Finalize launch package prices
-- [ ] Finalize included visit counts
-- [ ] Finalize add-on services
+Launch business baseline: `docs/operations/launch-business-baseline.md`
+
+- [x] Finalize launch package structure
+- [x] Finalize launch package prices
+- [x] Finalize included visit counts
+- [x] Finalize add-on services
 - [x] Test package creation
 - [x] Test package editing
 - [x] Test service creation
@@ -392,12 +394,13 @@ Personal email/testing sender is acceptable only before real launch.
 ## 15. Business And Operations
 
 Launch SOP: `docs/operations/launch-operations-sop.md`
+Launch business baseline: `docs/operations/launch-business-baseline.md`
 
-- [ ] Finalize first-year pricing model
-- [ ] Finalize launch packages
-- [ ] Finalize staff trigger points
-- [ ] Finalize solo operating limit
-- [ ] Finalize operating cost assumptions
+- [x] Finalize first-year pricing model
+- [x] Finalize launch packages
+- [x] Finalize staff trigger points
+- [x] Finalize solo operating limit
+- [x] Finalize operating cost assumptions
 - [x] Prepare visit checklist
 - [x] Prepare photo report template
 - [x] Prepare client onboarding checklist
@@ -414,8 +417,8 @@ Launch SOP: `docs/operations/launch-operations-sop.md`
 - [x] Test expense category creation
 - [x] Test expense entry
 - [x] Confirm finance overview includes expected numbers
-- [ ] Decide whether workers are needed at launch or later
-- [ ] Decide first hire type and monthly wage range
+- [x] Decide whether workers are needed at launch or later
+- [x] Decide first hire type and monthly wage range
 
 ---
 
