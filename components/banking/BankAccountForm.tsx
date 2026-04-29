@@ -366,7 +366,7 @@ export function BankAccountForm({
                 }}
                 placeholder="e.g., XK051212012345678906"
                 required
-                pattern="^XK\\d{18}$"
+                pattern="^XK[0-9]{18}$"
                 title="Must be in format XK followed by 18 digits"
                 className="uppercase"
               />

@@ -58,6 +58,7 @@ Last updated: 2026-04-29
 - [x] Dedicated finance smoke covers paid invoice collection and settled invoice finance summary
 - [x] Dedicated contract integrity smoke covers draft-to-active lifecycle, saved display snapshots, and one-active-contract guard
 - [x] Dedicated property integrity smoke covers owner link, location fields, and active-to-vacant status lifecycle
+- [x] Dedicated banking settings smoke covers licensed-bank registry, invoice-visible bank account, and hidden cash account setup
 
 ### Current Known E2E Findings
 
@@ -74,7 +75,7 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, finance smoke, contract integrity smoke, and property integrity smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, finance smoke, contract integrity smoke, property integrity smoke, and banking settings smoke with the shared Playwright auth setup.
 
 Run focused key custody coverage with:
 
@@ -110,6 +111,12 @@ Run focused property integrity coverage with:
 
 ```bash
 npm run test:smoke:properties
+```
+
+Run focused banking settings coverage with:
+
+```bash
+npm run test:smoke:banking
 ```
 
 ---
@@ -410,11 +417,11 @@ Personal email/testing sender is acceptable only before real launch.
 
 ## 17. Banking And Finance Settings
 
-- [ ] Confirm company bank account details
-- [ ] Confirm invoice bank display
-- [ ] Confirm payment methods
-- [ ] Confirm Kosovo bank registry entries
-- [ ] Confirm bank detection rules are not launch-blocking
+- [x] Confirm company bank account details
+- [x] Confirm invoice bank display
+- [x] Confirm payment methods
+- [x] Confirm Kosovo bank registry entries
+- [x] Confirm bank detection rules are not launch-blocking
 
 ### Current blocker
 
