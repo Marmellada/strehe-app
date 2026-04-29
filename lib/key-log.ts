@@ -1,6 +1,7 @@
 // lib/key-log.ts
 
 import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type CreateKeyLogInput = {
   key_id: string;
@@ -11,8 +12,11 @@ export type CreateKeyLogInput = {
   to_status?: string | null;
 };
 
-export async function createKeyLog(input: CreateKeyLogInput): Promise<void> {
-  const { error } = await supabase.from("key_logs").insert([
+export async function createKeyLog(
+  input: CreateKeyLogInput,
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client.from("key_logs").insert([
     {
       key_id:                input.key_id,
       action:                input.action,

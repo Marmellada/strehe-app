@@ -2,9 +2,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { supabase } from "@/lib/supabase";
 import { requireRole } from "@/lib/auth/require-role";
 import { createKeyLog } from "@/lib/key-log";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type KeyActionContext = {
   key_id: string;
@@ -22,8 +23,11 @@ async function requireKeysWriteAccess() {
   return requireRole(["admin", "office"]);
 }
 
-async function getExistingKey(key_id: string): Promise<KeyRecord> {
-  const { data: key, error } = await supabase
+async function getExistingKey(
+  client: SupabaseClient,
+  key_id: string
+): Promise<KeyRecord> {
+  const { data: key, error } = await client
     .from("keys")
     .select("status, holder_user_id, holder_name")
     .eq("id", key_id)
@@ -36,8 +40,8 @@ async function getExistingKey(key_id: string): Promise<KeyRecord> {
   return key as KeyRecord;
 }
 
-async function getHolderSnapshot(holder_user_id: string) {
-  const { data: appUser, error } = await supabase
+async function getHolderSnapshot(client: SupabaseClient, holder_user_id: string) {
+  const { data: appUser, error } = await client
     .from("app_users")
     .select("id, full_name, email, is_active")
     .eq("id", holder_user_id)
@@ -79,6 +83,7 @@ async function getActionContext(formData: FormData): Promise<KeyActionContext> {
 // ── Assign ────────────────────────────────────────────────────────────────────
 export async function assignKey(formData: FormData) {
   const { key_id, notes, actorId } = await getActionContext(formData);
+  const supabase = await createServerClient();
   const holder_user_id = formData.get("holder_user_id") as string;
 
   if (!holder_user_id) {
@@ -86,15 +91,15 @@ export async function assignKey(formData: FormData) {
   }
 
   const [key, holder] = await Promise.all([
-    getExistingKey(key_id),
-    getHolderSnapshot(holder_user_id),
+    getExistingKey(supabase, key_id),
+    getHolderSnapshot(supabase, holder_user_id),
   ]);
 
   if (key.status !== "available") {
     throw new Error("Only available keys can be assigned.");
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("keys")
     .update({
       status: "assigned",
@@ -104,6 +109,10 @@ export async function assignKey(formData: FormData) {
     })
     .eq("id", key_id);
 
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
   await createKeyLog({
     key_id,
     action: "assigned",
@@ -111,7 +120,7 @@ export async function assignKey(formData: FormData) {
     notes: notes || `Key assigned to ${holder.holder_name}.`,
     from_status: key.status ?? null,
     to_status: "assigned",
-  });
+  }, supabase);
 
   revalidatePath(`/keys/${key_id}`);
   revalidatePath("/keys");
@@ -120,13 +129,14 @@ export async function assignKey(formData: FormData) {
 // ── Return ────────────────────────────────────────────────────────────────────
 export async function returnKey(formData: FormData) {
   const { key_id, notes, actorId } = await getActionContext(formData);
-  const key = await getExistingKey(key_id);
+  const supabase = await createServerClient();
+  const key = await getExistingKey(supabase, key_id);
 
   if (key.status !== "assigned") {
     throw new Error("Only assigned keys can be returned.");
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("keys")
     .update({
       status: "available",
@@ -135,6 +145,10 @@ export async function returnKey(formData: FormData) {
     })
     .eq("id", key_id);
 
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
   await createKeyLog({
     key_id,
     action: "returned",
@@ -142,7 +156,7 @@ export async function returnKey(formData: FormData) {
     notes: notes || "Key returned to storage.",
     from_status: key.status ?? null,
     to_status: "available",
-  });
+  }, supabase);
 
   revalidatePath(`/keys/${key_id}`);
   revalidatePath("/keys");
@@ -151,13 +165,14 @@ export async function returnKey(formData: FormData) {
 // ── Mark as Lost ──────────────────────────────────────────────────────────────
 export async function markKeyAsLost(formData: FormData) {
   const { key_id, notes, actorId } = await getActionContext(formData);
-  const key = await getExistingKey(key_id);
+  const supabase = await createServerClient();
+  const key = await getExistingKey(supabase, key_id);
 
   if (key.status !== "available" && key.status !== "assigned") {
     throw new Error("Only available or assigned keys can be marked as lost.");
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("keys")
     .update({
       status: "lost",
@@ -166,6 +181,10 @@ export async function markKeyAsLost(formData: FormData) {
     })
     .eq("id", key_id);
 
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
   await createKeyLog({
     key_id,
     action: "lost",
@@ -173,7 +192,7 @@ export async function markKeyAsLost(formData: FormData) {
     notes: notes || "Key marked as lost.",
     from_status: key.status ?? null,
     to_status: "lost",
-  });
+  }, supabase);
 
   revalidatePath(`/keys/${key_id}`);
   revalidatePath("/keys");
@@ -182,13 +201,14 @@ export async function markKeyAsLost(formData: FormData) {
 // ── Mark as Damaged ───────────────────────────────────────────────────────────
 export async function markKeyAsDamaged(formData: FormData) {
   const { key_id, notes, actorId } = await getActionContext(formData);
-  const key = await getExistingKey(key_id);
+  const supabase = await createServerClient();
+  const key = await getExistingKey(supabase, key_id);
 
   if (key.status !== "available" && key.status !== "assigned") {
     throw new Error("Only available or assigned keys can be marked as damaged.");
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("keys")
     .update({
       status: "damaged",
@@ -197,6 +217,10 @@ export async function markKeyAsDamaged(formData: FormData) {
     })
     .eq("id", key_id);
 
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
   await createKeyLog({
     key_id,
     action: "damaged",
@@ -204,7 +228,7 @@ export async function markKeyAsDamaged(formData: FormData) {
     notes: notes || "Key marked as damaged.",
     from_status: key.status ?? null,
     to_status: "damaged",
-  });
+  }, supabase);
 
   revalidatePath(`/keys/${key_id}`);
   revalidatePath("/keys");
@@ -213,13 +237,14 @@ export async function markKeyAsDamaged(formData: FormData) {
 // ── Retire ────────────────────────────────────────────────────────────────────
 export async function markKeyAsRetired(formData: FormData) {
   const { key_id, notes, actorId } = await getActionContext(formData);
-  const key = await getExistingKey(key_id);
+  const supabase = await createServerClient();
+  const key = await getExistingKey(supabase, key_id);
 
   if (key.status === "retired") {
     throw new Error("This key is already retired.");
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("keys")
     .update({
       status: "retired",
@@ -228,6 +253,10 @@ export async function markKeyAsRetired(formData: FormData) {
     })
     .eq("id", key_id);
 
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
   await createKeyLog({
     key_id,
     action: "retired",
@@ -235,7 +264,7 @@ export async function markKeyAsRetired(formData: FormData) {
     notes: notes || "Key retired from active use.",
     from_status: key.status ?? null,
     to_status: "retired",
-  });
+  }, supabase);
 
   revalidatePath(`/keys/${key_id}`);
   revalidatePath("/keys");

@@ -52,6 +52,7 @@ Last updated: 2026-04-29
 - [x] Subscription-generated task smoke flow works
 - [x] Subscription cancellation smoke flow works
 - [x] Dedicated edit-flow smoke covers category, vendor, client, property, contract, task, and invoice editing without touching UI appearance/settings pages
+- [x] Dedicated key custody smoke covers key status changes and key log history
 
 ### Current Known E2E Findings
 
@@ -68,14 +69,20 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, and editing-flow smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, and key custody smoke with the shared Playwright auth setup.
+
+Run focused key custody coverage with:
+
+```bash
+npm run test:smoke:keys
+```
 
 ---
 
 ## 1. Source Control And Release Hygiene
 
 - [x] Commit current stable work
-- [ ] Push current stable work
+- [x] Push current stable work
 - [x] Exclude temporary local review files from commit
 - [x] Confirm `.env.local` is not committed
 - [ ] Keep a note of manually applied Supabase migrations
@@ -152,8 +159,8 @@ Future policy posture:
 - [ ] Define key handover process
 - [ ] Define key return process
 - [x] Test key creation for a property
-- [ ] Test key status changes
-- [ ] Test key log history
+- [x] Test key status changes
+- [x] Test key log history
 - [ ] Decide what key/access proof appears in public marketing
 
 ### Later

@@ -46,6 +46,8 @@ export default function KeyStatusActionForm({
   description,
   variant = 'default',
 }: Props) {
+  const noteId = `${keyId}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-notes`;
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="key_id" value={keyId} />
@@ -54,9 +56,9 @@ export default function KeyStatusActionForm({
         <p className="text-sm text-muted-foreground">{description}</p>
       ) : null}
 
-      <FormField id={`${keyId}-notes`} label={noteLabel}>
+      <FormField id={noteId} label={noteLabel}>
         <Textarea
-          id={`${keyId}-notes`}
+          id={noteId}
           name="notes"
           defaultValue={defaultNote}
           rows={2}
