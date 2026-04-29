@@ -196,10 +196,12 @@ Future policy posture:
 
 ## 5. Keys And Access
 
-- [ ] Decide physical key cabinet / storage method
-- [ ] Define key labeling format
-- [ ] Define key handover process
-- [ ] Define key return process
+Launch SOP: `docs/operations/launch-operations-sop.md`
+
+- [x] Decide physical key cabinet / storage method
+- [x] Define key labeling format
+- [x] Define key handover process
+- [x] Define key return process
 - [x] Test key creation for a property
 - [x] Test key status changes
 - [x] Test key log history
@@ -389,17 +391,19 @@ Personal email/testing sender is acceptable only before real launch.
 
 ## 15. Business And Operations
 
+Launch SOP: `docs/operations/launch-operations-sop.md`
+
 - [ ] Finalize first-year pricing model
 - [ ] Finalize launch packages
 - [ ] Finalize staff trigger points
 - [ ] Finalize solo operating limit
 - [ ] Finalize operating cost assumptions
-- [ ] Prepare visit checklist
-- [ ] Prepare photo report template
-- [ ] Prepare client onboarding checklist
-- [ ] Prepare urgent issue procedure
-- [ ] Prepare technician coordination procedure
-- [ ] Prepare key handling SOP
+- [x] Prepare visit checklist
+- [x] Prepare photo report template
+- [x] Prepare client onboarding checklist
+- [x] Prepare urgent issue procedure
+- [x] Prepare technician coordination procedure
+- [x] Prepare key handling SOP
 
 ---
 
@@ -433,8 +437,8 @@ Personal email/testing sender is acceptable only before real launch.
 
 - [x] Inspection lab is intentionally quarantined from v1
 - [x] Placeholder routes explain it is paused
-- [ ] Do not include inspection engine in launch scope
-- [ ] Revisit for v2 only after core operations work reliably
+- [x] Do not include inspection engine in launch scope
+- [x] Revisit for v2 only after core operations work reliably
 
 ### Reason
 
