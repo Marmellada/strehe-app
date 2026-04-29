@@ -54,6 +54,7 @@ Last updated: 2026-04-29
 - [x] Dedicated edit-flow smoke covers category, vendor, client, property, contract, task, and invoice editing without touching UI appearance/settings pages
 - [x] Dedicated key custody smoke covers key status changes and key log history
 - [x] Dedicated task assignment smoke covers assigned task creation, unassign, assign-to-me, in-progress status, and report submission
+- [x] Dedicated operations smoke covers package/service create-edit, worker creation, expense entry, and task report attachments
 
 ### Current Known E2E Findings
 
@@ -70,7 +71,7 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, and task assignment smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, and operations smoke with the shared Playwright auth setup.
 
 Run focused key custody coverage with:
 
@@ -82,6 +83,12 @@ Run focused task assignment coverage with:
 
 ```bash
 npm run test:smoke:tasks
+```
+
+Run focused package/service/worker/expense/attachment coverage with:
+
+```bash
+npm run test:smoke:operations
 ```
 
 ---
@@ -198,10 +205,10 @@ Future policy posture:
 - [ ] Finalize launch package prices
 - [ ] Finalize included visit counts
 - [ ] Finalize add-on services
-- [ ] Test package creation
-- [ ] Test package editing
-- [ ] Test service creation
-- [ ] Test service editing
+- [x] Test package creation
+- [x] Test package editing
+- [x] Test service creation
+- [x] Test service editing
 - [ ] Confirm package services are read correctly by task generation
 
 ### Current Pricing Direction To Validate
@@ -220,7 +227,7 @@ Future policy posture:
 - [x] Test task assignment
 - [x] Test task status flow
 - [x] Test task report submission
-- [ ] Test task attachments
+- [x] Test task attachments
 - [x] Test subscription-generated task creation
 - [x] Test duplicate prevention
 - [ ] Test monthly service generation
@@ -245,7 +252,7 @@ The task engine is launch-critical because recurring apartment care depends on i
 - [x] Test credit note creation
 - [x] Test credit note settlement behavior
 - [x] Test invoice PDF generation
-- [ ] Test contract PDF generation
+- [x] Test contract PDF generation
 - [ ] Polish invoice PDF discount display
 - [ ] Confirm company logo appears in PDFs
 - [ ] Confirm company bank details appear correctly
@@ -370,10 +377,10 @@ Personal email/testing sender is acceptable only before real launch.
 
 ## 16. Workers, Vendors, And Expenses
 
-- [ ] Test worker creation
+- [x] Test worker creation
 - [x] Test vendor creation
 - [x] Test expense category creation
-- [ ] Test expense entry
+- [x] Test expense entry
 - [ ] Confirm finance overview includes expected numbers
 - [ ] Decide whether workers are needed at launch or later
 - [ ] Decide first hire type and monthly wage range

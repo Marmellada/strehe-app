@@ -78,6 +78,15 @@ export default defineConfig({
         storageState: "playwright/.auth/user.json",
       },
     },
+    {
+      name: "operations-smoke-chromium",
+      dependencies: ["setup"],
+      testMatch: /(^|[\\/])operations-smoke\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+      },
+    },
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
