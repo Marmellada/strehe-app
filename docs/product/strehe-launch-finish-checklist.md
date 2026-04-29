@@ -56,6 +56,7 @@ Last updated: 2026-04-29
 - [x] Dedicated task assignment smoke covers assigned task creation, unassign, assign-to-me, in-progress status, and report submission
 - [x] Dedicated operations smoke covers package/service create-edit, worker creation, expense entry, and task report attachments
 - [x] Dedicated finance smoke covers paid invoice collection and settled invoice finance summary
+- [x] Dedicated contract integrity smoke covers draft-to-active lifecycle, saved display snapshots, and one-active-contract guard
 
 ### Current Known E2E Findings
 
@@ -72,7 +73,7 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, and finance smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, finance smoke, and contract integrity smoke with the shared Playwright auth setup.
 
 Run focused key custody coverage with:
 
@@ -96,6 +97,12 @@ Run focused finance overview coverage with:
 
 ```bash
 npm run test:smoke:finance
+```
+
+Run focused contract integrity coverage with:
+
+```bash
+npm run test:smoke:contracts
 ```
 
 ---
@@ -197,9 +204,9 @@ Future policy posture:
 - [x] Test contract creation
 - [x] Test contract editing
 - [x] Test contract cancellation
-- [ ] Confirm lifecycle states: draft / pending / active / cancelled / ended
-- [ ] Confirm one active contract per property rules
-- [ ] Confirm package snapshot is saved correctly
+- [x] Confirm lifecycle states: draft / prepared / active / paused / cancelled
+- [x] Confirm one active contract per property rules
+- [x] Confirm package snapshot is saved correctly
 - [ ] Confirm promotion discount snapshot is saved correctly
 - [x] Test contract PDF generation
 - [ ] Polish contract PDF if needed
@@ -404,7 +411,7 @@ Personal email/testing sender is acceptable only before real launch.
 
 ### Current blocker
 
-- [ ] Fix `/settings/banking/new` so choosing `Cash Account` hides or removes bank-only required fields and allows submission
+- [x] Fix `/settings/banking/new` so choosing `Cash Account` hides or removes bank-only required fields and allows submission
 
 ---
 
