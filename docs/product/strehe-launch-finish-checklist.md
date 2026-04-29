@@ -57,6 +57,7 @@ Last updated: 2026-04-29
 - [x] Dedicated operations smoke covers package/service create-edit, worker creation, expense entry, and task report attachments
 - [x] Dedicated finance smoke covers paid invoice collection and settled invoice finance summary
 - [x] Dedicated contract integrity smoke covers draft-to-active lifecycle, saved display snapshots, and one-active-contract guard
+- [x] Dedicated property integrity smoke covers owner link, location fields, and active-to-vacant status lifecycle
 
 ### Current Known E2E Findings
 
@@ -73,7 +74,7 @@ Run the full launch-checklist smoke coverage with:
 npm run test:launch-checklist
 ```
 
-This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, finance smoke, and contract integrity smoke with the shared Playwright auth setup.
+This runs the main smoke suite, settings smoke suite, subscription generator smoke, editing-flow smoke, key custody smoke, task assignment smoke, operations smoke, finance smoke, contract integrity smoke, and property integrity smoke with the shared Playwright auth setup.
 
 Run focused key custody coverage with:
 
@@ -103,6 +104,12 @@ Run focused contract integrity coverage with:
 
 ```bash
 npm run test:smoke:contracts
+```
+
+Run focused property integrity coverage with:
+
+```bash
+npm run test:smoke:properties
 ```
 
 ---
@@ -173,9 +180,9 @@ Future policy posture:
 - [x] Test client editing
 - [x] Test property creation
 - [x] Test property editing
-- [ ] Confirm property status lifecycle
-- [ ] Confirm owner/client relationship is clear
-- [ ] Confirm property location fields are enough for launch
+- [x] Confirm property status lifecycle
+- [x] Confirm owner/client relationship is clear
+- [x] Confirm property location fields are enough for launch
 - [ ] Confirm public website and app language align around apartments first
 
 ---
@@ -473,6 +480,7 @@ Ideas that are useful but not launch blockers:
 - automatic survey webhook integration
 - advanced campaign analytics
 - client portal
+- CRM-lite / leads module as a pre-launch add-on if real inquiries start getting messy
 - owner-facing reports dashboard
 - stricter per-role RLS
 - key cabinet slot UI
