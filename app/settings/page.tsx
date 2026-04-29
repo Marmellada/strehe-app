@@ -51,6 +51,13 @@ export default async function SettingsPage() {
           href: "/settings/vendors",
           cta: "Manage Vendors",
         },
+        {
+          title: "Promotions",
+          description:
+            "Create campaigns and issue unique discount codes for contracts.",
+          href: "/settings/promotions",
+          cta: "Manage Promotions",
+        },
       ],
     },
     {

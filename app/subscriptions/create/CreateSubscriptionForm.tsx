@@ -6,11 +6,14 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { DetailField } from "@/components/ui/DetailField";
 import { Card, CardContent } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { previewPromotionDiscount } from "@/lib/promotions/validation";
 
 type ClientRow = {
   id: string;
   full_name: string | null;
   company_name: string | null;
+  email?: string | null;
 };
 
 type PropertyRow = {
@@ -33,11 +36,47 @@ type SubscriptionRow = {
   status: string | null;
 };
 
+type PromotionCampaignRelation =
+  | {
+      id: string;
+      name: string | null;
+      discount_type: "percent" | "fixed_amount";
+      discount_percent: number | string | null;
+      discount_amount_cents: number | null;
+      active: boolean | null;
+      starts_at: string | null;
+      ends_at: string | null;
+    }
+  | {
+      id: string;
+      name: string | null;
+      discount_type: "percent" | "fixed_amount";
+      discount_percent: number | string | null;
+      discount_amount_cents: number | null;
+      active: boolean | null;
+      starts_at: string | null;
+      ends_at: string | null;
+    }[]
+  | null;
+
+type PromotionCodeRow = {
+  id: string;
+  code: string;
+  assigned_name: string | null;
+  assigned_email: string | null;
+  status: string | null;
+  expires_at: string | null;
+  redemption_count: number | null;
+  max_redemptions: number | null;
+  campaign: PromotionCampaignRelation;
+};
+
 type Props = {
   clients: ClientRow[];
   properties: PropertyRow[];
   packages: PackageRow[];
   subscriptions: SubscriptionRow[];
+  promotionCodes: PromotionCodeRow[];
   action: (formData: FormData) => void | Promise<void>;
 };
 
@@ -48,17 +87,41 @@ function formatPrice(value: number | string | null | undefined) {
   return num.toFixed(2);
 }
 
+function getSingleRelation<T>(value: T | T[] | null): T | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] || null;
+  return value;
+}
+
+function isBeforeToday(dateValue: string | null | undefined) {
+  if (!dateValue) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${dateValue}T00:00:00`);
+  return date < today;
+}
+
+function isAfterToday(dateValue: string | null | undefined) {
+  if (!dateValue) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${dateValue}T00:00:00`);
+  return date > today;
+}
+
 export default function CreateSubscriptionForm({
   clients,
   properties,
   packages,
   subscriptions,
+  promotionCodes,
   action,
 }: Props) {
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [monthlyPrice, setMonthlyPrice] = useState("");
+  const [promotionCodeInput, setPromotionCodeInput] = useState("");
 
   const blockedPropertyIds = useMemo(() => {
     return new Set(
@@ -93,6 +156,59 @@ export default function CreateSubscriptionForm({
   const selectedProperty = useMemo(() => {
     return properties.find((property) => property.id === selectedPropertyId) || null;
   }, [properties, selectedPropertyId]);
+
+  const promotionMatch = useMemo(() => {
+    const normalized = promotionCodeInput.trim().toUpperCase();
+    if (!normalized) return null;
+
+    return (
+      promotionCodes.find(
+        (code) => code.code.trim().toUpperCase() === normalized
+      ) || null
+    );
+  }, [promotionCodeInput, promotionCodes]);
+
+  const promotionPreview = useMemo(() => {
+    if (!promotionMatch || !monthlyPrice) return null;
+
+    const campaign = getSingleRelation(promotionMatch.campaign);
+    if (!campaign) return null;
+
+    const status = String(promotionMatch.status || "").toLowerCase();
+    const isCodeAvailable = ["issued", "sent"].includes(status);
+    const isCampaignAvailable =
+      campaign.active &&
+      !isAfterToday(campaign.starts_at) &&
+      !isBeforeToday(campaign.ends_at);
+    const redemptions = promotionMatch.redemption_count || 0;
+    const maxRedemptions = promotionMatch.max_redemptions || 1;
+    const hasRedemptionsLeft = redemptions < maxRedemptions;
+
+    if (!isCodeAvailable || !isCampaignAvailable || !hasRedemptionsLeft) {
+      return {
+        ok: false as const,
+        campaign,
+        message: "This promotion code is not currently available.",
+      };
+    }
+
+    const price = Number(monthlyPrice);
+    if (Number.isNaN(price)) return null;
+
+    const calculation = previewPromotionDiscount({
+      discountType: campaign.discount_type,
+      discountPercent: campaign.discount_percent,
+      discountAmountCents: campaign.discount_amount_cents,
+      monthlyPrice: price,
+    });
+
+    return {
+      ok: true as const,
+      campaign,
+      calculation,
+      issuedTo: promotionMatch.assigned_email || promotionMatch.assigned_name || null,
+    };
+  }, [monthlyPrice, promotionMatch]);
 
   return (
     <form action={action} className="space-y-6">
@@ -220,6 +336,62 @@ export default function CreateSubscriptionForm({
             </p>
           </div>
 
+          <div className="space-y-2 md:col-span-2">
+            <label htmlFor="promotion_code" className="text-sm font-medium">
+              Promotion Code
+            </label>
+            <input
+              id="promotion_code"
+              name="promotion_code"
+              value={promotionCodeInput}
+              onChange={(event) => setPromotionCodeInput(event.target.value)}
+              placeholder="Example: SURVEY-10-X7K2"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm uppercase"
+            />
+            <p className="text-sm text-muted-foreground">
+              Optional. The app validates the code again when the contract is saved.
+            </p>
+
+            {promotionCodeInput.trim() && !promotionMatch ? (
+              <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                No local match found. You can still submit; the server will validate
+                against the current database.
+              </div>
+            ) : null}
+
+            {promotionPreview?.ok ? (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <div className="mb-2 flex items-center gap-2">
+                  <Badge variant="success">Code ready</Badge>
+                  <span className="font-medium">
+                    {promotionPreview.campaign.name}
+                  </span>
+                </div>
+                <div className="grid gap-1 text-muted-foreground md:grid-cols-3">
+                  <span>
+                    Normal: €{promotionPreview.calculation.original.toFixed(2)}
+                  </span>
+                  <span>
+                    Discount: -€{promotionPreview.calculation.discount.toFixed(2)}
+                  </span>
+                  <span className="font-medium text-foreground">
+                    Final: €{promotionPreview.calculation.final.toFixed(2)}
+                  </span>
+                </div>
+                {promotionPreview.issuedTo ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Issued to {promotionPreview.issuedTo}. It can still be used
+                    on this contract; the redemption will record the actual client.
+                  </p>
+                ) : null}
+              </div>
+            ) : promotionPreview ? (
+              <div className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+                {promotionPreview.message}
+              </div>
+            ) : null}
+          </div>
+
           <div className="space-y-2">
             <label htmlFor="start_date" className="text-sm font-medium">
               Start Date *
@@ -298,8 +470,26 @@ export default function CreateSubscriptionForm({
             <DetailField label="Package" value={selectedPackage?.name || "-"} />
             <DetailField
               label="Monthly Price"
-              value={monthlyPrice ? `€${monthlyPrice}` : "-"}
+              value={
+                promotionPreview?.ok
+                  ? `€${promotionPreview.calculation.final.toFixed(2)}`
+                  : monthlyPrice
+                    ? `€${monthlyPrice}`
+                    : "-"
+              }
             />
+            {promotionPreview?.ok ? (
+              <>
+                <DetailField
+                  label="Original Price"
+                  value={`€${promotionPreview.calculation.original.toFixed(2)}`}
+                />
+                <DetailField
+                  label="Promotion"
+                  value={`${promotionMatch?.code || "-"} (-€${promotionPreview.calculation.discount.toFixed(2)})`}
+                />
+              </>
+            ) : null}
           </CardContent>
         </Card>
       </div>

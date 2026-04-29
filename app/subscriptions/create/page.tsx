@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import CreateSubscriptionForm from "@/app/subscriptions/create/CreateSubscriptionForm";
 import { resolveContractSnapshot } from "@/lib/actions/contract-setup";
+import { validatePromotionCode } from "@/lib/promotions/validation";
 
 const SUBSCRIPTION_EDITABLE_STATUSES = [
   "draft",
@@ -19,7 +20,7 @@ const SUBSCRIPTION_EDITABLE_STATUSES = [
 async function createSubscription(formData: FormData) {
   "use server";
 
-  await requireRole(["admin"]);
+  const { authUser } = await requireRole(["admin"]);
   const supabase = await createClient();
 
   const client_id = String(formData.get("client_id") || "").trim();
@@ -85,6 +86,52 @@ async function createSubscription(formData: FormData) {
     packageId: package_id,
   });
 
+  const promotionCode = String(formData.get("promotion_code") || "")
+    .trim()
+    .toUpperCase();
+  let finalMonthlyPrice = monthly_price;
+  let promotionPayload: Record<string, unknown> = {
+    original_monthly_price: monthly_price,
+    discounted_monthly_price: monthly_price,
+  };
+  let validatedPromotion:
+    | Awaited<ReturnType<typeof validatePromotionCode>>
+    | null = null;
+
+  if (promotionCode) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("email")
+      .eq("id", client_id)
+      .maybeSingle();
+
+    if (clientError) {
+      throw new Error(clientError.message);
+    }
+
+    validatedPromotion = await validatePromotionCode({
+      supabase,
+      code: promotionCode,
+      monthlyPrice: monthly_price,
+      clientEmail: client?.email ?? null,
+    });
+
+    if (!validatedPromotion.ok) {
+      throw new Error(validatedPromotion.error);
+    }
+
+    finalMonthlyPrice = validatedPromotion.discountedMonthlyPrice;
+    promotionPayload = {
+      promotion_code_id: validatedPromotion.code.id,
+      original_monthly_price: validatedPromotion.originalMonthlyPrice,
+      discount_type: validatedPromotion.campaign.discount_type,
+      discount_percent: validatedPromotion.campaign.discount_percent,
+      discount_amount_cents: validatedPromotion.campaign.discount_amount_cents,
+      discounted_monthly_price: validatedPromotion.discountedMonthlyPrice,
+      promotion_summary_snapshot: validatedPromotion.summary,
+    };
+  }
+
   const { data, error } = await supabase
     .from("subscriptions")
     .insert({
@@ -94,17 +141,54 @@ async function createSubscription(formData: FormData) {
       start_date,
       end_date: end_date || null,
       status,
-      monthly_price,
+      monthly_price: finalMonthlyPrice,
       notes: notes || null,
       physical_contract_confirmed_at: null,
       physical_contract_confirmed_by_user_id: null,
       ...snapshot,
+      ...promotionPayload,
     })
     .select("id")
     .single();
 
   if (error || !data) {
     throw new Error(error?.message || "Failed to create contract.");
+  }
+
+  if (validatedPromotion?.ok) {
+    const { error: redemptionError } = await supabase
+      .from("promotion_redemptions")
+      .insert({
+        promotion_code_id: validatedPromotion.code.id,
+        subscription_id: data.id,
+        client_id,
+        redeemed_by_user_id: authUser.id,
+        discount_type_snapshot: validatedPromotion.campaign.discount_type,
+        discount_percent_snapshot:
+          validatedPromotion.campaign.discount_percent,
+        discount_amount_cents_snapshot:
+          validatedPromotion.campaign.discount_amount_cents,
+        original_monthly_price: validatedPromotion.originalMonthlyPrice,
+        discounted_monthly_price: validatedPromotion.discountedMonthlyPrice,
+      });
+
+    if (redemptionError) {
+      throw new Error(redemptionError.message);
+    }
+
+    const { error: codeUpdateError } = await supabase
+      .from("promotion_codes")
+      .update({
+        status: "redeemed",
+        redemption_count:
+          (validatedPromotion.code.redemption_count || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", validatedPromotion.code.id);
+
+    if (codeUpdateError) {
+      throw new Error(codeUpdateError.message);
+    }
   }
 
   redirect(`/subscriptions/${data.id}`);
@@ -115,11 +199,17 @@ export default async function CreateSubscriptionPage() {
 
   const supabase = await createClient();
 
-  const [clientsResult, propertiesResult, packagesResult, subscriptionsResult] =
+  const [
+    clientsResult,
+    propertiesResult,
+    packagesResult,
+    subscriptionsResult,
+    promotionCodesResult,
+  ] =
     await Promise.all([
       supabase
         .from("clients")
-        .select("id, full_name, company_name")
+        .select("id, full_name, company_name, email")
         .order("created_at", { ascending: false }),
 
       supabase
@@ -134,6 +224,33 @@ export default async function CreateSubscriptionPage() {
         .order("name", { ascending: true }),
 
       supabase.from("subscriptions").select("id, property_id, status"),
+
+      supabase
+        .from("promotion_codes")
+        .select(
+          `
+          id,
+          code,
+          assigned_name,
+          assigned_email,
+          status,
+          expires_at,
+          redemption_count,
+          max_redemptions,
+          campaign:promotion_campaigns (
+            id,
+            name,
+            discount_type,
+            discount_percent,
+            discount_amount_cents,
+            active,
+            starts_at,
+            ends_at
+          )
+        `
+        )
+        .in("status", ["issued", "sent"])
+        .order("created_at", { ascending: false }),
     ]);
 
   if (clientsResult.error) {
@@ -152,10 +269,15 @@ export default async function CreateSubscriptionPage() {
     throw new Error(`Contracts load error: ${subscriptionsResult.error.message}`);
   }
 
+  if (promotionCodesResult.error) {
+    throw new Error(`Promotion codes load error: ${promotionCodesResult.error.message}`);
+  }
+
   const clients = clientsResult.data || [];
   const properties = propertiesResult.data || [];
   const packages = packagesResult.data || [];
   const subscriptions = subscriptionsResult.data || [];
+  const promotionCodes = promotionCodesResult.data || [];
 
   return (
     <div className="space-y-6">
@@ -179,6 +301,7 @@ export default async function CreateSubscriptionPage() {
           properties={properties}
           packages={packages}
           subscriptions={subscriptions}
+          promotionCodes={promotionCodes}
           action={createSubscription}
         />
       </SectionCard>

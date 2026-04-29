@@ -120,7 +120,7 @@ async function updateSubscription(formData: FormData) {
 }
 
 type EditSubscriptionPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 type ClientOption = {
@@ -148,7 +148,7 @@ export default async function EditSubscriptionPage({
   await requireRole(["admin"]);
 
   const supabase = await createClient();
-  const id = params.id;
+  const { id } = await params;
 
   const [
     { data: subscription, error },

@@ -71,6 +71,21 @@ type PackageRelation =
     }[]
   | null;
 
+type PromotionCodeRelation =
+  | {
+      id: string;
+      code: string;
+      assigned_name: string | null;
+      assigned_email: string | null;
+    }
+  | {
+      id: string;
+      code: string;
+      assigned_name: string | null;
+      assigned_email: string | null;
+    }[]
+  | null;
+
 type ServiceRelation =
   | {
       id: string;
@@ -128,6 +143,13 @@ type SubscriptionRow = {
   end_date: string | null;
   status: string | null;
   monthly_price: number | string | null;
+  original_monthly_price: number | string | null;
+  discount_type: string | null;
+  discount_percent: number | string | null;
+  discount_amount_cents: number | null;
+  discounted_monthly_price: number | string | null;
+  promotion_summary_snapshot: string | null;
+  promotion_code: PromotionCodeRelation;
   notes: string | null;
   physical_contract_confirmed_at: string | null;
   physical_contract_confirmed_by_user_id: string | null;
@@ -253,6 +275,18 @@ export default async function SubscriptionDetailPage({
       end_date,
       status,
       monthly_price,
+      original_monthly_price,
+      discount_type,
+      discount_percent,
+      discount_amount_cents,
+      discounted_monthly_price,
+      promotion_summary_snapshot,
+      promotion_code:promotion_codes (
+        id,
+        code,
+        assigned_name,
+        assigned_email
+      ),
       notes,
       physical_contract_confirmed_at,
       physical_contract_confirmed_by_user_id,
@@ -288,6 +322,7 @@ export default async function SubscriptionDetailPage({
   const client = getSingleRelation(subscription.client);
   const property = getSingleRelation(subscription.property);
   const pkg = getSingleRelation(subscription.package);
+  const promotionCode = getSingleRelation(subscription.promotion_code);
 
   const [
     { data: includedServices, error: servicesError },
@@ -470,6 +505,10 @@ export default async function SubscriptionDetailPage({
           value={formatPrice(subscription.monthly_price)}
         />
         <StatCard
+          title="Promotion"
+          value={subscription.promotion_summary_snapshot ? "Applied" : "None"}
+        />
+        <StatCard
           title="Package Price"
           value={formatPrice(pkg?.monthly_price)}
         />
@@ -601,6 +640,28 @@ export default async function SubscriptionDetailPage({
         <DetailField
           label="Monthly Price"
           value={formatPrice(subscription.monthly_price)}
+        />
+        <DetailField
+          label="Original Monthly Price"
+          value={formatPrice(subscription.original_monthly_price)}
+        />
+        <DetailField
+          label="Promotion Summary"
+          value={subscription.promotion_summary_snapshot || "-"}
+        />
+        <DetailField
+          label="Promotion Code"
+          value={promotionCode?.code || "-"}
+        />
+        <DetailField
+          label="Promotion Issued To"
+          value={
+            promotionCode
+              ? promotionCode.assigned_email ||
+                promotionCode.assigned_name ||
+                "Unassigned"
+              : "-"
+          }
         />
         <DetailField
           label="Package Default Price"

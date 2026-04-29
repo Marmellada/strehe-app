@@ -17,6 +17,7 @@ import {
   refreshBillingSnapshot,
   resolveBillingSnapshot,
 } from "@/lib/billing/snapshots";
+import { validatePromotionCode } from "@/lib/promotions/validation";
 
 export type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 export type DocumentType = "invoice" | "credit_note";
@@ -28,6 +29,62 @@ function getStoredVatRate(items: CreateInvoiceInput["items"]) {
   const allSame = items.every((item) => item.vat_rate === firstRate);
 
   return allSame ? firstRate : 0;
+}
+
+async function applyInvoiceLinePromotions(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  items: CreateInvoiceInput["items"]
+) {
+  const nextItems = [];
+
+  for (const item of items) {
+    const code = item.promotion_code?.trim().toUpperCase();
+
+    if (
+      item.promotion_code_id &&
+      item.original_unit_price !== null &&
+      item.original_unit_price !== undefined &&
+      item.discount_amount !== null &&
+      item.discount_amount !== undefined &&
+      item.promotion_summary
+    ) {
+      nextItems.push(item);
+      continue;
+    }
+
+    if (!code) {
+      nextItems.push({
+        ...item,
+        promotion_code_id: null,
+        original_unit_price: null,
+        discount_amount: null,
+        promotion_summary: null,
+      });
+      continue;
+    }
+
+    const validation = await validatePromotionCode({
+      supabase,
+      code,
+      monthlyPrice: item.unit_price,
+      appliesTo: "service_lines",
+    });
+
+    if (!validation.ok) {
+      throw new Error(validation.error);
+    }
+
+    nextItems.push({
+      ...item,
+      unit_price: validation.discountedMonthlyPrice,
+      promotion_code_id: validation.code.id,
+      original_unit_price: validation.originalMonthlyPrice,
+      discount_amount: validation.discountValue,
+      promotion_summary: validation.summary,
+    });
+  }
+
+  return nextItems;
 }
 
 async function getIssuedCreditNotesTotal(
@@ -60,7 +117,11 @@ export async function createInvoice(data: CreateInvoiceInput) {
 
   const validatedData = createInvoiceSchema.parse(data);
 
-  const totals = computeInvoiceTotals(validatedData.items);
+  const itemsWithPromotions = await applyInvoiceLinePromotions(
+    supabase,
+    validatedData.items
+  );
+  const totals = computeInvoiceTotals(itemsWithPromotions);
   const snapshot = await resolveBillingSnapshot({
     clientId: validatedData.client_id,
     propertyId: validatedData.property_id ?? null,
@@ -94,12 +155,22 @@ export async function createInvoice(data: CreateInvoiceInput) {
     return { error: invoiceError?.message || "Failed to create invoice" };
   }
 
-  const lineItems = validatedData.items.map((item) => ({
+  const lineItems = itemsWithPromotions.map((item) => ({
     invoice_id: invoice.id,
     description: item.description,
     quantity: item.quantity,
     unit_price_cents: Math.round(item.unit_price * 100),
     total_cents: Math.round(item.quantity * item.unit_price * 100),
+    promotion_code_id: item.promotion_code_id ?? null,
+    original_unit_price_cents:
+      item.original_unit_price === null || item.original_unit_price === undefined
+        ? null
+        : Math.round(item.original_unit_price * 100),
+    discount_amount_cents:
+      item.discount_amount === null || item.discount_amount === undefined
+        ? null
+        : Math.round(item.discount_amount * 100),
+    promotion_summary_snapshot: item.promotion_summary ?? null,
   }));
 
   const { error: itemsError } = await supabase
@@ -114,6 +185,39 @@ export async function createInvoice(data: CreateInvoiceInput) {
       .eq("status", "draft");
 
     return { error: itemsError.message };
+  }
+
+  for (const item of itemsWithPromotions) {
+    if (!item.promotion_code_id) continue;
+
+    const { error: redemptionError } = await supabase.from("promotion_redemptions").insert({
+      promotion_code_id: item.promotion_code_id,
+      invoice_id: invoice.id,
+      client_id: validatedData.client_id,
+      redeemed_by_user_id: authUser.id,
+      discount_type_snapshot: "fixed_amount",
+      discount_amount_cents_snapshot: Math.round((item.discount_amount || 0) * 100),
+      original_monthly_price: item.original_unit_price || item.unit_price,
+      discounted_monthly_price: item.unit_price,
+      notes: "Redeemed on invoice service line.",
+    });
+
+    if (redemptionError) {
+      return { error: redemptionError.message };
+    }
+
+    const { error: codeUpdateError } = await supabase
+      .from("promotion_codes")
+      .update({
+        status: "redeemed",
+        redemption_count: 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", item.promotion_code_id);
+
+    if (codeUpdateError) {
+      return { error: codeUpdateError.message };
+    }
   }
 
   revalidatePath("/billing");
@@ -167,7 +271,11 @@ export async function createCreditNote(data: CreateCreditNoteInput) {
     return { error: "Credit note can only be created for issued or paid invoices" };
   }
 
-  const totals = computeInvoiceTotals(validatedData.items);
+  const itemsWithPromotions = await applyInvoiceLinePromotions(
+    supabase,
+    validatedData.items
+  );
+  const totals = computeInvoiceTotals(itemsWithPromotions);
 
   if (totals.total <= 0) {
     return { error: "Credit note total must be greater than zero" };
@@ -275,7 +383,11 @@ export async function updateInvoice(data: UpdateInvoiceInput) {
     return { error: "Draft credit notes cannot be edited in this flow" };
   }
 
-  const totals = computeInvoiceTotals(validatedData.items);
+  const itemsWithPromotions = await applyInvoiceLinePromotions(
+    supabase,
+    validatedData.items
+  );
+  const totals = computeInvoiceTotals(itemsWithPromotions);
   const snapshot = await resolveBillingSnapshot({
     clientId: validatedData.client_id,
     propertyId: validatedData.property_id ?? null,
@@ -293,7 +405,7 @@ export async function updateInvoice(data: UpdateInvoiceInput) {
       subtotal_cents: Math.round(totals.subtotal * 100),
       vat_amount_cents: Math.round(totals.totalVat * 100),
       total_cents: Math.round(totals.total * 100),
-      vat_rate: getStoredVatRate(validatedData.items),
+      vat_rate: getStoredVatRate(itemsWithPromotions),
       ...snapshot,
     })
     .eq("id", validatedData.invoice_id)
@@ -313,12 +425,22 @@ export async function updateInvoice(data: UpdateInvoiceInput) {
     return { error: deleteItemsError.message };
   }
 
-  const lineItems = validatedData.items.map((item) => ({
+  const lineItems = itemsWithPromotions.map((item) => ({
     invoice_id: validatedData.invoice_id,
     description: item.description,
     quantity: item.quantity,
     unit_price_cents: Math.round(item.unit_price * 100),
     total_cents: Math.round(item.quantity * item.unit_price * 100),
+    promotion_code_id: item.promotion_code_id ?? null,
+    original_unit_price_cents:
+      item.original_unit_price === null || item.original_unit_price === undefined
+        ? null
+        : Math.round(item.original_unit_price * 100),
+    discount_amount_cents:
+      item.discount_amount === null || item.discount_amount === undefined
+        ? null
+        : Math.round(item.discount_amount * 100),
+    promotion_summary_snapshot: item.promotion_summary ?? null,
   }));
 
   const { error: insertItemsError } = await supabase

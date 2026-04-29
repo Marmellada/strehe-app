@@ -26,6 +26,40 @@ type ServiceOption = {
   base_price: number;
 };
 
+type PromotionCodeOption = {
+  id: string;
+  code: string;
+  assigned_email: string | null;
+  status: string | null;
+  expires_at: string | null;
+  redemption_count: number | null;
+  max_redemptions: number | null;
+  campaign:
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }[]
+    | null;
+};
+
 type RelatedProperty = {
   id: string;
   title: string | null;
@@ -52,7 +86,12 @@ export default async function NewInvoicePage() {
 
   const supabase = await createClient();
 
-  const [{ data: clients }, { data: subscriptionsRaw }, { data: servicesRaw }] =
+  const [
+    { data: clients },
+    { data: subscriptionsRaw },
+    { data: servicesRaw },
+    { data: promotionCodesRaw },
+  ] =
     await Promise.all([
       supabase
         .from("clients")
@@ -87,6 +126,33 @@ export default async function NewInvoicePage() {
         .select("id, name, category, base_price")
         .eq("is_active", true)
         .order("name"),
+
+      supabase
+        .from("promotion_codes")
+        .select(
+          `
+          id,
+          code,
+          assigned_email,
+          status,
+          expires_at,
+          redemption_count,
+          max_redemptions,
+          campaign:promotion_campaigns (
+            id,
+            name,
+            discount_type,
+            discount_percent,
+            discount_amount_cents,
+            applies_to,
+            active,
+            starts_at,
+            ends_at
+          )
+        `
+        )
+        .in("status", ["issued", "sent"])
+        .order("created_at", { ascending: false }),
     ]);
 
   const subscriptionOptions: SubscriptionOption[] = (subscriptionsRaw || []).map(
@@ -126,6 +192,7 @@ export default async function NewInvoicePage() {
         clients={(clients || []) as ClientOption[]}
         subscriptions={subscriptionOptions}
         services={serviceOptions}
+        promotionCodes={(promotionCodesRaw || []) as PromotionCodeOption[]}
       />
     </div>
   );

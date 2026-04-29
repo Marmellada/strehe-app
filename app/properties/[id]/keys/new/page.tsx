@@ -11,10 +11,14 @@ import {
   SectionCard,
   Textarea,
 } from "@/components/ui";
-import { supabase } from "@/lib/supabase";
+import { requireRole } from "@/lib/auth/require-role";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 async function createKey(propertyId: string, formData: FormData) {
   "use server";
+
+  const { authUser, appUser } = await requireRole(["admin", "office"]);
+  const supabase = await createServerClient();
 
   const name = String(formData.get("name") || "").trim();
   const key_type = String(formData.get("key_type") || "").trim();
@@ -46,7 +50,8 @@ async function createKey(propertyId: string, formData: FormData) {
     {
       key_id: data.id,
       action: "created",
-      user_name: "system",
+      performed_by_user_id: authUser.id,
+      user_name: appUser.full_name || authUser.email || authUser.id,
       notes: `Key registered in storage with code ${data.key_code}`,
       from_status: null,
       to_status: "available",
@@ -62,6 +67,7 @@ type PageProps = {
 
 export default async function NewPropertyKeyPage({ params }: PageProps) {
   const { id } = await params;
+  const supabase = await createServerClient();
 
   const { data: property, error } = await supabase
     .from("properties")

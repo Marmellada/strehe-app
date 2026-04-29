@@ -58,7 +58,7 @@ export function ContactRequestForm({
   }, [abroad, area, contact, country, email, labels, message, name, options.no, options.yes]);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6">
+    <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.98),rgba(12,18,31,0.94))] p-6">
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-white">{title}</h2>
         <p className="text-sm text-slate-300">{description}</p>

@@ -355,23 +355,23 @@ The positioning should stay:
 
 ### Recommended lead positioning line
 
-`Trusted local care for your apartment in Prishtina or Fushë Kosovë while you live abroad.`
+`We regularly check, care for, and manage your apartment in Prishtina or Fushë Kosovë while you live abroad.`
 
 Why this is the strongest current lead:
 
 - it is specific
 - it says who it is for
 - it names the location
-- it feels like a real service business
+- it describes visible action
 - it avoids vague “peace of mind” language as the first line
 
 ### Recommended support line direction
 
-A support line can then carry the emotional benefit, for example:
+A support line should explain what the owner experiences in practice, for example:
 
-- regular checks, local coordination, and clear communication while you are away
-- reliable apartment oversight for owners living abroad
-- one trusted local point of contact for your apartment in Kosovo
+- regular visits, photo updates, and clear communication while you are away
+- we check the apartment, handle practical follow-up, and keep you informed
+- one responsible local point of contact for your apartment in Kosovo
 
 ### Alternative expressions worth testing
 
@@ -382,7 +382,7 @@ A support line can then carry the emotional benefit, for example:
 
 These should be tested later against real copy and translation quality, but the current best working lead is:
 
-`Trusted local care for your apartment in Prishtina or Fushë Kosovë while you live abroad.`
+`We regularly check, care for, and manage your apartment in Prishtina or Fushë Kosovë while you live abroad.`
 
 ---
 
@@ -483,6 +483,28 @@ Visitors should feel:
 - there is a standard
 - this is not informal favor-based help
 
+### Layer 3A: Trust mechanisms
+
+The site should explain how trust works in practice.
+
+At minimum, the public website should eventually show or describe:
+
+- how apartment access and keys are handled
+- what happens during a visit
+- what the owner receives afterward
+- who is responsible for follow-up
+
+Examples of concrete trust mechanisms:
+
+- visits are documented
+- updates are sent after visits
+- issues are reported clearly
+- technician coordination is followed through, not just arranged once
+
+Rule:
+
+Trust should be shown through process and structure, not only adjectives.
+
 ### Layer 4: Human reassurance
 
 The brand should feel:
@@ -501,7 +523,7 @@ Possible trust elements:
 
 - clear service process
 - founder presence
-- reporting examples later
+- an example of what a visit update or report looks like
 - testimonials later
 - WhatsApp / phone / email availability
 - clear region and specialization
@@ -674,10 +696,10 @@ Purpose:
 
 Likely sections:
 
-- recurring apartment checks
-- arrival-ready support
-- utility / bill handling
-- coordination of small fixes
+- regular apartment visits and checks
+- arrival-ready preparation
+- utility and apartment readiness tasks
+- small-fix follow-up and technician communication
 - renovation oversight / local coordination
 
 ### Services page job
@@ -713,9 +735,9 @@ The page should present services as clear owner-support categories, not as a han
 
 Best framing direction:
 
-- recurring apartment oversight
+- regular apartment visits and checks
 - arrival-ready preparation
-- local coordination and practical support
+- practical apartment tasks and communication
 - issue follow-up and small-fix coordination
 - project / renovation oversight later or as advanced support
 
@@ -726,6 +748,8 @@ Each service block should eventually answer:
 - what exactly is done
 - how or when it happens
 - what the owner receives afterwards
+
+If a service cannot be pictured clearly, it is still too abstract.
 
 ### Important launch rule
 
@@ -748,7 +772,7 @@ Likely flow:
 1. you contact us
 2. we discuss the apartment and your needs
 3. we agree the right service
-4. we take over local oversight
+4. we begin the agreed visits and follow-up
 5. you receive updates and communication
 
 ### How It Works page job
@@ -927,7 +951,7 @@ It should create:
 #### Content direction
 
 - headline focused on owners abroad
-- support line focused on trusted local care
+- support line focused on visible service actions
 - primary CTA: WhatsApp
 - secondary CTA: Request Information / Contact
 - small login link for staff/admin
@@ -944,7 +968,7 @@ The hero headline should be:
 
 Best current direction:
 
-`Trusted local care for your apartment in Prishtina or Fushë Kosovë while you live abroad.`
+`We regularly check, care for, and manage your apartment in Prishtina or Fushë Kosovë while you live abroad.`
 
 ##### Support line direction
 
@@ -952,7 +976,7 @@ The support line should explain the outcome, not list every feature.
 
 Example direction:
 
-- regular checks, local coordination, and clear communication while you are away
+- regular visits, photo updates, and clear communication while you are away
 
 ##### CTA direction
 
@@ -1046,11 +1070,11 @@ Short service overview cards.
 
 #### Core service blocks
 
-- regular apartment checks
-- local coordination
+- regular apartment visits
+- practical follow-up
 - arrival preparation
 - issue reporting
-- practical support while you are away
+- apartment readiness while you are away
 
 #### Rule
 
@@ -1084,6 +1108,7 @@ The website should later show trust through practical mechanisms like:
 - regular visits
 - photo-based updates
 - clear follow-up communication
+- clear handling of access and keys
 - defined service area
 - known launch scope
 - one responsible point of contact
@@ -1094,6 +1119,7 @@ The website should later show trust through practical mechanisms like:
 - example reports
 - founder story
 - practical process visuals
+- a simple example of what a visit update looks like
 
 #### Rule
 
@@ -1728,3 +1754,238 @@ If this document is reviewed by you or by outside reviewers, the best questions 
 4. Is WhatsApp-first the right launch conversion path?
 5. Does the site feel disciplined enough about launch scope?
 6. Does the homepage structure create trust fast enough?
+---
+
+## 24. Diaspora-Family Trust Visual Brief
+
+This is the chosen visual direction for the public website.
+
+The site should feel built for diaspora owners and the family members who influence trust, not for trend-driven startup branding.
+
+### Core emotional goal
+
+The design should help a visitor feel:
+
+- this is safe
+- this is serious
+- this is respectful
+- this is warm enough to trust
+- this is polished enough to share with family
+
+### Primary feeling
+
+The public site should feel:
+
+- calm
+- trustworthy
+- family-oriented
+- respectful
+- warm
+- polished
+- local but refined
+
+### What the site should not feel like
+
+The public site should not feel like:
+
+- a tech startup
+- a flashy luxury brand
+- a cheap maintenance company
+- an aggressive sales page
+- a cold corporate website
+
+### Design principle
+
+The right question for each visual decision is:
+
+`Would this make a family abroad feel more comfortable handing over responsibility for a home?`
+
+If the answer is yes, the direction is probably right.
+
+If the choice only makes the site look more expensive, dramatic, or trendy, it is not enough.
+
+### Color direction
+
+The palette should feel:
+
+- deep
+- grounded
+- warm
+- dignified
+
+Recommended direction:
+
+- deep charcoal or ink-like dark surfaces
+- warm stone or soft neutral supporting surfaces
+- restrained gold, brass, or muted warm accent tones used sparingly
+- strong readable contrast for text and actions
+
+Avoid:
+
+- bright startup gradients
+- playful color combinations
+- overly glossy luxury palettes
+- purple-heavy technology branding
+
+### Typography direction
+
+Typography should feel:
+
+- clean
+- modern
+- composed
+- readable
+
+It should communicate:
+
+- confidence
+- clarity
+- restraint
+
+Avoid:
+
+- decorative luxury type
+- overly compressed or edgy typography
+- anything that feels trendy before it feels trustworthy
+
+### Image direction
+
+Imagery should support trust first.
+
+Recommended image direction:
+
+- real apartments
+- clean, cared-for interiors
+- lived-in but orderly spaces
+- warm natural light
+- details that suggest readiness, cleanliness, and care
+- occasional human presence only when it feels natural and grounded
+- signs of active care, not just beautiful rooms
+
+### Visual trust rule
+
+The website should not only show clean apartments.
+
+It should also show evidence of active care.
+
+Helpful visual directions include:
+
+- someone checking the apartment carefully
+- notes, checklists, or practical follow-up moments
+- keys or access being handled responsibly
+- a small repair or preparation task in progress
+- a phone or update moment that suggests reporting back
+
+The imagery should imply:
+
+- someone responsible is paying attention
+- the home matters
+- the property is being cared for respectfully
+
+Avoid:
+
+- generic office/business stock photos
+- fake smiling team shots
+- flashy luxury lifestyle clichés
+- overly staged real-estate glamour imagery
+- visuals that feel cold, empty, or transactional
+- images that feel like an Airbnb listing or a hotel gallery
+
+### Anti-gallery rule
+
+The site should not feel like:
+
+- a real-estate listing site
+- an interior-design portfolio
+- a luxury apartment gallery
+
+It should feel like:
+
+- a well-cared-for apartment
+- a home being looked after responsibly
+- an active service, not passive aesthetics
+
+### Layout and spacing direction
+
+The layout should feel:
+
+- organized
+- open
+- calm
+- easy to follow
+
+Recommended direction:
+
+- generous spacing
+- strong section rhythm
+- clear hierarchy
+- uncluttered CTA placement
+- enough breathing room for the site to feel respectful and composed
+
+Avoid:
+
+- dense landing-page stacking
+- noisy card overload
+- visually crowded trust sections
+- too many competing highlights on one screen
+
+### Component behavior
+
+Buttons, cards, forms, and CTA areas should feel:
+
+- clear
+- steady
+- calm
+- reliable
+
+They should not feel:
+
+- flashy
+- pushy
+- hyper-promotional
+
+Practical implications:
+
+- primary CTAs should be prominent but not loud
+- forms should feel simple and low-pressure
+- trust sections should use clarity and structure more than decorative effects
+
+### Family-shareability test
+
+The public site should feel respectable enough that a visitor would comfortably send it to:
+
+- a spouse
+- a parent
+- a sibling
+- a relative helping with the decision
+
+and feel that it reflects well on them.
+
+That means the site should look:
+
+- emotionally calm
+- mature
+- tasteful
+- trustworthy
+
+### Premium definition
+
+For this website, premium does not mean:
+
+- flashy
+- glamorous
+- ornamental
+
+Premium means:
+
+- structured
+- reliable
+- accountable
+- visually composed
+- carefully presented
+
+### Working visual summary
+
+If we compress the entire visual direction into one line, it is:
+
+`Diaspora-family trust, expressed through calm structure, warm restraint, and respectful polish.`

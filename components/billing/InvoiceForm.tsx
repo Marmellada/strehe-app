@@ -48,6 +48,40 @@ type ServiceOption = {
   base_price: number;
 };
 
+type PromotionCodeOption = {
+  id: string;
+  code: string;
+  assigned_email: string | null;
+  status: string | null;
+  expires_at: string | null;
+  redemption_count: number | null;
+  max_redemptions: number | null;
+  campaign:
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }[]
+    | null;
+};
+
 type InvoiceFormInitialValues = {
   invoice_id?: string;
   client_id: string;
@@ -63,6 +97,7 @@ interface InvoiceFormProps {
   clients: ClientOption[];
   subscriptions: SubscriptionOption[];
   services: ServiceOption[];
+  promotionCodes?: PromotionCodeOption[];
   mode?: "create" | "edit";
   initialValues?: InvoiceFormInitialValues;
 }
@@ -102,6 +137,7 @@ export function InvoiceForm({
   clients,
   subscriptions,
   services,
+  promotionCodes = [],
   mode = "create",
   initialValues,
 }: InvoiceFormProps) {
@@ -351,6 +387,7 @@ export function InvoiceForm({
         propertyId={propertyId}
         subscriptions={subscriptions}
         services={services}
+        promotionCodes={promotionCodes}
       />
 
       <FormField id="notes" label="Notes">

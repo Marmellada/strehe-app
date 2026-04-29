@@ -45,11 +45,11 @@ test.describe.serial("STREHE settings smoke suite", () => {
       page.getByRole("heading", { name: "New Expense Category" })
     ).toBeVisible();
 
-    await page.getByLabel("Category name").fill(categoryName);
-    await page.getByLabel("Description").fill(`Description ${seed}`);
-    await page.getByLabel("Sort order").fill("901");
-    await page.getByLabel("Status").selectOption("true");
-    await page.getByRole("button", { name: "Create category" }).click();
+    await page.locator('input[name="name"]').fill(categoryName);
+    await page.locator('textarea[name="description"]').fill(`Description ${seed}`);
+    await page.locator('input[name="sort_order"]').fill("901");
+    await page.locator('select[name="is_active"]').selectOption("true");
+    await page.getByRole("button", { name: "Create Category" }).click();
 
     await page.waitForURL(/\/settings\/expense-categories$/);
 
@@ -73,14 +73,14 @@ test.describe.serial("STREHE settings smoke suite", () => {
       page.getByRole("heading", { name: "New Vendor" })
     ).toBeVisible();
 
-    await page.getByLabel("Vendor name").fill(vendorName);
-    await page.getByLabel("Contact person").fill(vendorContact);
-    await page.getByLabel("Email").fill(`${seed}@example.com`);
-    await page.getByLabel("Phone").fill("+38344111000");
-    await page.getByLabel("Address").fill("Smoke Vendor Street 1");
-    await page.getByLabel("Notes").fill(`Vendor notes ${seed}`);
-    await page.getByLabel("Status").selectOption("true");
-    await page.getByRole("button", { name: "Create vendor" }).click();
+    await page.locator('input[name="name"]').fill(vendorName);
+    await page.locator('input[name="contact_person"]').fill(vendorContact);
+    await page.locator('input[name="email"]').fill(`${seed}@example.com`);
+    await page.locator('input[name="phone"]').fill("+38344111000");
+    await page.locator('textarea[name="address"]').fill("Smoke Vendor Street 1");
+    await page.locator('textarea[name="notes"]').fill(`Vendor notes ${seed}`);
+    await page.locator('select[name="is_active"]').selectOption("true");
+    await page.getByRole("button", { name: "Create Vendor" }).click();
 
     await page.waitForURL(/\/settings\/vendors$/);
 
@@ -104,18 +104,21 @@ test.describe.serial("STREHE settings smoke suite", () => {
       page.getByRole("heading", { name: "User Access Management" })
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Create Test User" })
+      page.getByText("Manual Fallback")
     ).toBeVisible();
 
     const createTestUserForm = page
       .locator("form")
-      .filter({ has: page.getByRole("button", { name: "Create Test User" }) });
+      .filter({ has: page.getByRole("button", { name: "Create Direct User" }) });
 
     await expect(
       createTestUserForm.locator('input[name="full_name"]')
     ).toBeVisible();
     await expect(
       createTestUserForm.locator('input[name="email"]')
+    ).toBeVisible();
+    await expect(
+      createTestUserForm.locator('input[name="username"]')
     ).toBeVisible();
     await expect(
       createTestUserForm.locator('input[name="password"]')

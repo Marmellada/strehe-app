@@ -14,6 +14,7 @@ import {
 import { Trash2, Plus } from "lucide-react";
 import { computeLineItemTotal } from "@/lib/billing-helpers";
 import type { LineItemInput } from "@/lib/validations/billing";
+import { previewPromotionDiscount } from "@/lib/promotions/validation";
 
 type SubscriptionOption = {
   id: string;
@@ -30,6 +31,40 @@ type ServiceOption = {
   name: string;
   category: string | null;
   base_price: number;
+};
+
+type PromotionCodeOption = {
+  id: string;
+  code: string;
+  assigned_email: string | null;
+  status: string | null;
+  expires_at: string | null;
+  redemption_count: number | null;
+  max_redemptions: number | null;
+  campaign:
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }[]
+    | null;
 };
 
 type RowSourceType = "manual" | "package" | "service";
@@ -49,6 +84,7 @@ interface LineItemsEditorProps {
   propertyId: string;
   subscriptions: SubscriptionOption[];
   services: ServiceOption[];
+  promotionCodes?: PromotionCodeOption[];
 }
 
 function createRowId() {
@@ -67,6 +103,7 @@ export function LineItemsEditor({
   propertyId,
   subscriptions,
   services,
+  promotionCodes = [],
 }: LineItemsEditorProps) {
   const [rowState, setRowState] = useState<Record<string, RowHelperState>>({});
 
@@ -112,6 +149,63 @@ export function LineItemsEditor({
   ) => {
     const updated = [...items];
     updated[index] = { ...updated[index], [field]: value };
+    onChange(updated);
+  };
+
+  const applyPromotionToRow = (index: number, codeValue: string) => {
+    const normalized = codeValue.trim().toUpperCase();
+    const updated = [...items];
+    const item = updated[index];
+
+    if (!normalized) {
+      updated[index] = {
+        ...item,
+        promotion_code: "",
+        promotion_code_id: null,
+        original_unit_price: null,
+        discount_amount: null,
+        promotion_summary: null,
+      };
+      onChange(updated);
+      return;
+    }
+
+    const promotion = promotionCodes.find(
+      (candidate) => candidate.code.toUpperCase() === normalized
+    );
+    const campaign = Array.isArray(promotion?.campaign)
+      ? promotion?.campaign[0] || null
+      : promotion?.campaign;
+
+    if (!promotion || !campaign) {
+      updated[index] = {
+        ...item,
+        promotion_code: normalized,
+        promotion_code_id: null,
+        original_unit_price: null,
+        discount_amount: null,
+        promotion_summary: "Promotion code will be validated on save.",
+      };
+      onChange(updated);
+      return;
+    }
+
+    const calculation = previewPromotionDiscount({
+      discountType: campaign.discount_type,
+      discountPercent: campaign.discount_percent,
+      discountAmountCents: campaign.discount_amount_cents,
+      monthlyPrice: item.original_unit_price || item.unit_price,
+    });
+
+    updated[index] = {
+      ...item,
+      promotion_code: normalized,
+      promotion_code_id: promotion.id,
+      original_unit_price: calculation.original,
+      discount_amount: calculation.discount,
+      promotion_summary: `${campaign.name || "Promotion"} applied with code ${promotion.code}. Normal price €${calculation.original.toFixed(2)}, final price €${calculation.final.toFixed(2)}.`,
+      unit_price: calculation.final,
+    };
     onChange(updated);
   };
 
@@ -172,6 +266,11 @@ export function LineItemsEditor({
       description: selected.name,
       quantity: updated[index].quantity || 1,
       unit_price: selected.base_price,
+      original_unit_price: null,
+      discount_amount: null,
+      promotion_code: "",
+      promotion_code_id: null,
+      promotion_summary: null,
       vat_rate: updated[index].vat_rate ?? 18,
     };
     onChange(updated);
@@ -399,6 +498,38 @@ export function LineItemsEditor({
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="space-y-2">
+                  <Label htmlFor={`item-${rowId}-promotion`}>
+                    Service Promotion Code
+                  </Label>
+                  <Input
+                    id={`item-${rowId}-promotion`}
+                    value={item.promotion_code || ""}
+                    onChange={(event) =>
+                      applyPromotionToRow(index, event.target.value)
+                    }
+                    placeholder="Optional service discount code"
+                    className="font-mono uppercase"
+                  />
+                </div>
+
+                {item.discount_amount ? (
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                    <div className="text-muted-foreground">Line discount</div>
+                    <div className="font-medium">
+                      -€{Number(item.discount_amount).toFixed(2)}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {item.promotion_summary ? (
+                <p className="text-sm text-muted-foreground">
+                  {item.promotion_summary}
+                </p>
+              ) : null}
 
               <div className="flex items-center justify-between border-t pt-2 text-sm">
                 <div className="space-x-4 text-muted-foreground">

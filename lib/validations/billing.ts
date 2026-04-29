@@ -5,6 +5,11 @@ export const lineItemSchema = z.object({
   quantity: z.number().min(0.01, "Quantity must be positive"),
   unit_price: z.number().min(0, "Unit price must be non-negative"),
   vat_rate: z.number().min(0).max(100, "VAT rate must be between 0 and 100"),
+  promotion_code: z.string().optional(),
+  promotion_code_id: z.string().uuid().nullable().optional(),
+  original_unit_price: z.number().min(0).nullable().optional(),
+  discount_amount: z.number().min(0).nullable().optional(),
+  promotion_summary: z.string().nullable().optional(),
   temp_id: z.string().optional(),
 });
 

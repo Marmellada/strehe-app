@@ -121,7 +121,6 @@ export default function PropertyForm({
             <option value="active">Active</option>
             <option value="vacant">Vacant</option>
             <option value="inactive">Inactive</option>
-            <option value="under_maintenance">Under Maintenance</option>
           </select>
         </FormField>
       </div>

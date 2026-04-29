@@ -42,6 +42,24 @@ export default defineConfig({
         storageState: "playwright/.auth/user.json",
       },
     },
+    {
+      name: "generator-smoke-chromium",
+      dependencies: ["setup"],
+      testMatch: /(^|[\\/])subscription-generator\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+      },
+    },
+    {
+      name: "editing-smoke-chromium",
+      dependencies: ["setup"],
+      testMatch: /(^|[\\/])editing-flows\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+      },
+    },
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined

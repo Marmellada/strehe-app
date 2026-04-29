@@ -29,6 +29,40 @@ type ServiceOption = {
   base_price: number;
 };
 
+type PromotionCodeOption = {
+  id: string;
+  code: string;
+  assigned_email: string | null;
+  status: string | null;
+  expires_at: string | null;
+  redemption_count: number | null;
+  max_redemptions: number | null;
+  campaign:
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }
+    | {
+        id: string;
+        name: string | null;
+        discount_type: "percent" | "fixed_amount";
+        discount_percent: number | string | null;
+        discount_amount_cents: number | null;
+        applies_to: "package_fee" | "service_lines" | "both";
+        active: boolean | null;
+        starts_at: string | null;
+        ends_at: string | null;
+      }[]
+    | null;
+};
+
 type RelatedProperty = {
   id: string;
   title: string | null;
@@ -55,6 +89,14 @@ type InvoiceItemRow = {
   description: string;
   quantity: number | string | null;
   unit_price_cents: number | null;
+  promotion_code_id: string | null;
+  original_unit_price_cents: number | null;
+  discount_amount_cents: number | null;
+  promotion_summary_snapshot: string | null;
+  promotion_code:
+    | { code: string | null }
+    | { code: string | null }[]
+    | null;
 };
 
 export default async function EditInvoicePage({
@@ -94,6 +136,7 @@ export default async function EditInvoicePage({
     { data: clients },
     { data: subscriptionsRaw },
     { data: servicesRaw },
+    { data: promotionCodesRaw },
     { data: invoiceItems, error: itemsError },
   ] = await Promise.all([
     supabase
@@ -131,12 +174,46 @@ export default async function EditInvoicePage({
       .order("name"),
 
     supabase
+      .from("promotion_codes")
+      .select(
+        `
+        id,
+        code,
+        assigned_email,
+        status,
+        expires_at,
+        redemption_count,
+        max_redemptions,
+        campaign:promotion_campaigns (
+          id,
+          name,
+          discount_type,
+          discount_percent,
+          discount_amount_cents,
+          applies_to,
+          active,
+          starts_at,
+          ends_at
+        )
+      `
+      )
+      .in("status", ["issued", "sent"])
+      .order("created_at", { ascending: false }),
+
+    supabase
       .from("invoice_items")
       .select(`
         id,
         description,
         quantity,
         unit_price_cents,
+        promotion_code_id,
+        original_unit_price_cents,
+        discount_amount_cents,
+        promotion_summary_snapshot,
+        promotion_code:promotion_codes (
+          code
+        ),
         total_cents,
         created_at
       `)
@@ -189,6 +266,7 @@ export default async function EditInvoicePage({
         clients={(clients || []) as ClientOption[]}
         subscriptions={subscriptionOptions}
         services={serviceOptions}
+        promotionCodes={(promotionCodesRaw || []) as PromotionCodeOption[]}
         initialValues={{
           invoice_id: invoice.id,
           client_id: invoice.client_id,
@@ -202,6 +280,19 @@ export default async function EditInvoicePage({
             quantity: Number(item.quantity || 0),
             unit_price: Number(item.unit_price_cents || 0) / 100,
             vat_rate: 18,
+            promotion_code: Array.isArray(item.promotion_code)
+              ? item.promotion_code[0]?.code || ""
+              : item.promotion_code?.code || "",
+            promotion_code_id: item.promotion_code_id,
+            original_unit_price:
+              item.original_unit_price_cents === null
+                ? null
+                : Number(item.original_unit_price_cents || 0) / 100,
+            discount_amount:
+              item.discount_amount_cents === null
+                ? null
+                : Number(item.discount_amount_cents || 0) / 100,
+            promotion_summary: item.promotion_summary_snapshot,
             temp_id: item.id || `item-${index}`,
           })),
         }}

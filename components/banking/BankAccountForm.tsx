@@ -70,9 +70,13 @@ export function BankAccountForm({
   );
   const [ibanValue, setIbanValue] = useState<string>(initialValues?.iban ?? "");
   const [displayBankName, setDisplayBankName] = useState<string>(
-    initialValues?.bank_name_snapshot ?? ""
+    initialValues?.bank_name_snapshot ??
+      (initialValues?.account_type === "cash" ? "Cash" : "")
   );
   const [swiftValue, setSwiftValue] = useState<string>(initialValues?.swift ?? "");
+  const [showOnInvoice, setShowOnInvoice] = useState<boolean>(
+    initialValues?.show_on_invoice ?? true
+  );
   const [bankWasManuallySelected, setBankWasManuallySelected] = useState<boolean>(
     !!initialValues?.bank_id
   );
@@ -97,6 +101,31 @@ export function BankAccountForm({
     });
   }, [banks, ibanValue, identifiers]);
 
+  const handleAccountTypeChange = (nextAccountType: "bank" | "cash") => {
+    setAccountType(nextAccountType);
+
+    if (nextAccountType === "cash") {
+      setSelectedBankId("");
+      setIbanValue("");
+      setSwiftValue("");
+      setShowOnInvoice(false);
+      setBankWasManuallySelected(false);
+      setSwiftWasManuallyEdited(false);
+      if (!displayNameWasManuallyEdited || !displayBankName.trim()) {
+        setDisplayBankName("Cash");
+      }
+      return;
+    }
+
+    if (displayBankName === "Cash" && !displayNameWasManuallyEdited) {
+      setDisplayBankName("");
+    }
+
+    if (!(initialValues?.show_on_invoice === false)) {
+      setShowOnInvoice(true);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -117,7 +146,10 @@ export function BankAccountForm({
 
     if (currentAccountType === "cash") {
       formData.set("bank_id", "");
-      formData.set("bank_name", "Cash");
+      formData.set(
+        "bank_name",
+        String(formData.get("bank_name_snapshot") || "").trim() || "Cash"
+      );
       formData.set("show_on_invoice", "false");
     }
 
@@ -141,6 +173,7 @@ export function BankAccountForm({
         setIbanValue("");
         setDisplayBankName("");
         setSwiftValue("");
+        setShowOnInvoice(initialValues?.show_on_invoice ?? true);
         setBankWasManuallySelected(false);
         setDisplayNameWasManuallyEdited(false);
         setSwiftWasManuallyEdited(false);
@@ -171,7 +204,14 @@ export function BankAccountForm({
           name="account_type"
           className={nativeSelectClassName}
           value={accountType}
-          onChange={(e) => setAccountType(e.target.value as "bank" | "cash")}
+          onChange={(e) =>
+            handleAccountTypeChange(e.target.value as "bank" | "cash")
+          }
+          onInput={(e) =>
+            handleAccountTypeChange(
+              (e.target as HTMLSelectElement).value as "bank" | "cash"
+            )
+          }
         >
           <option value="bank">Bank Account</option>
           <option value="cash">Cash Account</option>
@@ -266,17 +306,15 @@ export function BankAccountForm({
           <Input
             id="bank_name_snapshot"
             name="bank_name_snapshot"
-            {...(accountType === "cash"
-              ? {
-                  defaultValue: initialValues?.bank_name_snapshot || "Cash",
-                }
-              : {
-                  value: displayBankName,
-                  onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-                    setDisplayBankName(event.target.value.toUpperCase());
-                    setDisplayNameWasManuallyEdited(true);
-                  },
-                })}
+            value={displayBankName}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setDisplayBankName(
+                accountType === "cash"
+                  ? event.target.value
+                  : event.target.value.toUpperCase()
+              );
+              setDisplayNameWasManuallyEdited(true);
+            }}
             placeholder={accountType === "cash" ? "e.g., Office Cash Box" : "e.g., Raiffeisen Bank Kosovo"}
             required
           />
@@ -396,9 +434,8 @@ export function BankAccountForm({
           <Checkbox
             id="show_on_invoice"
             name="show_on_invoice"
-            defaultChecked={
-              accountType === "cash" ? false : initialValues?.show_on_invoice ?? true
-            }
+            checked={accountType === "cash" ? false : showOnInvoice}
+            onCheckedChange={(checked) => setShowOnInvoice(checked === true)}
             disabled={accountType === "cash"}
           />
           <span>Show on invoice</span>

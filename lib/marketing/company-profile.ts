@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 export type CompanyProfile = {
   companyName: string;
@@ -19,7 +19,7 @@ const FALLBACK_PROFILE: CompanyProfile = {
 };
 
 export async function getCompanyProfile(): Promise<CompanyProfile> {
-  const supabase = await createClient();
+  const supabase = getAdminClient();
   const { data } = await supabase
     .from("company_settings")
     .select("company_name, email, phone, city, country, logo_url")

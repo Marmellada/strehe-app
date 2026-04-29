@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/require-role';
 import { bankAccountSchema } from '@/lib/validations/billing';
@@ -69,6 +70,14 @@ async function getOrCreateBankId(
 
 function isValidSwiftBic(value: string) {
   return value === '' || /^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(value);
+}
+
+function buildStoredCashIban(existingValue?: string | null) {
+  if (existingValue?.trim()) {
+    return existingValue;
+  }
+
+  return `CASH-${randomUUID()}`;
 }
 
 async function findDuplicateCompanyAccount(
@@ -447,7 +456,9 @@ export async function createBankAccount(formData: FormData): Promise<ActionResul
 
     const data = validatedFields.data;
     const normalizedIban =
-      data.account_type === 'cash' ? '' : data.iban.toUpperCase().replace(/\s/g, '');
+      data.account_type === 'cash'
+        ? buildStoredCashIban()
+        : data.iban.toUpperCase().replace(/\s/g, '');
 
     let bankId = data.bank_id || null;
 
@@ -510,7 +521,7 @@ export async function createBankAccount(formData: FormData): Promise<ActionResul
           data.account_type === 'cash'
             ? data.bank_name_snapshot || 'Cash'
             : data.bank_name_snapshot || data.bank_name,
-        iban: normalizedIban || null,
+        iban: normalizedIban,
         swift: data.account_type === 'cash' ? null : data.swift_bic?.trim() || null,
         is_primary: data.is_primary,
         is_active: true,
@@ -577,8 +588,20 @@ export async function updateBankAccount(
     }
 
     const data = validatedFields.data;
+    const { data: existingAccount, error: existingAccountError } = await supabase
+      .from('company_bank_accounts')
+      .select('id, account_type, iban')
+      .eq('id', id)
+      .single();
+
+    if (existingAccountError || !existingAccount) {
+      return { success: false, error: existingAccountError?.message || 'Account not found' };
+    }
+
     const normalizedIban =
-      data.account_type === 'cash' ? '' : data.iban.toUpperCase().replace(/\s/g, '');
+      data.account_type === 'cash'
+        ? buildStoredCashIban(existingAccount.iban)
+        : data.iban.toUpperCase().replace(/\s/g, '');
 
     let bankId = data.bank_id || null;
 
@@ -643,7 +666,7 @@ export async function updateBankAccount(
           data.account_type === 'cash'
             ? data.bank_name_snapshot || 'Cash'
             : data.bank_name_snapshot || data.bank_name,
-        iban: normalizedIban || null,
+        iban: normalizedIban,
         swift: data.account_type === 'cash' ? null : data.swift_bic?.trim() || null,
         is_primary: data.is_primary,
         show_on_invoice: data.account_type === 'cash' ? false : data.show_on_invoice,

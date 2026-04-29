@@ -103,6 +103,9 @@ type InvoiceItemRow = {
   description: string;
   quantity: number | string | null;
   unit_price_cents: number | null;
+  original_unit_price_cents: number | null;
+  discount_amount_cents: number | null;
+  promotion_summary_snapshot: string | null;
   total_cents: number | null;
   created_at: string | null;
 };
@@ -213,6 +216,9 @@ export default async function InvoiceDetailPage({
         description,
         quantity,
         unit_price_cents,
+        original_unit_price_cents,
+        discount_amount_cents,
+        promotion_summary_snapshot,
         total_cents,
         created_at
       `)
@@ -692,15 +698,31 @@ export default async function InvoiceDetailPage({
                 ((invoiceItems || []) as InvoiceItemRow[]).map((item) => (
                   <TableRow key={item.id} className="transition-colors hover:bg-muted/20">
                     <TableCell className="text-foreground">
-                      {item.description}
+                      <div className="space-y-1">
+                        <div>{item.description}</div>
+                        {item.promotion_summary_snapshot ? (
+                          <div className="text-xs text-muted-foreground">
+                            {item.promotion_summary_snapshot}
+                          </div>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {item.quantity}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
-                      {documentType === "credit_note"
-                        ? formatCreditMoney(item.unit_price_cents || 0)
-                        : formatMoney(item.unit_price_cents || 0)}
+                      <div className="space-y-1">
+                        <div>
+                          {documentType === "credit_note"
+                            ? formatCreditMoney(item.unit_price_cents || 0)
+                            : formatMoney(item.unit_price_cents || 0)}
+                        </div>
+                        {item.discount_amount_cents ? (
+                          <div className="text-xs">
+                            discount -{formatMoney(item.discount_amount_cents)}
+                          </div>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-medium text-foreground">
                       {documentType === "credit_note"

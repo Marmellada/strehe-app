@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui";
-import { supabase } from "@/lib/supabase";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -22,6 +22,7 @@ type PageProps = {
 
 export default async function PropertyKeysPage({ params }: PageProps) {
   const { id } = await params;
+  const supabase = await createServerClient();
 
   const [
     { data: property, error: propertyError },
