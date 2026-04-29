@@ -176,8 +176,8 @@ Future policy posture:
 - [ ] Configure real email sending for user invites/setup
 - [ ] Test staff invite flow end to end with real provider
 - [ ] Test password reset flow end to end
-- [ ] Finalize role names and access expectations
-- [ ] Add/confirm onboarding instructions for first staff users
+- [x] Finalize role names and access expectations
+- [x] Add/confirm onboarding instructions for first staff users
 
 ---
 

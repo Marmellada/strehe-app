@@ -287,3 +287,58 @@ Until launch proves demand and workload:
 - no client portal is needed
 - no CRM-lite module is needed unless lead volume becomes hard to track manually
 
+---
+
+## 8. Staff Roles And Onboarding
+
+### Launch Role Names
+
+The app role names stay:
+
+- admin
+- office
+- field
+- contractor
+
+Do not add more roles before launch unless a real permission problem appears.
+
+### Role Expectations
+
+Admin:
+
+- owns settings, users, banking, packages, services, contracts, billing, and all operational records
+- should be limited to the founder/operator at launch
+
+Office:
+
+- handles day-to-day operations, clients, properties, tasks, keys, expenses, billing, payments, and finance review
+- should not manage users, banking settings, or high-level system settings
+
+Field:
+
+- handles assigned visits, task status, task reports, photos, and key usage
+- should not manage billing, contracts, packages, services, users, or banking
+
+Contractor:
+
+- handles only assigned work when external help is needed
+- should receive the minimum access needed for that task
+
+### First Staff Onboarding
+
+Before giving someone app access:
+
+1. Decide the minimum role they need.
+2. Create the user in `/settings/users`.
+3. Confirm they can sign in.
+4. Show them only the workflows they need.
+5. Explain key handling if they will touch keys.
+6. Explain photo privacy rules if they will submit reports.
+7. Assign one test or real task and confirm they can update it correctly.
+8. Deactivate access immediately when the person stops working with STREHE.
+
+Minimum onboarding note:
+
+```text
+User onboarded on [date]. Role: [role]. Workflows shown: [tasks/keys/reports/etc]. Key access: [yes/no]. Photo privacy explained: [yes/no].
+```
