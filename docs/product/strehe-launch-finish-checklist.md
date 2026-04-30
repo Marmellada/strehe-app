@@ -212,6 +212,8 @@ Future policy posture:
 - [x] Add lead qualification fields: interest, preferred contact, property count, estimated value
 - [x] Add CRM list search, status filter, source filter, and pipeline stage cards
 - [x] Update lead follow-up date from interaction logging
+- [x] Connect public contact form to create website leads
+- [x] Add CRM follow-up and lead summary widgets to dashboard
 - [x] Apply CRM leads migration in Supabase
 - [x] Run dedicated leads smoke test
 

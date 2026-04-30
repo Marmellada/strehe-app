@@ -42,6 +42,8 @@ export default async function ContactPage({ params }: ContactPageProps) {
             src="/marketing/key-handling.png"
             alt="Careful key and access handling"
             fill
+            priority
+            sizes="(min-width: 1024px) 48vw, 100vw"
             className="object-cover object-center"
           />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.1),rgba(9,14,23,0.72)_78%,rgba(9,14,23,0.9))]" />
@@ -110,6 +112,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
           labels={content.contactPage.formLabels}
           options={content.contactPage.formOptions}
           helper={content.contactPage.helper}
+          locale={locale}
         />
       </section>
     </main>

@@ -66,6 +66,17 @@ type PropertyRow = {
   status: string | null;
 };
 
+type LeadRow = {
+  id: string;
+  full_name: string | null;
+  status: string | null;
+  priority: string | null;
+  source: string | null;
+  service_interest: string | null;
+  next_follow_up_date: string | null;
+  estimated_monthly_value_cents: number | null;
+};
+
 function formatCurrencyFromCents(amountCents: number | null | undefined) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -98,6 +109,16 @@ function isTaskOpen(status: string | null) {
     status === "escalated" ||
     status === "blocked"
   );
+}
+
+function formatLeadMeta(lead: LeadRow) {
+  return [
+    lead.source || "unknown source",
+    lead.service_interest || "interest not set",
+    lead.next_follow_up_date
+      ? `Follow-up ${formatDate(lead.next_follow_up_date)}`
+      : "No follow-up set",
+  ].join(" • ");
 }
 
 function isTaskOverdue(task: TaskRow, todayIso: string) {
@@ -326,6 +347,70 @@ export default async function DashboardPage() {
     (sum, expense) => sum + (expense.amount_cents || 0),
     0,
   );
+
+  let crm:
+    | {
+        newLeads: number;
+        interestedLeads: number;
+        dueFollowUps: number;
+        noFollowUp: number;
+        openValue: number;
+        followUps: LeadRow[];
+      }
+    | null = null;
+
+  if (isOpsRole) {
+    const [
+      newLeadsResult,
+      interestedLeadsResult,
+      dueFollowUpsResult,
+      noFollowUpResult,
+      openLeadsValueResult,
+      followUpsResult,
+    ] = await Promise.all([
+      supabase.from("leads").select("id", { count: "exact", head: true }).eq("status", "new"),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "interested"),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .lte("next_follow_up_date", todayIso)
+        .not("status", "in", "(won,lost)"),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .is("next_follow_up_date", null)
+        .not("status", "in", "(won,lost)"),
+      supabase
+        .from("leads")
+        .select("estimated_monthly_value_cents")
+        .not("status", "in", "(won,lost)"),
+      supabase
+        .from("leads")
+        .select(
+          "id, full_name, status, priority, source, service_interest, next_follow_up_date, estimated_monthly_value_cents"
+        )
+        .not("status", "in", "(won,lost)")
+        .order("next_follow_up_date", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(6),
+    ]);
+
+    crm = {
+      newLeads: newLeadsResult.count ?? 0,
+      interestedLeads: interestedLeadsResult.count ?? 0,
+      dueFollowUps: dueFollowUpsResult.count ?? 0,
+      noFollowUp: noFollowUpResult.count ?? 0,
+      openValue: (openLeadsValueResult.data || []).reduce(
+        (sum, lead) => sum + (lead.estimated_monthly_value_cents || 0),
+        0
+      ),
+      followUps: (followUpsResult.data || []) as LeadRow[],
+    };
+  }
+
   perf.mark("loadDashboardData");
   perf.finish({
     role: appUser.role,
@@ -389,7 +474,77 @@ export default async function DashboardPage() {
             <StatCard title="Clients" value={totalClientsResult.count ?? 0} />
             <StatCard title="Vacant Properties" value={vacantPropertiesResult.count ?? 0} />
           </section>
+
+          {crm ? (
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <StatCard title="New Leads" value={crm.newLeads} />
+              <StatCard title="Interested Leads" value={crm.interestedLeads} />
+              <StatCard title="Due Follow-ups" value={crm.dueFollowUps} />
+              <StatCard title="No Follow-up Set" value={crm.noFollowUp} />
+              <StatCard title="Open Lead Value" value={formatCurrencyFromCents(crm.openValue)} />
+            </section>
+          ) : null}
         </>
+      ) : null}
+
+      {crm ? (
+        <section className="grid gap-4 xl:grid-cols-2">
+          <QuickList
+            title="CRM Follow-ups"
+            description="Leads that need attention before the next client conversion."
+            actionHref="/leads"
+            actionLabel="View Leads"
+          >
+            {crm.followUps.length === 0 ? (
+              <EmptyState
+                title="No open follow-ups"
+                description="New website and manual inquiries will appear here when follow-up is needed."
+              />
+            ) : (
+              <div className="grid">
+                {crm.followUps.map((lead) => (
+                  <QuickRow
+                    key={lead.id}
+                    title={lead.full_name || "Unnamed lead"}
+                    meta={formatLeadMeta(lead)}
+                    href={`/leads/${lead.id}`}
+                    badge={
+                      <Badge
+                        variant={
+                          lead.next_follow_up_date && lead.next_follow_up_date <= todayIso
+                            ? "warning"
+                            : "neutral"
+                        }
+                      >
+                        {lead.status || "new"}
+                      </Badge>
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </QuickList>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>CRM Shortcuts</CardTitle>
+              <CardDescription>
+                Capture new inquiries and keep follow-ups moving.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/leads/new">New Lead</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/leads?status=new">New Leads</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/leads?source=website">Website Leads</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-2">

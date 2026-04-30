@@ -7,6 +7,8 @@ test.describe.serial("leads CRM smoke", () => {
   const seed = createSmokeValue("leads");
   const leadName = `Lead Client ${seed}`;
   const leadEmail = `${seed}@example.com`;
+  const websiteLeadName = `Website Lead ${seed}`;
+  const websiteLeadContact = `${seed}.website@example.com`;
   const note = `Lead follow-up note ${seed}`;
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     .toISOString()
@@ -15,7 +17,32 @@ test.describe.serial("leads CRM smoke", () => {
     .toISOString()
     .split("T")[0];
 
-  test("create, update, note, and convert a lead", async ({ page }) => {
+  test("capture a public contact request as a lead", async ({ page }) => {
+    await page.goto("/en/contact");
+    await expect(
+      page.getByRole("heading", { name: "Start with a simple question" })
+    ).toBeVisible();
+
+    await page.getByLabel("Name").fill(websiteLeadName);
+    await page.getByLabel("Email or phone").fill(websiteLeadContact);
+    await page.getByLabel("Apartment area").fill("Fushe Kosove");
+    await page.getByLabel("Message").fill("Website CRM capture smoke request");
+    await page.getByRole("button", { name: "Send request" }).click();
+
+    await expect(page.getByText("now in our lead list")).toBeVisible({
+      timeout: 15000,
+    });
+
+    await page.goto("/leads");
+    await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible();
+    await page.getByLabel("Search").fill(websiteLeadName);
+    await page.getByRole("button", { name: "Apply" }).click();
+    const websiteLeadRow = page.getByRole("row").filter({ hasText: websiteLeadName });
+    await expect(websiteLeadRow).toBeVisible();
+    await expect(websiteLeadRow).toContainText("Website");
+  });
+
+  test("create, update, note, convert a lead, and show CRM dashboard", async ({ page }) => {
     await page.goto("/leads/new");
     await expect(page.getByRole("heading", { name: "New Lead" })).toBeVisible();
 
@@ -77,5 +104,10 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Search").fill(leadName);
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(page.getByRole("link", { name: leadName })).toBeVisible();
+
+    await page.goto("/dashboard");
+    await expect(page.getByText("CRM Follow-ups")).toBeVisible();
+    await expect(page.getByText("New Leads").first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "Website Leads" })).toBeVisible();
   });
 });

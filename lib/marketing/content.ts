@@ -378,13 +378,13 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         country: "Country where you live",
         area: "Apartment area",
         message: "Message",
-        submit: "Prepare email request",
+        submit: "Send request",
       },
       formOptions: {
         yes: "Yes",
         no: "No",
       },
-      helper: "This prepares an email with your details so you can send it in one step.",
+      helper: "This sends your request to our CRM. You can still use the email fallback if needed.",
     },
     footer: {
       line: "Trusted local care for apartments in Prishtina and Fushë Kosovë.",
@@ -652,13 +652,13 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         country: "Shteti ku jetoni",
         area: "Zona e apartamentit",
         message: "Mesazhi",
-        submit: "Përgatite kërkesën me email",
+        submit: "Dërgo kërkesën",
       },
       formOptions: {
         yes: "Po",
         no: "Jo",
       },
-      helper: "Kjo e përgatit një email me të dhënat tuaja që ta dërgoni me një hap.",
+      helper: "Kjo e dërgon kërkesën në CRM. Mund të përdorni edhe email-in rezervë nëse duhet.",
     },
     footer: {
       line: "Kujdes lokal i besueshëm për apartamente në Prishtinë dhe Fushë Kosovë.",
@@ -926,13 +926,13 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         country: "Land, in dem Sie leben",
         area: "Standort der Wohnung",
         message: "Nachricht",
-        submit: "E-Mail-Anfrage vorbereiten",
+        submit: "Anfrage senden",
       },
       formOptions: {
         yes: "Ja",
         no: "Nein",
       },
-      helper: "Dadurch wird eine E-Mail mit Ihren Angaben vorbereitet, die Sie direkt senden können.",
+      helper: "Dadurch wird Ihre Anfrage im CRM gespeichert. Die E-Mail-Alternative bleibt verfügbar.",
     },
     footer: {
       line: "Verlässliche lokale Betreuung für Wohnungen in Prishtina und Fushë Kosovë.",
