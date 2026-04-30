@@ -56,14 +56,15 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
       <section className="mx-auto max-w-7xl px-6 py-6 md:py-8">
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
           <Image
-            src="/marketing/home-hero.png"
-            alt="Warm, well-kept apartment interior"
+            src="/marketing/smart-property-network.jpg"
+            alt="Digital apartment care network"
             fill
             priority
             className="object-cover object-center"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.24)_0%,rgba(9,14,23,0.56)_40%,rgba(9,14,23,0.92)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(9,14,23,0.88)_0%,rgba(9,14,23,0.62)_42%,rgba(9,14,23,0.28)_75%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12)_0%,rgba(9,14,23,0.58)_46%,rgba(9,14,23,0.96)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(9,14,23,0.94)_0%,rgba(9,14,23,0.72)_42%,rgba(9,14,23,0.28)_78%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_82%,rgba(245,158,11,0.22),transparent_32%)]" />
 
           <div className="relative grid min-h-[640px] items-end gap-8 px-5 py-6 md:min-h-[720px] md:px-8 md:py-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.6fr)] lg:px-12 lg:py-12">
             <div className="max-w-3xl space-y-5">
@@ -97,7 +98,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
                 {content.hero.statLabels.map((label) => (
                   <div
                     key={label}
-                    className="rounded-xl border border-white/12 bg-black/28 px-4 py-4 text-sm font-medium leading-6 text-white backdrop-blur-sm"
+                    className="rounded-xl border border-white/12 bg-black/34 px-4 py-4 text-sm font-medium leading-6 text-white backdrop-blur-sm"
                   >
                     {label}
                   </div>
@@ -106,7 +107,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
             </div>
 
             <div className="hidden lg:block">
-              <div className="rounded-2xl border border-white/12 bg-[rgba(10,14,22,0.54)] p-6 backdrop-blur-md">
+              <div className="rounded-2xl border border-white/12 bg-[rgba(10,14,22,0.62)] p-6 backdrop-blur-md">
                 <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
                   Calm local care
                 </p>
