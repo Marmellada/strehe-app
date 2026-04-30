@@ -9,6 +9,7 @@ test.describe.serial("leads CRM smoke", () => {
   const leadEmail = `${seed}@example.com`;
   const websiteLeadName = `Website Lead ${seed}`;
   const websiteLeadContact = `${seed}.website@example.com`;
+  const whatsappLeadName = `WhatsApp Lead ${seed}`;
   const note = `Lead follow-up note ${seed}`;
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     .toISOString()
@@ -18,6 +19,15 @@ test.describe.serial("leads CRM smoke", () => {
     .split("T")[0];
 
   test("capture a public contact request as a lead", async ({ page }) => {
+    await page.goto("/en");
+    const whatsappLink = page.getByRole("link", {
+      name: "Ask us a quick question on WhatsApp",
+    }).first();
+    await expect(whatsappLink).toBeVisible();
+    const whatsappHref = await whatsappLink.getAttribute("href");
+    expect(decodeURIComponent(whatsappHref || "")).toContain("Source: website_home");
+    expect(decodeURIComponent(whatsappHref || "")).toContain("Language: en");
+
     await page.goto("/en/contact");
     await expect(
       page.getByRole("heading", { name: "Start with a simple question" })
@@ -40,6 +50,23 @@ test.describe.serial("leads CRM smoke", () => {
     const websiteLeadRow = page.getByRole("row").filter({ hasText: websiteLeadName });
     await expect(websiteLeadRow).toBeVisible();
     await expect(websiteLeadRow).toContainText("Website");
+  });
+
+  test("quick-create a WhatsApp lead with defaults", async ({ page }) => {
+    await page.goto("/leads/new?source=whatsapp");
+    await expect(page.getByRole("heading", { name: "New Lead" })).toBeVisible();
+    await expect(page.getByLabel("Source")).toHaveValue("whatsapp");
+    await expect(page.getByLabel("Preferred Contact")).toHaveValue("whatsapp");
+
+    await page.getByLabel("Full Name").fill(whatsappLeadName);
+    await page.getByLabel("Phone").fill("+38344111999");
+    await page.getByRole("button", { name: "Create Lead" }).click();
+
+    await page.waitForURL(/\/leads\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("heading", { name: whatsappLeadName })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByText("Whatsapp").first()).toBeVisible();
   });
 
   test("create, update, note, convert a lead, and show CRM dashboard", async ({ page }) => {
@@ -88,7 +115,7 @@ test.describe.serial("leads CRM smoke", () => {
     await expect(page).toHaveURL(new RegExp(`${leadUrl.replace(/\//g, "\\/")}$`), {
       timeout: 15000,
     });
-    await expect(page.getByText(note)).toBeVisible();
+    await expect(page.getByText(note)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText("Call").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Convert to Client" }).click();
@@ -109,5 +136,6 @@ test.describe.serial("leads CRM smoke", () => {
     await expect(page.getByText("CRM Follow-ups")).toBeVisible();
     await expect(page.getByText("New Leads").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Website Leads" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "New WhatsApp Lead" })).toBeVisible();
   });
 });

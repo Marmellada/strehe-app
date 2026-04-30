@@ -4,7 +4,11 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { getCompanyProfile, toWhatsAppHref } from "@/lib/marketing/company-profile";
+import {
+  buildWhatsAppMessage,
+  getCompanyProfile,
+  toWhatsAppHref,
+} from "@/lib/marketing/company-profile";
 import { isMarketingLocale, marketingContent } from "@/lib/marketing/content";
 
 type HomePageProps = {
@@ -49,7 +53,14 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
 
   const company = await getCompanyProfile();
   const content = marketingContent[locale];
-  const whatsappHref = toWhatsAppHref(company.phone, content.cta.description);
+  const whatsappHref = toWhatsAppHref(
+    company.phone,
+    buildWhatsAppMessage({
+      page: "home",
+      locale,
+      message: content.cta.description,
+    })
+  );
 
   return (
     <main className="pb-12">
@@ -149,6 +160,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
                 src="/marketing/check-moment.png"
                 alt="Calm apartment check in progress"
                 fill
+                sizes="(min-width: 1024px) 42vw, 100vw"
                 className="object-cover object-center"
               />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.58)_72%,rgba(9,14,23,0.88))]" />
@@ -221,6 +233,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
                 src="/marketing/key-handling.png"
                 alt="Responsible key handling"
                 fill
+                sizes="(min-width: 1024px) 31vw, 100vw"
                 className="object-cover object-center"
               />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.72)_76%,rgba(9,14,23,0.9))]" />

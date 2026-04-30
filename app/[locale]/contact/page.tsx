@@ -4,7 +4,11 @@ import { notFound } from "next/navigation";
 import { ContactRequestForm } from "@/components/marketing/ContactRequestForm";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { getCompanyProfile, toWhatsAppHref } from "@/lib/marketing/company-profile";
+import {
+  buildWhatsAppMessage,
+  getCompanyProfile,
+  toWhatsAppHref,
+} from "@/lib/marketing/company-profile";
 import { isMarketingLocale, marketingContent } from "@/lib/marketing/content";
 
 type ContactPageProps = {
@@ -22,7 +26,14 @@ export default async function ContactPage({ params }: ContactPageProps) {
 
   const content = marketingContent[locale];
   const company = await getCompanyProfile();
-  const whatsappHref = toWhatsAppHref(company.phone, content.contactPage.introBody);
+  const whatsappHref = toWhatsAppHref(
+    company.phone,
+    buildWhatsAppMessage({
+      page: "contact",
+      locale,
+      message: content.contactPage.introBody,
+    })
+  );
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8 md:py-12">

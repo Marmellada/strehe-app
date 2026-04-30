@@ -3,7 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { getCompanyProfile, toWhatsAppHref } from "@/lib/marketing/company-profile";
+import {
+  buildWhatsAppMessage,
+  getCompanyProfile,
+  toWhatsAppHref,
+} from "@/lib/marketing/company-profile";
 import { isMarketingLocale, marketingContent } from "@/lib/marketing/content";
 
 type ServicesPageProps = {
@@ -21,7 +25,14 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
 
   const content = marketingContent[locale];
   const company = await getCompanyProfile();
-  const whatsappHref = toWhatsAppHref(company.phone, content.servicesPage.introBody);
+  const whatsappHref = toWhatsAppHref(
+    company.phone,
+    buildWhatsAppMessage({
+      page: "services",
+      locale,
+      message: content.servicesPage.introBody,
+    })
+  );
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8 md:py-12">

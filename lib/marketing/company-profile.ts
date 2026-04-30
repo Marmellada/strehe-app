@@ -36,6 +36,25 @@ export async function getCompanyProfile(): Promise<CompanyProfile> {
   };
 }
 
+export function buildWhatsAppMessage({
+  page,
+  locale,
+  message,
+}: {
+  page: string;
+  locale: string;
+  message: string;
+}) {
+  return [
+    "Hi STREHË, I came from the website and want to ask about apartment care.",
+    "",
+    message,
+    "",
+    `Source: website_${page}`,
+    `Language: ${locale}`,
+  ].join("\n");
+}
+
 export function toWhatsAppHref(phone: string, message: string) {
   const digits = phone.replace(/[^\d+]/g, "");
   const normalized = digits.startsWith("+") ? digits.slice(1) : digits;

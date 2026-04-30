@@ -537,6 +537,9 @@ export default async function DashboardPage() {
                 <Link href="/leads/new">New Lead</Link>
               </Button>
               <Button asChild variant="ghost">
+                <Link href="/leads/new?source=whatsapp">New WhatsApp Lead</Link>
+              </Button>
+              <Button asChild variant="ghost">
                 <Link href="/leads?status=new">New Leads</Link>
               </Button>
               <Button asChild variant="ghost">

@@ -213,6 +213,8 @@ Future policy posture:
 - [x] Add CRM list search, status filter, source filter, and pipeline stage cards
 - [x] Update lead follow-up date from interaction logging
 - [x] Connect public contact form to create website leads
+- [x] Add tracked WhatsApp CTA messages with page/language source markers
+- [x] Add quick WhatsApp lead creation path for staff
 - [x] Add CRM follow-up and lead summary widgets to dashboard
 - [x] Apply CRM leads migration in Supabase
 - [x] Run dedicated leads smoke test

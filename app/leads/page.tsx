@@ -162,9 +162,14 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
         title="Leads"
         description="Track inquiries, follow-ups, and conversion before a client record exists."
         actions={
-          <Button asChild>
-            <Link href="/leads/new">New Lead</Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/leads/new?source=whatsapp">New WhatsApp Lead</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/leads/new">New Lead</Link>
+            </Button>
+          </>
         }
       />
 
