@@ -209,6 +209,9 @@ Future policy posture:
 - [x] Add lead interaction notes
 - [x] Add next follow-up date and assignment fields
 - [x] Add convert lead to client action
+- [x] Add lead qualification fields: interest, preferred contact, property count, estimated value
+- [x] Add CRM list search, status filter, source filter, and pipeline stage cards
+- [x] Update lead follow-up date from interaction logging
 - [x] Apply CRM leads migration in Supabase
 - [x] Run dedicated leads smoke test
 

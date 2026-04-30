@@ -10,6 +10,24 @@ function clean(value: FormDataEntryValue | null) {
   return text || null;
 }
 
+function cleanNumber(value: FormDataEntryValue | null) {
+  const text = clean(value);
+  if (!text) return null;
+
+  const number = Number(text);
+  if (!Number.isFinite(number) || number < 0) {
+    throw new Error("Use a valid positive number.");
+  }
+
+  return number;
+}
+
+function cleanMoneyToCents(value: FormDataEntryValue | null) {
+  const number = cleanNumber(value);
+  if (number === null) return null;
+  return Math.round(number * 100);
+}
+
 function getLeadPayload(formData: FormData) {
   const fullName = clean(formData.get("full_name"));
 
@@ -24,10 +42,18 @@ function getLeadPayload(formData: FormData) {
     country: clean(formData.get("country")) || "Kosovo",
     city: clean(formData.get("city")),
     source: clean(formData.get("source")),
+    preferred_contact_method: clean(formData.get("preferred_contact_method")),
+    service_interest: clean(formData.get("service_interest")),
+    property_count: cleanNumber(formData.get("property_count")),
+    expected_start_date: clean(formData.get("expected_start_date")),
+    estimated_monthly_value_cents: cleanMoneyToCents(
+      formData.get("estimated_monthly_value")
+    ),
     status: clean(formData.get("status")) || "new",
     priority: clean(formData.get("priority")) || "normal",
     next_follow_up_date: clean(formData.get("next_follow_up_date")),
     assigned_user_id: clean(formData.get("assigned_user_id")),
+    lost_reason: clean(formData.get("lost_reason")),
     notes: clean(formData.get("notes")),
     updated_at: new Date().toISOString(),
   };
@@ -104,7 +130,22 @@ export async function addLeadInteractionAction(id: string, formData: FormData) {
     throw new Error(error.message);
   }
 
+  const nextFollowUpDate = clean(formData.get("next_follow_up_date"));
+  const { error: leadError } = await supabase
+    .from("leads")
+    .update({
+      next_follow_up_date: nextFollowUpDate,
+      last_interaction_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (leadError) {
+    throw new Error(leadError.message);
+  }
+
   revalidatePath(`/leads/${id}`);
+  revalidatePath("/leads");
   redirect(`/leads/${id}`);
 }
 
@@ -133,6 +174,11 @@ export async function convertLeadToClientAction(id: string) {
   const leadNotes = [
     lead.notes,
     lead.source ? `Lead source: ${lead.source}` : null,
+    lead.service_interest ? `Interest: ${lead.service_interest}` : null,
+    lead.property_count ? `Properties: ${lead.property_count}` : null,
+    lead.estimated_monthly_value_cents
+      ? `Estimated monthly value: €${(lead.estimated_monthly_value_cents / 100).toFixed(2)}`
+      : null,
   ]
     .filter(Boolean)
     .join("\n\n");

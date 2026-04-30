@@ -11,6 +11,9 @@ test.describe.serial("leads CRM smoke", () => {
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];
+  const laterFollowUp = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
 
   test("create, update, note, and convert a lead", async ({ page }) => {
     await page.goto("/leads/new");
@@ -21,8 +24,12 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Email").fill(leadEmail);
     await page.getByLabel("City").fill("Prishtina");
     await page.getByLabel("Source").selectOption("whatsapp");
+    await page.getByLabel("Preferred Contact").selectOption("whatsapp");
+    await page.getByLabel("Service Interest").selectOption("care_plus");
+    await page.getByLabel("Estimated Monthly Value").fill("89.00");
     await page.getByLabel("Priority").selectOption("high");
     await page.getByLabel("Next Follow-up Date").fill(tomorrow);
+    await page.getByLabel("Property Count").fill("2");
     await selectOptionContainingText(page.getByLabel("Assigned User"), "Playwright Admin");
     await page.getByLabel("Notes").fill("Asked about monthly apartment care.");
     await page.getByRole("button", { name: "Create Lead" }).click();
@@ -33,6 +40,8 @@ test.describe.serial("leads CRM smoke", () => {
       timeout: 15000,
     });
     await expect(page.getByText("High")).toBeVisible();
+    await expect(page.getByText("Care Plus")).toBeVisible();
+    await expect(page.getByText("€89.00")).toBeVisible();
     await expect(page.getByText("Playwright Admin").first()).toBeVisible();
 
     await page.getByRole("link", { name: "Edit" }).click();
@@ -47,6 +56,7 @@ test.describe.serial("leads CRM smoke", () => {
 
     await page.getByLabel("Type").selectOption("call");
     await page.getByLabel("Summary").fill(note);
+    await page.getByLabel("Next Follow-up Date").fill(laterFollowUp);
     await page.getByRole("button", { name: "Add Note" }).click();
     await expect(page).toHaveURL(new RegExp(`${leadUrl.replace(/\//g, "\\/")}$`), {
       timeout: 15000,
@@ -63,6 +73,9 @@ test.describe.serial("leads CRM smoke", () => {
 
     await page.goto("/leads");
     await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible();
+    await expect(page.getByRole("link", { name: leadName })).toBeVisible();
+    await page.getByLabel("Search").fill(leadName);
+    await page.getByRole("button", { name: "Apply" }).click();
     await expect(page.getByRole("link", { name: leadName })).toBeVisible();
   });
 });

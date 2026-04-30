@@ -21,10 +21,16 @@ type Lead = {
   country?: string | null;
   city?: string | null;
   source?: string | null;
+  preferred_contact_method?: string | null;
+  service_interest?: string | null;
+  property_count?: number | null;
+  expected_start_date?: string | null;
+  estimated_monthly_value_cents?: number | null;
   status?: string | null;
   priority?: string | null;
   next_follow_up_date?: string | null;
   assigned_user_id?: string | null;
+  lost_reason?: string | null;
   notes?: string | null;
 };
 
@@ -46,6 +52,12 @@ export default function LeadForm({
   isEdit = false,
   leadId,
 }: LeadFormProps) {
+  const estimatedMonthlyValue =
+    initialData?.estimated_monthly_value_cents === null ||
+    initialData?.estimated_monthly_value_cents === undefined
+      ? ""
+      : (initialData.estimated_monthly_value_cents / 100).toFixed(2);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -110,6 +122,21 @@ export default function LeadForm({
                 defaultValue={initialData?.email || ""}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="preferred_contact_method">Preferred Contact</Label>
+              <select
+                id="preferred_contact_method"
+                name="preferred_contact_method"
+                defaultValue={initialData?.preferred_contact_method || ""}
+                className={nativeSelectClassName}
+              >
+                <option value="">Not set</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="phone">Phone</option>
+                <option value="email">Email</option>
+              </select>
+            </div>
           </div>
         </SectionCard>
 
@@ -137,6 +164,36 @@ export default function LeadForm({
 
         <SectionCard title="Pipeline">
           <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="service_interest">Service Interest</Label>
+              <select
+                id="service_interest"
+                name="service_interest"
+                defaultValue={initialData?.service_interest || ""}
+                className={nativeSelectClassName}
+              >
+                <option value="">Not set</option>
+                <option value="basic">Basic</option>
+                <option value="care">Care</option>
+                <option value="care_plus">Care Plus</option>
+                <option value="arrival_ready">Arrival-ready</option>
+                <option value="technician_coordination">Technician Coordination</option>
+                <option value="not_sure">Not Sure</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="estimated_monthly_value">Estimated Monthly Value</Label>
+              <Input
+                id="estimated_monthly_value"
+                name="estimated_monthly_value"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={estimatedMonthlyValue}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <select
@@ -178,6 +235,28 @@ export default function LeadForm({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="expected_start_date">Expected Start Date</Label>
+              <Input
+                id="expected_start_date"
+                name="expected_start_date"
+                type="date"
+                defaultValue={initialData?.expected_start_date || ""}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="property_count">Property Count</Label>
+              <Input
+                id="property_count"
+                name="property_count"
+                type="number"
+                min="0"
+                step="1"
+                defaultValue={initialData?.property_count ?? ""}
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="assigned_user_id">Assigned User</Label>
               <select
                 id="assigned_user_id"
@@ -192,6 +271,15 @@ export default function LeadForm({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="lost_reason">Lost Reason</Label>
+              <Input
+                id="lost_reason"
+                name="lost_reason"
+                defaultValue={initialData?.lost_reason || ""}
+              />
             </div>
           </div>
         </SectionCard>

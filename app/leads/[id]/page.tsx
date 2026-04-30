@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { DetailField } from "@/components/ui/DetailField";
+import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -56,6 +57,10 @@ function formatDateTime(date: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(date));
+}
+
+function formatMoneyFromCents(value: number | null | undefined) {
+  return `€${((value || 0) / 100).toFixed(2)}`;
 }
 
 export default async function LeadDetailPage({
@@ -160,12 +165,24 @@ export default async function LeadDetailPage({
             />
           </CardContent>
         </Card>
+        <Card size="sm">
+          <CardContent>
+            <DetailField
+              label="Estimated Value"
+              value={formatMoneyFromCents(lead.estimated_monthly_value_cents)}
+            />
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
         <SectionCard title="Contact" contentClassName="grid gap-4">
           <DetailField label="Phone" value={lead.phone || "-"} />
           <DetailField label="Email" value={lead.email || "-"} />
+          <DetailField
+            label="Preferred Contact"
+            value={formatStatusLabel(lead.preferred_contact_method)}
+          />
           <DetailField
             label="Location"
             value={[lead.city, lead.country].filter(Boolean).join(", ") || "-"}
@@ -174,11 +191,25 @@ export default async function LeadDetailPage({
 
         <SectionCard title="Pipeline" contentClassName="grid gap-4">
           <DetailField label="Source" value={formatStatusLabel(lead.source)} />
+          <DetailField
+            label="Interest"
+            value={formatStatusLabel(lead.service_interest)}
+          />
+          <DetailField label="Properties" value={lead.property_count ?? "-"} />
+          <DetailField
+            label="Expected Start"
+            value={formatDate(lead.expected_start_date)}
+          />
           <DetailField label="Created" value={formatDateTime(lead.created_at)} />
+          <DetailField
+            label="Last Interaction"
+            value={formatDateTime(lead.last_interaction_at)}
+          />
           <DetailField
             label="Converted"
             value={lead.converted_at ? formatDateTime(lead.converted_at) : "-"}
           />
+          <DetailField label="Lost Reason" value={lead.lost_reason || "-"} />
         </SectionCard>
 
         <SectionCard title="Notes">
@@ -217,6 +248,18 @@ export default async function LeadDetailPage({
               <div className="space-y-2">
                 <Label htmlFor="summary">Summary</Label>
                 <Textarea id="summary" name="summary" rows={5} required />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="interaction_next_follow_up_date">
+                  Next Follow-up Date
+                </Label>
+                <Input
+                  id="interaction_next_follow_up_date"
+                  name="next_follow_up_date"
+                  type="date"
+                  defaultValue={lead.next_follow_up_date || ""}
+                />
               </div>
 
               <div className="flex justify-end">
