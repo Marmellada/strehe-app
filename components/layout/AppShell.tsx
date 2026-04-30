@@ -33,6 +33,7 @@ export function AppShell({ children, role, current }: AppShellProps) {
         { href: "/tasks", label: "Tasks" },
         { href: "/properties", label: "Properties" },
         { href: "/clients", label: "Clients" },
+        { href: "/leads", label: "Leads" },
         { href: "/keys", label: "Keys" },
       ]
     : isField

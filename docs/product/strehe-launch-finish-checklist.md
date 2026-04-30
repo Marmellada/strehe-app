@@ -23,7 +23,7 @@ The first launch should prove that STREHE can reliably handle:
 5. keys
 6. invoices / payments
 7. basic promotion codes
-8. clear public marketing and lead capture
+8. clear public marketing and lead capture through CRM leads
 
 Everything else should support that core.
 
@@ -59,6 +59,7 @@ Last updated: 2026-04-29
 - [x] Dedicated contract integrity smoke covers draft-to-active lifecycle, saved display snapshots, and one-active-contract guard
 - [x] Dedicated property integrity smoke covers owner link, location fields, and active-to-vacant status lifecycle
 - [x] Dedicated banking settings smoke covers licensed-bank registry, invoice-visible bank account, and hidden cash account setup
+- [x] Dedicated leads smoke covers lead create, edit, interaction note, and conversion to client
 
 ### Current Known E2E Findings
 
@@ -117,6 +118,12 @@ Run focused banking settings coverage with:
 
 ```bash
 npm run test:smoke:banking
+```
+
+Run focused CRM leads coverage with:
+
+```bash
+npm run test:smoke:leads
 ```
 
 ---
@@ -191,6 +198,19 @@ Future policy posture:
 - [x] Confirm owner/client relationship is clear
 - [x] Confirm property location fields are enough for launch
 - [ ] Confirm public website and app language align around apartments first
+
+---
+
+## 4A. CRM-Lite / Leads
+
+- [x] Decide to use CRM-lite as the pre-launch lead capture add-on
+- [x] Add leads database migration
+- [x] Add lead create / list / detail / edit screens
+- [x] Add lead interaction notes
+- [x] Add next follow-up date and assignment fields
+- [x] Add convert lead to client action
+- [x] Apply CRM leads migration in Supabase
+- [x] Run dedicated leads smoke test
 
 ---
 
@@ -307,8 +327,6 @@ The task engine is launch-critical because recurring apartment care depends on i
 - [ ] Test automatic email sending
 - [ ] Test bulk code generation and sending
 - [ ] Add/report campaign performance
-- [ ] Connect survey flow or define manual import process
-- [ ] Decide final survey discount wording
 
 ### Later Reporting
 
@@ -363,7 +381,6 @@ Personal email/testing sender is acceptable only before real launch.
 - [ ] Add logo, bio, contact link
 - [ ] Prepare first 9 trust-building posts
 - [ ] Prepare old-page soft announcement if useful
-- [ ] Prepare survey post
 - [ ] Prepare WhatsApp-first lead flow
 - [ ] Decide whether to run paid ads in launch month
 
@@ -373,25 +390,10 @@ Personal email/testing sender is acceptable only before real launch.
 - Why relatives are not a system
 - What we check during a visit
 - Apartment care in Prishtina and Fushe Kosove
-- Survey / 10% launch code
 
 ---
 
-## 14. Survey And Respondent Testing
-
-- [ ] Finalize survey questions
-- [ ] Choose survey tool
-- [ ] Add 10% discount explanation
-- [ ] Decide manual import vs automated code generation
-- [ ] Collect responses
-- [ ] Review price sensitivity
-- [ ] Review package preference
-- [ ] Review trust objections
-- [ ] Turn learnings into pricing/package changes
-
----
-
-## 15. Business And Operations
+## 14. Business And Operations
 
 Launch SOP: `docs/operations/launch-operations-sop.md`
 Launch business baseline: `docs/operations/launch-business-baseline.md`
@@ -410,7 +412,7 @@ Launch business baseline: `docs/operations/launch-business-baseline.md`
 
 ---
 
-## 16. Workers, Vendors, And Expenses
+## 15. Workers, Vendors, And Expenses
 
 - [x] Test worker creation
 - [x] Test vendor creation
@@ -422,7 +424,7 @@ Launch business baseline: `docs/operations/launch-business-baseline.md`
 
 ---
 
-## 17. Banking And Finance Settings
+## 16. Banking And Finance Settings
 
 - [x] Confirm company bank account details
 - [x] Confirm invoice bank display
@@ -436,7 +438,7 @@ Launch business baseline: `docs/operations/launch-business-baseline.md`
 
 ---
 
-## 18. Inspection Lab / Engine
+## 17. Inspection Lab / Engine
 
 - [x] Inspection lab is intentionally quarantined from v1
 - [x] Placeholder routes explain it is paused
@@ -449,7 +451,7 @@ The inspection engine is interesting, but launch trust depends more on reliable 
 
 ---
 
-## 19. Deployment And Vercel
+## 18. Deployment And Vercel
 
 - [ ] Set all required env vars in Vercel
 - [ ] Confirm Supabase URL/key values in Vercel
@@ -463,7 +465,7 @@ The inspection engine is interesting, but launch trust depends more on reliable 
 
 ---
 
-## 20. Launch Readiness Test
+## 19. Launch Readiness Test
 
 Run this full flow before launch:
 
@@ -481,6 +483,7 @@ Run this full flow before launch:
 - [ ] Generate invoice PDF
 - [ ] Record payment
 - [ ] Confirm finance overview
+- [ ] Create and convert a lead
 - [ ] Submit public website contact form
 - [ ] Click WhatsApp CTA
 
@@ -491,10 +494,8 @@ Run this full flow before launch:
 Ideas that are useful but not launch blockers:
 
 - advanced inspection engine
-- automatic survey webhook integration
 - advanced campaign analytics
 - client portal
-- CRM-lite / leads module as a pre-launch add-on if real inquiries start getting messy
 - owner-facing reports dashboard
 - stricter per-role RLS
 - key cabinet slot UI
