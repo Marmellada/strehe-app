@@ -54,17 +54,10 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
   return (
     <main className="pb-12">
       <section className="mx-auto max-w-7xl px-6 py-6 md:py-8">
-        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
-          <Image
-            src="/marketing/smart-property-network.jpg"
-            alt="Digital apartment care network"
-            fill
-            priority
-            className="object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12)_0%,rgba(9,14,23,0.58)_46%,rgba(9,14,23,0.96)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(9,14,23,0.94)_0%,rgba(9,14,23,0.72)_42%,rgba(9,14,23,0.28)_78%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_82%,rgba(245,158,11,0.22),transparent_32%)]" />
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/28 shadow-2xl shadow-black/30 backdrop-blur-[2px]">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.05)_0%,rgba(9,14,23,0.42)_46%,rgba(9,14,23,0.84)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(9,14,23,0.9)_0%,rgba(9,14,23,0.62)_42%,rgba(9,14,23,0.18)_78%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_82%,rgba(245,158,11,0.2),transparent_32%)]" />
 
           <div className="relative grid min-h-[640px] items-end gap-8 px-5 py-6 md:min-h-[720px] md:px-8 md:py-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.6fr)] lg:px-12 lg:py-12">
             <div className="max-w-3xl space-y-5">

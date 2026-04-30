@@ -46,7 +46,7 @@ function MarketingNav({ locale }: { locale: MarketingLocale }) {
   const content = marketingContent[locale];
 
   return (
-    <nav className="hidden items-center gap-6 text-sm text-slate-200 md:flex">
+    <nav className="hidden items-center gap-6 text-sm text-slate-100 md:flex">
       <Link href={`/${locale}`}>{content.nav.home}</Link>
       <Link href={`/${locale}/services`}>{content.nav.services}</Link>
       <Link href={`/${locale}/how-it-works`}>{content.nav.howItWorks}</Link>
@@ -70,10 +70,23 @@ export default async function LocaleLayout({
   const company = await getCompanyProfile();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/85 backdrop-blur">
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 bg-[url('/marketing/smart-property-network.jpg')] bg-cover bg-center bg-no-repeat opacity-70"
+      />
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.72)_0%,rgba(2,6,23,0.64)_36%,rgba(2,6,23,0.88)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 bg-[linear-gradient(110deg,rgba(2,6,23,0.84)_0%,rgba(15,23,42,0.58)_44%,rgba(15,23,42,0.78)_100%)]"
+      />
+
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/82 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-4">
-          <Link href={`/${locale}`} className="flex min-w-0 items-center gap-3">
+          <Link href={`/${locale}`} className="flex min-w-0 shrink-0 items-center gap-3">
             {company.logoUrl ? (
               <Image
                 src={company.logoUrl}
@@ -109,9 +122,9 @@ export default async function LocaleLayout({
         </div>
       </header>
 
-      {children}
+      <div className="relative z-10">{children}</div>
 
-      <footer className="border-t border-white/10 bg-slate-950">
+      <footer className="relative z-10 border-t border-white/10 bg-slate-950/82 backdrop-blur">
         <div className="mx-auto grid max-w-7xl gap-6 px-6 py-10 md:grid-cols-[1fr_auto] md:items-center">
           <div className="space-y-2">
             <p className="text-lg font-semibold text-white">{company.companyName}</p>
