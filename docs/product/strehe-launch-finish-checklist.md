@@ -216,6 +216,12 @@ Future policy posture:
 - [x] Add tracked WhatsApp CTA messages with page/language source markers
 - [x] Add quick WhatsApp lead creation path for staff
 - [x] Add CRM follow-up and lead summary widgets to dashboard
+- [x] Add lead timeline / event history
+- [x] Add Kanban-style pipeline board
+- [x] Add duplicate lead/client warnings on lead detail
+- [x] Add enhanced lead conversion with client type and optional draft property
+- [x] Add dedicated lead follow-ups page
+- [x] Add lead source/status reporting page
 - [x] Apply CRM leads migration in Supabase
 - [x] Run dedicated leads smoke test
 

@@ -166,6 +166,12 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
             <Button asChild variant="outline">
               <Link href="/leads/new?source=whatsapp">New WhatsApp Lead</Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/leads/follow-ups">Follow-ups</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/leads/reports">Reports</Link>
+            </Button>
             <Button asChild>
               <Link href="/leads/new">New Lead</Link>
             </Button>
@@ -269,6 +275,50 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
                   {formatMoneyFromCents(stageValue)}
                 </div>
               </Link>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Kanban Board">
+        <div className="grid gap-3 xl:grid-cols-5">
+          {statusFilters.map((filter) => {
+            const stageRows = rows.filter((lead) => lead.status === filter).slice(0, 5);
+
+            return (
+              <div key={filter} className="rounded-xl border bg-card/60 p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <Badge variant={getStatusVariant(filter)}>
+                    {formatStatusLabel(filter)}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {rows.filter((lead) => lead.status === filter).length}
+                  </span>
+                </div>
+                <div className="grid gap-2">
+                  {stageRows.length === 0 ? (
+                    <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                      No leads
+                    </p>
+                  ) : (
+                    stageRows.map((lead) => (
+                      <Link
+                        key={lead.id}
+                        href={`/leads/${lead.id}`}
+                        className="rounded-lg border bg-background p-3 hover:bg-muted/40"
+                      >
+                        <div className="text-sm font-medium text-foreground">
+                          {lead.full_name || "Unnamed lead"}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {formatStatusLabel(lead.source)} •{" "}
+                          {formatMoneyFromCents(lead.estimated_monthly_value_cents)}
+                        </div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>

@@ -10,6 +10,7 @@ test.describe.serial("leads CRM smoke", () => {
   const websiteLeadName = `Website Lead ${seed}`;
   const websiteLeadContact = `${seed}.website@example.com`;
   const whatsappLeadName = `WhatsApp Lead ${seed}`;
+  const convertedPropertyTitle = `Converted Property ${seed}`;
   const note = `Lead follow-up note ${seed}`;
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     .toISOString()
@@ -108,34 +109,48 @@ test.describe.serial("leads CRM smoke", () => {
     });
     await expect(page.getByText("Interested").first()).toBeVisible();
 
-    await page.getByLabel("Type").selectOption("call");
+    await page.getByLabel("Type", { exact: true }).selectOption("call");
     await page.getByLabel("Summary").fill(note);
     await page.getByLabel("Next Follow-up Date").fill(laterFollowUp);
     await page.getByRole("button", { name: "Add Note" }).click();
     await expect(page).toHaveURL(new RegExp(`${leadUrl.replace(/\//g, "\\/")}$`), {
       timeout: 15000,
     });
-    await expect(page.getByText(note)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("Call").first()).toBeVisible();
-
-    await page.getByRole("button", { name: "Convert to Client" }).click();
-    await page.waitForURL(/\/clients\/[^/]+$/);
-    await expect(page.getByRole("heading", { name: leadName })).toBeVisible({
+    await expect(page.getByText(note, { exact: true })).toBeVisible({
       timeout: 15000,
     });
-    await expect(page.getByText(leadEmail).first()).toBeVisible();
+    await expect(page.getByText("Call").first()).toBeVisible();
+    await expect(page.getByText("Timeline")).toBeVisible();
+    await expect(page.getByText("Status changed to interested")).toBeVisible();
+
+    await page.getByLabel("Create Draft Property").selectOption("yes");
+    await page.getByLabel("Property Title").fill(convertedPropertyTitle);
+    await page.getByLabel("Property Address").fill("Converted Address 1");
+    await page.getByRole("button", { name: "Convert with Options" }).click();
+    await page.waitForURL(/\/properties\/[^/]+$/);
+    await expect(page.getByRole("heading", { name: convertedPropertyTitle })).toBeVisible({
+      timeout: 15000,
+    });
 
     await page.goto("/leads");
     await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible();
-    await expect(page.getByRole("link", { name: leadName })).toBeVisible();
+    await expect(page.getByRole("link", { name: leadName, exact: true })).toBeVisible();
     await page.getByLabel("Search").fill(leadName);
     await page.getByRole("button", { name: "Apply" }).click();
-    await expect(page.getByRole("link", { name: leadName })).toBeVisible();
+    await expect(page.getByRole("link", { name: leadName, exact: true })).toBeVisible();
 
     await page.goto("/dashboard");
     await expect(page.getByText("CRM Follow-ups")).toBeVisible();
     await expect(page.getByText("New Leads").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Website Leads" })).toBeVisible();
     await expect(page.getByRole("link", { name: "New WhatsApp Lead" })).toBeVisible();
+
+    await page.goto("/leads/follow-ups");
+    await expect(page.getByRole("heading", { name: "Lead Follow-ups" })).toBeVisible();
+    await expect(page.getByText("No Follow-up Set")).toBeVisible();
+
+    await page.goto("/leads/reports");
+    await expect(page.getByRole("heading", { name: "Lead Reports" })).toBeVisible();
+    await expect(page.getByText("By Source")).toBeVisible();
   });
 });

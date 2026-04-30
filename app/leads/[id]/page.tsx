@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { addLeadInteractionAction, convertLeadToClientAction } from "@/lib/actions/leads";
+import {
+  addLeadInteractionAction,
+  convertLeadWithOptionsAction,
+} from "@/lib/actions/leads";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -31,6 +34,31 @@ type LeadInteraction = {
   summary: string | null;
   interaction_date: string | null;
   author: AssignedUser;
+};
+
+type LeadEvent = {
+  id: string;
+  event_type: string | null;
+  summary: string | null;
+  created_at: string | null;
+  author: AssignedUser;
+};
+
+type DuplicateLead = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
+};
+
+type DuplicateClient = {
+  id: string;
+  full_name: string | null;
+  company_name: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
 };
 
 function getSingleUser(value: AssignedUser) {
@@ -72,7 +100,7 @@ export default async function LeadDetailPage({
   const supabase = await createClient();
   const { id } = await params;
 
-  const [{ data: lead }, { data: interactions }] = await Promise.all([
+  const [{ data: lead }, { data: interactions }, { data: events }] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -96,14 +124,52 @@ export default async function LeadDetailPage({
       )
       .eq("lead_id", id)
       .order("interaction_date", { ascending: false }),
+    supabase
+      .from("lead_events")
+      .select(
+        `
+        id,
+        event_type,
+        summary,
+        created_at,
+        author:app_users!lead_events_created_by_user_id_fkey(full_name, email)
+      `
+      )
+      .eq("lead_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (!lead) return notFound();
 
+  const duplicateConditions = [lead.phone, lead.email]
+    .filter(Boolean)
+    .map((value) => `phone.eq.${value},email.eq.${value}`)
+    .join(",");
+
+  const [{ data: duplicateLeads }, { data: duplicateClients }] = duplicateConditions
+    ? await Promise.all([
+        supabase
+          .from("leads")
+          .select("id, full_name, phone, email, status")
+          .or(duplicateConditions)
+          .neq("id", id)
+          .limit(5),
+        supabase
+          .from("clients")
+          .select("id, full_name, company_name, phone, email, status")
+          .or(duplicateConditions)
+          .limit(5),
+      ])
+    : [{ data: [] }, { data: [] }];
+
   const assigned = getSingleUser(lead.assigned);
   const addInteraction = addLeadInteractionAction.bind(null, id);
-  const convertLead = convertLeadToClientAction.bind(null, id);
+  const convertLead = convertLeadWithOptionsAction.bind(null, id);
   const rows = (interactions || []) as LeadInteraction[];
+  const eventRows = (events || []) as LeadEvent[];
+  const duplicateLeadRows = (duplicateLeads || []) as DuplicateLead[];
+  const duplicateClientRows = (duplicateClients || []) as DuplicateClient[];
 
   return (
     <div className="space-y-6">
@@ -219,6 +285,43 @@ export default async function LeadDetailPage({
         </SectionCard>
       </section>
 
+      {duplicateLeadRows.length || duplicateClientRows.length ? (
+        <SectionCard title="Possible Duplicates">
+          <div className="grid gap-3">
+            {duplicateLeadRows.map((duplicate) => (
+              <div key={duplicate.id} className="flex items-center justify-between gap-3 rounded-xl border p-4">
+                <div>
+                  <div className="font-medium text-foreground">
+                    {duplicate.full_name || "Unnamed lead"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Lead • {duplicate.phone || duplicate.email || "No contact"} • {formatStatusLabel(duplicate.status)}
+                  </div>
+                </div>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/leads/${duplicate.id}`}>Open</Link>
+                </Button>
+              </div>
+            ))}
+            {duplicateClientRows.map((duplicate) => (
+              <div key={duplicate.id} className="flex items-center justify-between gap-3 rounded-xl border p-4">
+                <div>
+                  <div className="font-medium text-foreground">
+                    {duplicate.company_name || duplicate.full_name || "Unnamed client"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Client • {duplicate.phone || duplicate.email || "No contact"} • {formatStatusLabel(duplicate.status)}
+                  </div>
+                </div>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/clients/${duplicate.id}`}>Open</Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+
       <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
         <Card>
           <CardHeader>
@@ -302,6 +405,74 @@ export default async function LeadDetailPage({
           )}
         </SectionCard>
       </div>
+
+      {!lead.converted_client_id ? (
+        <SectionCard title="Convert Lead">
+          <form action={convertLead} className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="client_type">Client Type</Label>
+              <select
+                id="client_type"
+                name="client_type"
+                defaultValue="individual"
+                className="flex h-10 w-full rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)]"
+              >
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create_property">Create Draft Property</Label>
+              <select
+                id="create_property"
+                name="create_property"
+                defaultValue="no"
+                className="flex h-10 w-full rounded-md border border-[var(--select-border)] bg-[var(--select-bg)] px-3 py-2 text-sm text-[var(--select-text)]"
+              >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="property_title">Property Title</Label>
+              <Input id="property_title" name="property_title" defaultValue={`${lead.full_name || "Lead"} apartment`} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="property_address">Property Address</Label>
+              <Input id="property_address" name="property_address" defaultValue={lead.city || ""} />
+            </div>
+            <div className="flex justify-end md:col-span-2">
+              <Button type="submit">Convert with Options</Button>
+            </div>
+          </form>
+        </SectionCard>
+      ) : null}
+
+      <SectionCard title="Timeline">
+        {eventRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No timeline events yet.</p>
+        ) : (
+          <div className="grid gap-3">
+            {eventRows.map((event) => {
+              const author = getSingleUser(event.author);
+              return (
+                <div key={event.id} className="rounded-xl border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Badge variant="neutral">{formatStatusLabel(event.event_type)}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDateTime(event.created_at)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-foreground">{event.summary}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {author?.full_name || author?.email || "System"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }
