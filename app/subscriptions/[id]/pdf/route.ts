@@ -501,7 +501,7 @@ export async function GET(
     : property?.title || "-";
   const packageName = subscription.package_name_snapshot || pkg?.name || "-";
 
-  const contractTitle = "PROPERTY MANAGEMENT CONTRACT";
+  const contractTitle = "APARTMENT CARE SERVICE AGREEMENT";
   const statusText = formatLabel(subscription.status);
   const contractPrice = formatPrice(subscription.monthly_price);
   const packagePrice = formatPrice(pkg?.monthly_price);
@@ -532,6 +532,58 @@ export async function GET(
     { label: "Package Default Price", value: packagePrice },
     { label: "Start Date", value: formatDate(subscription.start_date) },
     { label: "End Date", value: formatDate(subscription.end_date) },
+  ];
+  const contractTerms = [
+    {
+      title: "1. Service scope",
+      body:
+        "STREHE provides apartment care services according to the selected package, included services, agreed visit frequency, and written notes in this agreement. Services outside the package are handled as add-ons or separately approved work.",
+    },
+    {
+      title: "2. Client responsibilities",
+      body:
+        "The client confirms that they are authorized to request services for the property and will provide accurate property information, access instructions, emergency contacts, and any safety or building rules needed for visits.",
+    },
+    {
+      title: "3. Access and keys",
+      body:
+        "The client authorizes STREHE to access the property for agreed visits, checks, reports, and approved coordination work. Keys and access devices are logged internally and must be returned or updated when access changes.",
+    },
+    {
+      title: "4. Visit reports and photos",
+      body:
+        "STREHE may take practical photos, notes, and visit reports to document property condition, completed work, issues found, and service quality. These materials are used for client reporting and internal service records.",
+    },
+    {
+      title: "5. Payments and invoices",
+      body:
+        "Monthly service fees, add-ons, and approved extra work are invoiced according to the agreed package price and invoice terms. The client should pay invoices by the stated due date using the payment details shown on the invoice.",
+    },
+    {
+      title: "6. Repairs and urgent issues",
+      body:
+        "STREHE may identify and report urgent issues. Repairs, parts, technician costs, and third-party work are not included unless clearly stated in the package or approved by the client. In urgent situations, STREHE will make reasonable efforts to contact the client before coordinating action.",
+    },
+    {
+      title: "7. Exclusions",
+      body:
+        "Unless separately agreed, this service does not include legal representation, tenant brokerage, insurance, utility contracts, renovation supervision, major repairs, or guaranteed prevention of damage, theft, weather impact, or building-wide issues.",
+    },
+    {
+      title: "8. Cancellation and changes",
+      body:
+        "Either party may request cancellation, pause, or package changes in writing. Services already performed, approved add-ons, and issued invoices remain payable. Access items must be returned or disabled when the service ends.",
+    },
+    {
+      title: "9. Liability and care standard",
+      body:
+        "STREHE will perform services with reasonable care and keep clear records. STREHE is not responsible for pre-existing conditions, hidden defects, third-party actions, building administration decisions, force majeure events, or losses outside its direct control.",
+    },
+    {
+      title: "10. Agreement records",
+      body:
+        "This agreement, package snapshot, included services, signed confirmation, invoices, reports, and written client approvals form the operational record for the service.",
+    },
   ];
 
   let page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -923,6 +975,46 @@ export async function GET(
     }
   }
 
+  function drawTermsList() {
+    const titleSize = 9.4;
+    const bodySize = 9.2;
+    const bodyLineHeight = 12.4;
+    const termGap = 8;
+
+    for (const term of contractTerms) {
+      const bodyHeight = measureWrappedHeight(
+        term.body,
+        CONTENT_WIDTH,
+        font,
+        bodySize,
+        bodyLineHeight
+      );
+      const blockHeight = 14 + bodyHeight + termGap;
+
+      ensureSpace(blockHeight + 4);
+
+      page.drawText(term.title, {
+        x: MARGIN_X,
+        y,
+        size: titleSize,
+        font: fontBold,
+        color: COLORS.accent,
+      });
+
+      y -= 13;
+      y = drawWrappedBlock({
+        text: term.body,
+        x: MARGIN_X,
+        y,
+        width: CONTENT_WIDTH,
+        size: bodySize,
+        color: COLORS.text,
+        lineHeight: bodyLineHeight,
+      });
+      y -= termGap;
+    }
+  }
+
   drawHeader();
   drawFooterPlaceholder();
 
@@ -1063,6 +1155,10 @@ export async function GET(
   });
   y -= 12;
 
+  drawSectionTitle("Agreement Terms");
+  drawTermsList();
+  y -= 4;
+
   drawSectionTitle("Signatures");
 
   ensureSpace(110);
@@ -1099,6 +1195,22 @@ export async function GET(
     x: MARGIN_X + signatureWidth + 30,
     y: signY - 14,
     size: 9,
+    font,
+    color: COLORS.muted,
+  });
+
+  page.drawText("Date / Place", {
+    x: MARGIN_X,
+    y: signY - 28,
+    size: 8.5,
+    font,
+    color: COLORS.muted,
+  });
+
+  page.drawText("Date / Place", {
+    x: MARGIN_X + signatureWidth + 30,
+    y: signY - 28,
+    size: 8.5,
     font,
     color: COLORS.muted,
   });
