@@ -258,7 +258,7 @@ Launch SOP: `docs/operations/launch-operations-sop.md`
 - [x] Confirm package snapshot is saved correctly
 - [ ] Confirm promotion discount snapshot is saved correctly
 - [x] Test contract PDF generation
-- [ ] Polish contract PDF if needed
+- [x] Polish contract PDF if needed
 
 ---
 
@@ -318,7 +318,7 @@ The task engine is launch-critical because recurring apartment care depends on i
 - [x] Test credit note settlement behavior
 - [x] Test invoice PDF generation
 - [x] Test contract PDF generation
-- [ ] Polish invoice PDF discount display
+- [x] Polish invoice PDF discount display
 - [ ] Confirm company logo appears in PDFs
 - [ ] Confirm company bank details appear correctly
 - [ ] Confirm VAT behavior is correct for launch

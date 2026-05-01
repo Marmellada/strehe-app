@@ -76,6 +76,9 @@ type InvoiceItemRow = {
   description: string | null;
   quantity: number | null;
   unit_price_cents: number | null;
+  original_unit_price_cents: number | null;
+  discount_amount_cents: number | null;
+  promotion_summary_snapshot: string | null;
   total_cents: number | null;
   created_at: string | null;
 };
@@ -207,6 +210,13 @@ function mapItems(
     description: row.description ?? "Line item",
     quantity: safeNumber(row.quantity, 0),
     unit_price: centsToAmount(row.unit_price_cents),
+    original_unit_price: row.original_unit_price_cents
+      ? centsToAmount(row.original_unit_price_cents)
+      : null,
+    discount_amount: row.discount_amount_cents
+      ? centsToAmount(row.discount_amount_cents)
+      : null,
+    promotion_summary: row.promotion_summary_snapshot ?? null,
     vat_rate: safeNumber(vatRate, 0),
     line_total: centsToAmount(row.total_cents),
   }));
@@ -373,6 +383,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         description,
         quantity,
         unit_price_cents,
+        original_unit_price_cents,
+        discount_amount_cents,
+        promotion_summary_snapshot,
         total_cents,
         created_at
       `)

@@ -85,6 +85,17 @@ type PackageServiceRow = {
   service: ServiceRelation;
 };
 
+type PromotionCodeRelation =
+  | {
+      id: string;
+      code: string | null;
+    }
+  | {
+      id: string;
+      code: string | null;
+    }[]
+  | null;
+
 type SubscriptionRow = {
   id: string;
   client_name_snapshot: string | null;
@@ -94,12 +105,19 @@ type SubscriptionRow = {
   end_date: string | null;
   status: string | null;
   monthly_price: number | string | null;
+  original_monthly_price: number | string | null;
+  discount_type: string | null;
+  discount_percent: number | string | null;
+  discount_amount_cents: number | null;
+  discounted_monthly_price: number | string | null;
+  promotion_summary_snapshot: string | null;
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
   client: ClientRelation;
   property: PropertyRelation;
   package: PackageRelation;
+  promotion_code: PromotionCodeRelation;
 };
 
 type CompanySettingsRow = Record<string, unknown> | null;
@@ -148,6 +166,10 @@ function formatPrice(value: number | string | null | undefined) {
   if (Number.isNaN(num)) return "-";
 
   return `€${num.toFixed(2)}`;
+}
+
+function formatMoneyFromCents(value: number | null | undefined) {
+  return `€${((value || 0) / 100).toFixed(2)}`;
 }
 
 function formatLabel(value: string | null | undefined) {
@@ -361,6 +383,12 @@ export async function GET(
         end_date,
         status,
         monthly_price,
+        original_monthly_price,
+        discount_type,
+        discount_percent,
+        discount_amount_cents,
+        discounted_monthly_price,
+        promotion_summary_snapshot,
         notes,
         created_at,
         updated_at,
@@ -380,6 +408,10 @@ export async function GET(
           name,
           monthly_price,
           description
+        ),
+        promotion_code:promotion_codes (
+          id,
+          code
         )
       `
       )
@@ -396,6 +428,7 @@ export async function GET(
   const pkg = getSingleRelation(subscription.package);
   const client = getSingleRelation(subscription.client);
   const property = getSingleRelation(subscription.property);
+  const promotionCode = getSingleRelation(subscription.promotion_code);
 
   const { data: includedServices, error: servicesError } = await supabase
     .from("package_services")
@@ -472,6 +505,34 @@ export async function GET(
   const statusText = formatLabel(subscription.status);
   const contractPrice = formatPrice(subscription.monthly_price);
   const packagePrice = formatPrice(pkg?.monthly_price);
+  const hasPromotion = Boolean(subscription.promotion_summary_snapshot);
+  const contractPriceItems = [
+    { label: "Status", value: statusText },
+    ...(hasPromotion
+      ? [
+          {
+            label: "Original Price",
+            value: formatPrice(subscription.original_monthly_price),
+          },
+          {
+            label: "Discount",
+            value:
+              subscription.promotion_summary_snapshot ||
+              (subscription.discount_amount_cents
+                ? formatMoneyFromCents(subscription.discount_amount_cents)
+                : "-"),
+          },
+          {
+            label: "Promotion Code",
+            value: promotionCode?.code || "-",
+          },
+        ]
+      : []),
+    { label: "Contract Price", value: contractPrice },
+    { label: "Package Default Price", value: packagePrice },
+    { label: "Start Date", value: formatDate(subscription.start_date) },
+    { label: "End Date", value: formatDate(subscription.end_date) },
+  ];
 
   let page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN_TOP;
@@ -954,13 +1015,7 @@ export async function GET(
     x: leftX,
     yTop: y,
     width: cardWidth,
-    items: [
-      { label: "Status", value: statusText },
-      { label: "Contract Price", value: contractPrice },
-      { label: "Package Default Price", value: packagePrice },
-      { label: "Start Date", value: formatDate(subscription.start_date) },
-      { label: "End Date", value: formatDate(subscription.end_date) },
-    ],
+    items: contractPriceItems,
   });
 
   const detailsRightBottom = drawInfoCard({

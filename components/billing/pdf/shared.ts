@@ -62,6 +62,9 @@ export type BillingLineItemPdfData = {
   description: string;
   quantity: number;
   unit_price: number;
+  original_unit_price?: number | null;
+  discount_amount?: number | null;
+  promotion_summary?: string | null;
   vat_rate: number;
   line_total: number;
 };

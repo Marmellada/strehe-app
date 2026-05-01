@@ -641,10 +641,12 @@ function drawItemsTableHeader(
 
 function calculateItemRowHeight(
   item: BillingDocumentPdfData["items"][number],
-  fontRegular: PDFFont
+  fontRegular: PDFFont,
+  currency: string
 ): number {
+  const discountLines = buildItemDiscountLines(item, currency);
   const descLines = splitText(
-    item.description || "—",
+    [item.description || "—", ...discountLines].join("\n"),
     fontRegular,
     10,
     TABLE.description - TABLE_PADDING_X * 2
@@ -654,13 +656,60 @@ function calculateItemRowHeight(
   return valueLines * ROW_LINE_HEIGHT + ROW_PADDING_Y * 2;
 }
 
+function getLineDiscountTotal(
+  item: BillingDocumentPdfData["items"][number]
+): number {
+  return safeMoney(item.discount_amount) * safeMoney(item.quantity);
+}
+
+function safeMoney(value: number | null | undefined): number {
+  const numberValue = Number(value ?? 0);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function hasDiscount(item: BillingDocumentPdfData["items"][number]): boolean {
+  return getLineDiscountTotal(item) > 0;
+}
+
+function buildItemDiscountLines(
+  item: BillingDocumentPdfData["items"][number],
+  currency: string
+): string[] {
+  if (!hasDiscount(item)) return [];
+
+  const lines: string[] = [];
+
+  if (item.promotion_summary) {
+    lines.push(`Promotion: ${item.promotion_summary}`);
+  }
+
+  const originalUnit = safeMoney(item.original_unit_price);
+  const discount = safeMoney(item.discount_amount);
+
+  if (originalUnit > 0 || discount > 0) {
+    lines.push(
+      `Original unit ${formatCurrency(originalUnit, currency)} | discount ${formatCurrency(discount, currency)}`
+    );
+  }
+
+  return lines;
+}
+
+function getDocumentDiscountTotal(document: BillingDocumentPdfData): number {
+  return document.items.reduce((sum, item) => sum + getLineDiscountTotal(item), 0);
+}
+
 async function drawItemsTable(ctx: PdfContext): Promise<PdfContext> {
   let nextCtx = drawItemsTableHeader(ctx);
   const { leftX, xDesc, xQty, xUnit, xVat, xTotal } = tableX();
   const tableWidth = availableContentWidth();
 
   for (const item of nextCtx.document.items) {
-    const rowHeight = calculateItemRowHeight(item, nextCtx.fontRegular);
+    const rowHeight = calculateItemRowHeight(
+      item,
+      nextCtx.fontRegular,
+      nextCtx.currency
+    );
     nextCtx = await ensureRoom(nextCtx, rowHeight + SMALL_GAP, {
       withTableHeader: true,
     });
@@ -678,21 +727,33 @@ async function drawItemsTable(ctx: PdfContext): Promise<PdfContext> {
       borderWidth: 1,
     });
 
-    const descLines = splitText(
+    const mainDescLines = splitText(
       item.description || "—",
       fontRegular,
       10,
       TABLE.description - TABLE_PADDING_X * 2
     );
+    const discountLines = buildItemDiscountLines(item, nextCtx.currency);
 
     let descY = rowTopY - ROW_PADDING_Y - 10;
-    for (const line of descLines) {
+    for (const line of mainDescLines) {
       page.drawText(line, {
         x: xDesc + TABLE_PADDING_X,
         y: descY,
         size: 10,
         font: fontRegular,
         color: PDF_COLORS.text,
+      });
+      descY -= ROW_LINE_HEIGHT;
+    }
+
+    for (const line of discountLines) {
+      page.drawText(line, {
+        x: xDesc + TABLE_PADDING_X,
+        y: descY,
+        size: 9,
+        font: fontRegular,
+        color: PDF_COLORS.muted,
       });
       descY -= ROW_LINE_HEIGHT;
     }
@@ -754,10 +815,37 @@ function drawTotalsBox(ctx: PdfContext): PdfContext {
 
   const totalsBoxWidth = 220;
   const totalsBoxX = rightX - totalsBoxWidth;
+  const discountTotal = getDocumentDiscountTotal(document);
+  const vatLabel =
+    document.vat_total > 0
+      ? "VAT"
+      : document.items.some((item) => safeMoney(item.vat_rate) > 0)
+      ? "VAT"
+      : "VAT (not charged)";
 
   const rows = [
-    { label: "Subtotal", value: formatCurrency(document.subtotal, currency) },
-    { label: "VAT", value: formatCurrency(document.vat_total, currency) },
+    ...(discountTotal > 0
+      ? [
+          {
+            label: "Before Discount",
+            value: formatCurrency(document.subtotal + discountTotal, currency),
+          },
+          {
+            label: "Discounts",
+            value: `-${formatCurrency(discountTotal, currency)}`,
+          },
+          {
+            label: "Subtotal",
+            value: formatCurrency(document.subtotal, currency),
+          },
+        ]
+      : [
+          {
+            label: "Subtotal",
+            value: formatCurrency(document.subtotal, currency),
+          },
+        ]),
+    { label: vatLabel, value: formatCurrency(document.vat_total, currency) },
     {
       label: document.type === "credit_note" ? "Credit Total" : "Total Due",
       value: formatCurrency(document.total, currency),
