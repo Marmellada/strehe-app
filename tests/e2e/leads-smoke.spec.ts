@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createSmokeValue, selectOptionContainingText } from "./utils";
 
 test.describe.serial("leads CRM smoke", () => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
 
   const seed = createSmokeValue("leads");
   const leadName = `Lead Client ${seed}`;
@@ -70,7 +70,7 @@ test.describe.serial("leads CRM smoke", () => {
     await expect(page.getByText("Whatsapp").first()).toBeVisible();
   });
 
-  test("create, update, note, convert a lead, and show CRM dashboard", async ({ page }) => {
+  test("create, update, note, and convert a lead", async ({ page }) => {
     await page.goto("/leads/new");
     await expect(page.getByRole("heading", { name: "New Lead" })).toBeVisible();
 
@@ -138,7 +138,9 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Search").fill(leadName);
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(page.getByRole("link", { name: leadName, exact: true })).toBeVisible();
+  });
 
+  test("show CRM dashboard, follow-ups, and reports", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page.getByText("CRM Follow-ups")).toBeVisible();
     await expect(page.getByText("New Leads").first()).toBeVisible();

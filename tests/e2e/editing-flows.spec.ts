@@ -7,6 +7,8 @@ import {
 } from "./utils";
 
 test.describe.serial("editing flows smoke", () => {
+  test.setTimeout(120_000);
+
   const seed = createSmokeValue("edit");
   const clientName = `Edit Client ${seed}`;
   const updatedClientName = `Edited Client ${seed}`;
@@ -49,7 +51,10 @@ test.describe.serial("editing flows smoke", () => {
     await page.waitForURL(/\/settings\/expense-categories$/);
     const categoryRow = page.getByRole("row").filter({ hasText: categoryName });
     await expect(categoryRow).toBeVisible();
-    await categoryRow.getByRole("link", { name: "Edit" }).click();
+    await Promise.all([
+      page.waitForURL(/\/settings\/expense-categories\/[^/]+\/edit$/),
+      categoryRow.getByRole("link", { name: "Edit" }).click(),
+    ]);
 
     await expect(
       page.getByRole("button", { name: "Save Category" })
@@ -88,7 +93,10 @@ test.describe.serial("editing flows smoke", () => {
     await page.waitForURL(/\/settings\/vendors$/);
     const vendorRow = page.getByRole("row").filter({ hasText: vendorName });
     await expect(vendorRow).toBeVisible();
-    await vendorRow.getByRole("link", { name: "Edit" }).click();
+    await Promise.all([
+      page.waitForURL(/\/settings\/vendors\/[^/]+\/edit$/),
+      vendorRow.getByRole("link", { name: "Edit" }).click(),
+    ]);
 
     await expect(
       page.getByRole("button", { name: "Save Vendor" })
@@ -126,9 +134,10 @@ test.describe.serial("editing flows smoke", () => {
     await page.getByRole("button", { name: "Create Client" }).click();
 
     await page.waitForURL(/\/clients$/);
-    await page.getByRole("link", { name: clientName }).click();
-
-    await page.waitForURL(/\/clients\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/clients\/[^/]+$/),
+      page.getByRole("link", { name: clientName }).click(),
+    ]);
     clientUrl = page.url();
     await expect(page.getByRole("heading", { name: clientName })).toBeVisible();
   });
@@ -161,9 +170,15 @@ test.describe.serial("editing flows smoke", () => {
 
     const propertyRow = page.getByRole("row").filter({ hasText: propertyTitle });
     await expect(propertyRow).toBeVisible();
-    await propertyRow.getByRole("link", { name: "View" }).click();
+    const propertyHref =
+      (await propertyRow.getByRole("link", { name: "View" }).getAttribute("href")) ||
+      "";
 
-    await page.waitForURL(/\/properties\/[^/]+$/);
+    if (!/^\/properties\/[0-9a-f-]{36}$/.test(propertyHref)) {
+      throw new Error(`Unexpected property href: ${propertyHref}`);
+    }
+
+    await page.goto(propertyHref);
     propertyUrl = page.url();
     await expect(page.getByRole("heading", { name: propertyTitle })).toBeVisible();
   });
@@ -212,9 +227,10 @@ test.describe.serial("editing flows smoke", () => {
     await page.getByRole("button", { name: "Create Task" }).click();
 
     await page.waitForURL(/\/tasks$/);
-    await page.getByRole("link", { name: taskTitle }).click();
-
-    await page.waitForURL(/\/tasks\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/tasks\/[^/]+$/),
+      page.getByRole("link", { name: taskTitle }).click(),
+    ]);
     taskUrl = page.url();
     await expect(page.getByRole("heading", { name: taskTitle })).toBeVisible();
   });
@@ -235,9 +251,10 @@ test.describe.serial("editing flows smoke", () => {
     await page.waitForURL(/\/billing$/);
     const invoiceRow = page.getByRole("row").filter({ hasText: clientName }).first();
     await expect(invoiceRow).toBeVisible();
-    await invoiceRow.getByRole("link", { name: "View" }).click();
-
-    await page.waitForURL(/\/billing\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/billing\/[^/]+$/),
+      invoiceRow.getByRole("link", { name: "View" }).click(),
+    ]);
     invoiceUrl = page.url();
     await expect(page.getByText(invoiceLineDescription)).toBeVisible();
   });

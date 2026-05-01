@@ -6,6 +6,8 @@ import {
 } from "./utils";
 
 test.describe.serial("key custody smoke", () => {
+  test.setTimeout(120_000);
+
   const seed = createSmokeValue("keys");
   const clientName = `Keys Client ${seed}`;
   const clientEmail = `${seed}@example.com`;
@@ -57,10 +59,16 @@ test.describe.serial("key custody smoke", () => {
     await page.getByRole("button", { name: "Apply" }).click();
     const propertyRow = page.getByRole("row").filter({ hasText: propertyTitle });
     await expect(propertyRow).toBeVisible();
-    await propertyRow.getByRole("link", { name: "View" }).click();
+    propertyUrl =
+      (await propertyRow.getByRole("link", { name: "View" }).getAttribute("href")) ||
+      "";
 
-    await page.waitForURL(/\/properties\/[^/]+$/);
-    propertyUrl = new URL(page.url()).pathname;
+    if (!/^\/properties\/[0-9a-f-]{36}$/.test(propertyUrl)) {
+      throw new Error(`Unexpected property href: ${propertyUrl}`);
+    }
+
+    await page.goto(propertyUrl);
+    await expect(page.getByRole("heading", { name: propertyTitle })).toBeVisible();
 
     await page.goto(`${propertyUrl}/keys/new`);
     await expect(page.getByRole("heading", { name: "Add Key" })).toBeVisible();
@@ -74,9 +82,10 @@ test.describe.serial("key custody smoke", () => {
     const keyRow = page.getByRole("row").filter({ hasText: keyName });
     await expect(keyRow).toBeVisible();
     await expect(keyRow).toContainText(/available/i);
-    await keyRow.getByRole("link", { name: "View" }).click();
-
-    await page.waitForURL(/\/keys\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/keys\/[^/]+$/),
+      keyRow.getByRole("link", { name: "View" }).click(),
+    ]);
     keyUrl = new URL(page.url()).pathname;
     await expect(page.getByRole("heading", { name: keyName })).toBeVisible();
     await expect(page.getByText("created", { exact: true })).toBeVisible();

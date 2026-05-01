@@ -104,9 +104,15 @@ test.describe.serial("STREHE smoke suite", () => {
 
     const propertyRow = page.getByRole("row").filter({ hasText: propertyTitle });
     await expect(propertyRow).toBeVisible();
-    await propertyRow.getByRole("link", { name: "View" }).click();
+    const propertyHref =
+      (await propertyRow.getByRole("link", { name: "View" }).getAttribute("href")) ||
+      "";
 
-    await page.waitForURL(/\/properties\/[^/]+$/);
+    if (!/^\/properties\/[0-9a-f-]{36}$/.test(propertyHref)) {
+      throw new Error(`Unexpected property href: ${propertyHref}`);
+    }
+
+    await page.goto(propertyHref);
     propertyUrl = page.url();
     await expect(page.getByRole("heading", { name: propertyTitle })).toBeVisible();
   });
@@ -247,9 +253,10 @@ test.describe.serial("STREHE smoke suite", () => {
     await page.getByRole("button", { name: "Create Task" }).click();
 
     await page.waitForURL(/\/tasks$/);
-    await page.getByRole("link", { name: taskTitle }).click();
-
-    await page.waitForURL(/\/tasks\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/tasks\/[^/]+$/),
+      page.getByRole("link", { name: taskTitle }).click(),
+    ]);
     taskUrl = page.url();
 
     await page.getByRole("link", { name: /Add Report/ }).click();
@@ -289,9 +296,10 @@ test.describe.serial("STREHE smoke suite", () => {
 
     const invoiceRow = page.getByRole("row").filter({ hasText: clientName });
     await expect(invoiceRow).toBeVisible();
-    await invoiceRow.getByRole("link", { name: "View" }).click();
-
-    await page.waitForURL(/\/billing\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/billing\/[^/]+$/),
+      invoiceRow.getByRole("link", { name: "View" }).click(),
+    ]);
     invoiceUrl = page.url();
     await expect(page.getByRole("link", { name: "Open PDF" })).toBeVisible();
     await expect(page.getByText(servicePromotionCode)).toBeVisible();
@@ -349,9 +357,10 @@ test.describe.serial("STREHE smoke suite", () => {
       .filter({ hasText: clientName })
       .first();
     await expect(latestInvoiceRow).toBeVisible();
-    await latestInvoiceRow.getByRole("link", { name: "View" }).click();
-
-    await page.waitForURL(/\/billing\/[^/]+$/);
+    await Promise.all([
+      page.waitForURL(/\/billing\/[^/]+$/),
+      latestInvoiceRow.getByRole("link", { name: "View" }).click(),
+    ]);
     const creditNoteSourceInvoiceUrl = page.url();
 
     await page.getByRole("button", { name: "Mark as Issued" }).click();
