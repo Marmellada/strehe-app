@@ -137,6 +137,48 @@ async function rollbackAuthUser(userId: string) {
   }
 }
 
+async function ensureDefaultHouseholdMembership(userId: string) {
+  const supabase = await createClient();
+  const { data: householdSpace, error: householdError } = await supabase
+    .from("household_spaces")
+    .select("id")
+    .eq("is_active", true)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+
+  if (householdError) {
+    throw new Error(`Household lookup failed: ${householdError.message}`);
+  }
+
+  if (!householdSpace) {
+    throw new Error(
+      "No active household space exists. Apply the Household foundation migration first."
+    );
+  }
+
+  const { error: membershipError } = await supabase
+    .from("household_members")
+    .upsert(
+      {
+        household_space_id: householdSpace.id,
+        user_id: userId,
+        access_level: "member",
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "household_space_id,user_id",
+      }
+    );
+
+  if (membershipError) {
+    throw new Error(
+      `Household membership failed: ${membershipError.message}`
+    );
+  }
+}
+
 async function inviteUser(formData: FormData) {
   "use server";
 
@@ -199,7 +241,17 @@ async function inviteUser(formData: FormData) {
     throw new Error(appUserError.message);
   }
 
+  if (role === "household") {
+    try {
+      await ensureDefaultHouseholdMembership(authData.user.id);
+    } catch (error) {
+      await rollbackAuthUser(authData.user.id);
+      throw error;
+    }
+  }
+
   revalidatePath("/settings/users");
+  revalidatePath("/household");
 }
 
 async function sendPasswordSetupEmail(formData: FormData) {
@@ -295,7 +347,17 @@ async function createTestUser(formData: FormData) {
     throw new Error(appUserError.message);
   }
 
+  if (role === "household") {
+    try {
+      await ensureDefaultHouseholdMembership(authData.user.id);
+    } catch (error) {
+      await admin.auth.admin.deleteUser(authData.user.id);
+      throw error;
+    }
+  }
+
   revalidatePath("/settings/users");
+  revalidatePath("/household");
 }
 
 async function updateUserRole(formData: FormData) {
@@ -318,6 +380,10 @@ async function updateUserRole(formData: FormData) {
     throw new Error("Invalid role.");
   }
 
+  if (role === "household") {
+    await ensureDefaultHouseholdMembership(userId);
+  }
+
   const { error } = await supabase
     .from("app_users")
     .update({
@@ -335,6 +401,7 @@ async function updateUserRole(formData: FormData) {
   // without noticing. This does not block it, just refreshes everything.
   revalidatePath("/settings");
   revalidatePath("/settings/users");
+  revalidatePath("/household");
 
   if (authUser.id === userId) {
     revalidatePath("/");

@@ -26,7 +26,10 @@ export function AppShell({ children, role, current }: AppShellProps) {
   const isOffice = role === "office";
   const isField = role === "field";
   const isContractor = role === "contractor";
+  const isHousehold = role === "household";
   const canUseOfficeSurface = isAdmin || isOffice;
+  const homeHref = isHousehold ? "/household" : "/dashboard";
+  const shellTitle = isHousehold ? "STREHË Home" : "STREHË Admin";
 
   const workLinks = canUseOfficeSurface
     ? [
@@ -75,13 +78,22 @@ export function AppShell({ children, role, current }: AppShellProps) {
       <aside className="sidebar flex min-h-screen flex-col">
         <div className="brand">
           <div className="brand-mark" />
-          <strong>STREHË Admin</strong>
+          <strong>{shellTitle}</strong>
         </div>
 
         <nav className="shell-nav">
           <div className="shell-nav-group">
-            <Link href="/dashboard">Dashboard</Link>
+            <Link href={homeHref}>{isHousehold ? "Household" : "Dashboard"}</Link>
           </div>
+
+          {isAdmin ? (
+            <div className="shell-nav-group">
+              <p className="shell-nav-label">Private</p>
+
+              <Link href="/household">Household</Link>
+              <Link href="/agents">Agent Workspace</Link>
+            </div>
+          ) : null}
 
           {workLinks.length > 0 ? (
             <div className="shell-nav-group">
@@ -134,7 +146,7 @@ export function AppShell({ children, role, current }: AppShellProps) {
       <div className="main">
         <div className="topbar">
           <div className="row">
-            <h1 className="topbar-title">STREHË Admin</h1>
+            <h1 className="topbar-title">{shellTitle}</h1>
           </div>
         </div>
 

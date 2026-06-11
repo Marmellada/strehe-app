@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { getDefaultAppPath } from "@/lib/auth/default-path";
+import { isAppRole } from "@/lib/auth/roles";
 
 interface LoginPageProps {
   searchParams: Promise<{
@@ -51,7 +53,7 @@ async function loginAction(formData: FormData) {
     email = appUser.email.toLowerCase();
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: authData, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -62,6 +64,18 @@ async function loginAction(formData: FormData) {
         safeNext
       )}`
     );
+  }
+
+  if (safeNext === "/dashboard") {
+    const { data: appUser } = await supabase
+      .from("app_users")
+      .select("role")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+
+    if (isAppRole(appUser?.role)) {
+      redirect(getDefaultAppPath(appUser.role));
+    }
   }
 
   redirect(safeNext);

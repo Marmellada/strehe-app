@@ -136,6 +136,15 @@ export default defineConfig({
         storageState: "playwright/.auth/user.json",
       },
     },
+    {
+      name: "modules-smoke-chromium",
+      dependencies: ["setup"],
+      testMatch: /(^|[\\/])modules-smoke\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+      },
+    },
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined

@@ -125,6 +125,22 @@ export async function proxy(request: NextRequest) {
     return unauthorizedResponse;
   }
 
+  if (
+    appUser.role === "household" &&
+    pathname !== "/household" &&
+    !pathname.startsWith("/household/")
+  ) {
+    const householdResponse = NextResponse.redirect(
+      new URL("/household", request.url)
+    );
+
+    response.cookies.getAll().forEach((cookie) => {
+      householdResponse.cookies.set(cookie);
+    });
+
+    return householdResponse;
+  }
+
   if (pathname === "/keys" || pathname.startsWith("/keys/")) {
     if (appUser.role === "contractor") {
       const unauthorizedResponse = NextResponse.redirect(

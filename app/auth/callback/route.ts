@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultAppPath } from "@/lib/auth/default-path";
+import { isAppRole } from "@/lib/auth/roles";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -40,6 +42,26 @@ export async function GET(request: Request) {
         requestUrl.origin
       )
     );
+  }
+
+  if (safeNext === "/dashboard") {
+    const claimsResult = await supabase.auth.getClaims();
+    const rawClaims = claimsResult.data as
+      | { claims?: { sub?: string }; sub?: string }
+      | null;
+    const userId = (rawClaims?.claims ?? rawClaims)?.sub ?? null;
+
+    const { data: appUser } = await supabase
+      .from("app_users")
+      .select("role")
+      .eq("id", userId ?? "")
+      .maybeSingle();
+
+    if (isAppRole(appUser?.role)) {
+      return NextResponse.redirect(
+        new URL(getDefaultAppPath(appUser.role), requestUrl.origin)
+      );
+    }
   }
 
   return NextResponse.redirect(new URL(safeNext, requestUrl.origin));

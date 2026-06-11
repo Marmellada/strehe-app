@@ -126,5 +126,8 @@ test.describe.serial("STREHE settings smoke suite", () => {
     await expect(
       createTestUserForm.locator('select[name="role"]')
     ).toBeVisible();
+    await expect(
+      createTestUserForm.locator('option[value="household"]')
+    ).toHaveText("household");
   });
 });
