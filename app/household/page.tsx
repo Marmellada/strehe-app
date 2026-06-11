@@ -1,7 +1,9 @@
+import Link from "next/link";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -86,6 +88,13 @@ export default async function HouseholdPage() {
       <PageHeader
         title="Household"
         description="A private workspace for your family projects, shared decisions, and locally owned finances."
+        actions={
+          spaces.length > 0 ? (
+            <Button asChild>
+              <Link href="/household/projects/new">New Project</Link>
+            </Button>
+          ) : null
+        }
       />
 
       <Alert variant="info">
@@ -133,9 +142,12 @@ export default async function HouseholdPage() {
                         className="flex items-center justify-between gap-4 py-3"
                       >
                         <div>
-                          <p className="font-medium text-foreground">
+                          <Link
+                            href={`/household/projects/${project.id}`}
+                            className="font-medium text-foreground hover:underline"
+                          >
                             {project.title}
-                          </p>
+                          </Link>
                           <p className="text-sm text-muted-foreground">
                             {formatDate(project.target_date)}
                           </p>
