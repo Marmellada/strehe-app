@@ -66,7 +66,7 @@ function MarketingNav({ locale }: { locale: MarketingLocale }) {
   const linkClassName = "!text-slate-200 transition-colors hover:!text-white";
 
   return (
-    <nav className="hidden items-center gap-6 text-sm md:flex">
+    <nav className="hidden items-center gap-6 text-sm lg:flex">
       <Link className={linkClassName} href={`/${locale}`}>{content.nav.home}</Link>
       <Link className={linkClassName} href={`/${locale}/services`}>{content.nav.services}</Link>
       <Link className={linkClassName} href={`/${locale}/how-it-works`}>{content.nav.howItWorks}</Link>
@@ -142,7 +142,7 @@ export default async function LocaleLayout({
                 {content.nav.login}
               </Link>
             </Button>
-            <details className="relative md:hidden">
+            <details className="relative lg:hidden">
               <summary className="cursor-pointer list-none rounded-md border border-white/15 px-3 py-2 text-sm text-white">
                 {content.nav.menu}
               </summary>
