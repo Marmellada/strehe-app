@@ -84,6 +84,9 @@ export function AppShell({ children, role, current }: AppShellProps) {
         <nav className="shell-nav">
           <div className="shell-nav-group">
             <Link href={homeHref}>{isHousehold ? "Household" : "Dashboard"}</Link>
+            {isHousehold ? (
+              <Link href="/household/finance">Finance Reports</Link>
+            ) : null}
           </div>
 
           {isAdmin ? (
@@ -91,6 +94,7 @@ export function AppShell({ children, role, current }: AppShellProps) {
               <p className="shell-nav-label">Private</p>
 
               <Link href="/household">Household</Link>
+              <Link href="/household/finance">Household Finance</Link>
               <Link href="/agents">Agent Workspace</Link>
             </div>
           ) : null}

@@ -63,6 +63,102 @@ test.describe("STREHË private module foundations", () => {
     await expect(page.getByText("Recent Jobs", { exact: true })).toBeVisible();
   });
 
+  test("household finance report can be requested", async ({ page }) => {
+    let jobId = "";
+
+    try {
+      await page.goto("/household/finance");
+
+      await expect(
+        page.getByRole("heading", {
+          name: "Household Finance Reports",
+          exact: true,
+        })
+      ).toBeVisible();
+      await expect(
+        page.getByText("Your financial ledger stays local", { exact: true })
+      ).toBeVisible();
+
+      await page.getByLabel("Report month").fill("2026-05");
+      await page.getByRole("button", { name: "Request Report" }).click();
+      await page.waitForURL(/\/household\/finance\?requested=/);
+      jobId = new URL(page.url()).searchParams.get("requested") || "";
+
+      await expect(
+        page.getByText("2026-05 monthly summary", { exact: true })
+      ).toBeVisible();
+      await expect(
+        page.getByText("Waiting for the local finance connector.", {
+          exact: true,
+        })
+      ).toBeVisible();
+
+      const { supabaseUrl, serviceRoleKey } = getServiceConfig();
+      const admin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+      const { error } = await admin
+        .from("agent_jobs")
+        .update({
+          status: "awaiting_review",
+          result: {
+            schema_version: 1,
+            report_type: "monthly_summary",
+            month: "2026-05",
+            currency: "EUR",
+            summary: {
+              income_cents: 250000,
+              spending_cents: 175000,
+              net_cash_flow_cents: 75000,
+              movement_count: 18,
+              unmatched_outflow_count: 1,
+              unmatched_outflow_cents: 1200,
+              unmatched_receipt_count: 0,
+              unmatched_receipt_cents: 0,
+            },
+            category_breakdown: [
+              { category: "Groceries", amount_cents: 45000 },
+            ],
+            narrative: "Synthetic review result.",
+            privacy: {
+              raw_transactions_uploaded: false,
+              account_details_uploaded: false,
+              receipt_data_uploaded: false,
+            },
+          },
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+      expect(error).toBeNull();
+
+      await page.reload();
+      await expect(
+        page.getByText("Awaiting Review", { exact: true })
+      ).toBeVisible();
+      await expect(page.getByText("€2,500.00", { exact: true })).toBeVisible();
+      await page
+        .getByLabel("Review notes")
+        .fill("Approved in the module smoke test.");
+      await page.getByRole("button", { name: "Approve Report" }).click();
+      await page.waitForURL(/\/household\/finance\?reviewed=/);
+      await expect(page.getByText("Completed", { exact: true })).toBeVisible();
+    } finally {
+      if (jobId) {
+        const { supabaseUrl, serviceRoleKey } = getServiceConfig();
+        const admin = createClient(supabaseUrl, serviceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        });
+        await admin.from("agent_jobs").delete().eq("id", jobId);
+      }
+    }
+  });
+
   test("household project can be created and edited", async ({ page }) => {
     const title = `Playwright Household ${Date.now()}`;
     const updatedTitle = `${title} Updated`;

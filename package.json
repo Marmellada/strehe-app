@@ -24,7 +24,9 @@
     "test:smoke:modules": "playwright test --project=modules-smoke-chromium",
     "test:launch-checklist": "playwright test --project=smoke-chromium --project=settings-smoke-chromium --project=generator-smoke-chromium --project=editing-smoke-chromium --project=keys-smoke-chromium --project=tasks-smoke-chromium --project=operations-smoke-chromium --project=finance-smoke-chromium --project=contracts-smoke-chromium --project=properties-smoke-chromium --project=banking-smoke-chromium --project=leads-smoke-chromium --project=modules-smoke-chromium",
     "test:smoke:headed": "playwright test tests/e2e/smoke.spec.ts --headed",
-    "playwright:install": "playwright install chromium"
+    "playwright:install": "playwright install chromium",
+    "provision:finance-agent": "node scripts/provision-finance-agent.mjs",
+    "verify:finance-agent": "node scripts/verify-finance-agent-flow.mjs"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.1.1",

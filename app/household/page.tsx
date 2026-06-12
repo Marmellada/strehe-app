@@ -90,9 +90,14 @@ export default async function HouseholdPage() {
         description="A private workspace for your family projects, shared decisions, and locally owned finances."
         actions={
           spaces.length > 0 ? (
-            <Button asChild>
-              <Link href="/household/projects/new">New Project</Link>
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline">
+                <Link href="/household/finance">Finance Reports</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/household/projects/new">New Project</Link>
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -182,9 +187,16 @@ export default async function HouseholdPage() {
                         className="flex items-center justify-between gap-4 py-3"
                       >
                         <div>
-                          <p className="font-medium text-foreground">
+                          <Link
+                            href={
+                              job.job_type === "finance.report.generate"
+                                ? "/household/finance"
+                                : "/household"
+                            }
+                            className="font-medium text-foreground hover:underline"
+                          >
                             {job.job_type.replaceAll(".", " ")}
-                          </p>
+                          </Link>
                           <p className="text-sm text-muted-foreground">
                             {formatDate(job.created_at)}
                           </p>
