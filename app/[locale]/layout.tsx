@@ -35,10 +35,29 @@ export async function generateMetadata({
   }
 
   const content = marketingContent[locale];
+  const publicSiteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.streheprona.com";
 
   return {
+    metadataBase: new URL(publicSiteUrl),
     title: content.metaTitle,
     description: content.metaDescription,
+    alternates: {
+      canonical: `/${locale}`,
+      languages: {
+        en: "/en",
+        sq: "/sq",
+        de: "/de",
+      },
+    },
+    openGraph: {
+      type: "website",
+      url: `/${locale}`,
+      title: content.metaTitle,
+      description: content.metaDescription,
+      siteName: "STREHË",
+      images: ["/marketing/home-hero.png"],
+    },
   };
 }
 
@@ -68,6 +87,8 @@ export default async function LocaleLayout({
 
   const content = marketingContent[locale];
   const company = await getCompanyProfile();
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://app.streheprona.com";
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
@@ -115,9 +136,36 @@ export default async function LocaleLayout({
 
           <div className="flex items-center gap-3">
             <LocaleSwitcher locale={locale} />
-            <Button asChild variant="outline" size="sm">
-              <Link href="/auth/login?next=/dashboard">{content.nav.login}</Link>
+            <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
+              <Link href={`${appUrl}/auth/login?next=/dashboard`}>
+                {content.nav.login}
+              </Link>
             </Button>
+            <details className="relative md:hidden">
+              <summary className="cursor-pointer list-none rounded-md border border-white/15 px-3 py-2 text-sm text-white">
+                {content.nav.menu}
+              </summary>
+              <div className="absolute right-0 top-12 z-50 grid min-w-52 gap-1 rounded-xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
+                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}`}>
+                  {content.nav.home}
+                </Link>
+                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/services`}>
+                  {content.nav.services}
+                </Link>
+                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/how-it-works`}>
+                  {content.nav.howItWorks}
+                </Link>
+                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/about`}>
+                  {content.nav.about}
+                </Link>
+                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/contact`}>
+                  {content.nav.contact}
+                </Link>
+                <Link className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-950" href={`${appUrl}/auth/login?next=/dashboard`}>
+                  {content.nav.login}
+                </Link>
+              </div>
+            </details>
           </div>
         </div>
       </header>
@@ -137,7 +185,9 @@ export default async function LocaleLayout({
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
             <Link href={`/${locale}/services`}>{content.nav.services}</Link>
             <Link href={`/${locale}/contact`}>{content.nav.contact}</Link>
-            <Link href="/auth/login?next=/dashboard">{content.footer.login}</Link>
+            <Link href={`${appUrl}/auth/login?next=/dashboard`}>
+              {content.footer.login}
+            </Link>
           </div>
         </div>
       </footer>

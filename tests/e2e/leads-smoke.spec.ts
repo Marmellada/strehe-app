@@ -28,6 +28,12 @@ test.describe.serial("leads CRM smoke", () => {
     const whatsappHref = await whatsappLink.getAttribute("href");
     expect(decodeURIComponent(whatsappHref || "")).toContain("Source: website_home");
     expect(decodeURIComponent(whatsappHref || "")).toContain("Language: en");
+    await expect(
+      page.getByRole("link", { name: "Portal Login" }).first()
+    ).toHaveAttribute(
+      "href",
+      "https://app.streheprona.com/auth/login?next=/dashboard"
+    );
 
     await page.goto("/en/contact");
     await expect(
@@ -40,7 +46,9 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Message").fill("Website CRM capture smoke request");
     await page.getByRole("button", { name: "Send request" }).click();
 
-    await expect(page.getByText("now in our lead list")).toBeVisible({
+    await expect(
+      page.getByText("Thanks. We received your request and will reply shortly.")
+    ).toBeVisible({
       timeout: 15000,
     });
 

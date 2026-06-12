@@ -11,16 +11,11 @@ const AUTH_PUBLIC_PATHS = [
 
 const MARKETING_LOCALES = new Set(["en", "sq", "de"]);
 const MARKETING_PAGES = new Set(["services", "how-it-works", "about", "contact"]);
+const PUBLIC_SITE_HOST = "www.streheprona.com";
+const APEX_SITE_HOST = "streheprona.com";
+const APP_HOST = "app.streheprona.com";
 
-function isPublicPath(pathname: string) {
-  if (
-    AUTH_PUBLIC_PATHS.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`)
-    )
-  ) {
-    return true;
-  }
-
+function isMarketingPath(pathname: string) {
   if (pathname === "/") {
     return true;
   }
@@ -38,8 +33,34 @@ function isPublicPath(pathname: string) {
   return segments.length === 1 || (segments.length === 2 && MARKETING_PAGES.has(segments[1]));
 }
 
+function isAuthPublicPath(pathname: string) {
+  return AUTH_PUBLIC_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+}
+
+function redirectToHost(
+  request: NextRequest,
+  hostname: string,
+  pathname = request.nextUrl.pathname
+) {
+  const url = request.nextUrl.clone();
+  url.protocol = "https";
+  url.hostname = hostname;
+  url.port = "";
+  url.pathname = pathname;
+  return NextResponse.redirect(url, 308);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostname = (
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    ""
+  )
+    .split(":")[0]
+    .toLowerCase();
 
   if (
     pathname.startsWith("/_next") ||
@@ -50,9 +71,31 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
-  const isPublic = isPublicPath(pathname);
+  const isMarketing = isMarketingPath(pathname);
+  const isAuthPublic = isAuthPublicPath(pathname);
+  const isPublic = isMarketing || isAuthPublic;
+
+  if (hostname === APEX_SITE_HOST) {
+    return redirectToHost(request, PUBLIC_SITE_HOST);
+  }
+
+  if (hostname === PUBLIC_SITE_HOST && !isMarketing) {
+    return redirectToHost(request, APP_HOST);
+  }
+
+  if (hostname === APP_HOST && isMarketing) {
+    if (pathname === "/") {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      dashboardUrl.search = "";
+      return NextResponse.redirect(dashboardUrl, 307);
+    }
+
+    return redirectToHost(request, PUBLIC_SITE_HOST);
+  }
+
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-strehe-surface", isPublic ? "public" : "app");
+  requestHeaders.set("x-strehe-surface", isMarketing ? "public" : "app");
 
   let response = NextResponse.next({
     request: { headers: requestHeaders },

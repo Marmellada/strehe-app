@@ -57,10 +57,10 @@ export default async function HowItWorksPage({ params }: HowItWorksPageProps) {
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.72)_76%,rgba(9,14,23,0.88))]" />
           <div className="absolute inset-x-0 bottom-0 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-              Clear follow-up
+              {content.howPage.expectationsTitle}
             </p>
             <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-              The process should feel documented, understandable, and easy to begin.
+              {content.howPage.expectations[0]}
             </p>
           </div>
         </div>

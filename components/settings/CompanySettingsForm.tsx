@@ -90,7 +90,7 @@ export function CompanySettingsForm({
             label="Email"
             name="email"
             type="email"
-            placeholder="info@strehe.com"
+            placeholder="info@streheprona.com"
             defaultValue={initialData?.email ?? ""}
           />
 

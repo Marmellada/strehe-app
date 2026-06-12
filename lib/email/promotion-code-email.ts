@@ -17,10 +17,10 @@ type SendPromotionCodeEmailResult =
       error: string;
     };
 
-function getAppUrl() {
+function getPublicSiteUrl() {
   return (
-    process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
     "http://localhost:3000"
   );
 }
@@ -46,7 +46,7 @@ function escapeHtml(value: string) {
 function buildPromotionCodeEmail(input: PromotionCodeEmailInput) {
   const name = input.name?.trim() || "there";
   const expiry = formatDate(input.expiresAt);
-  const appUrl = getAppUrl();
+  const publicSiteUrl = getPublicSiteUrl();
   const subject = `Your STREHE discount code: ${input.code}`;
 
   const text = [
@@ -61,7 +61,7 @@ function buildPromotionCodeEmail(input: PromotionCodeEmailInput) {
     "",
     "If you decide to start apartment care with STREHE, share this code when we prepare your contract.",
     "",
-    `Open STREHE: ${appUrl}`,
+    `Learn more about STREHË: ${publicSiteUrl}`,
   ]
     .filter(Boolean)
     .join("\n");

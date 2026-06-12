@@ -28,6 +28,10 @@ type ContactRequestFormProps = {
     no: string;
   };
   helper: string;
+  feedback: {
+    submitting: string;
+    fallback: string;
+  };
   locale: string;
 };
 
@@ -38,6 +42,7 @@ export function ContactRequestForm({
   labels,
   options,
   helper,
+  feedback,
   locale,
 }: ContactRequestFormProps) {
   const initialState: PublicContactLeadState = {
@@ -171,10 +176,10 @@ export function ContactRequestForm({
           ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button type="submit" className="w-full sm:w-auto" disabled={isPending}>
-              {isPending ? "Sending..." : labels.submit}
+              {isPending ? feedback.submitting : labels.submit}
             </Button>
             <Button asChild variant="outline" className="w-full sm:w-auto">
-              <a href={state.mailtoHref || mailtoHref}>Email fallback</a>
+              <a href={state.mailtoHref || mailtoHref}>{feedback.fallback}</a>
             </Button>
           </div>
         </div>

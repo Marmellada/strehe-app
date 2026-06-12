@@ -113,14 +113,10 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
             <div className="hidden lg:block">
               <div className="rounded-2xl border border-white/12 bg-[rgba(10,14,22,0.62)] p-6 backdrop-blur-md">
                 <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  Calm local care
+                  {content.trust.title}
                 </p>
                 <div className="mt-4 grid gap-3">
-                  {[
-                    "Regular visits with clear updates",
-                    "One local point of contact",
-                    "Structured follow-up instead of improvised help",
-                  ].map((item) => (
+                  {content.trust.items.slice(2, 5).map((item) => (
                     <div
                       key={item}
                       className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-100"
@@ -166,19 +162,15 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.58)_72%,rgba(9,14,23,0.88))]" />
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  Active care, not passive beauty
+                  {content.servicesPreview.items[0].title}
                 </p>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-                  The service should feel like someone responsible is actually paying attention to
-                  the apartment.
+                  {content.servicesPreview.items[0].description}
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(28,25,23,0.76),rgba(15,23,42,0.9))] p-6">
-              <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                Informal help breaks down
-              </p>
               <h3 className="mt-3 text-2xl font-semibold text-white">
                 {content.problem.competitorTitle}
               </h3>
@@ -198,7 +190,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
       </Section>
 
       <Section
-        eyebrow="Practical support"
+        eyebrow={content.nav.services}
         title={content.servicesPreview.title}
         intro={content.servicesPreview.intro}
       >
@@ -219,15 +211,9 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
         </div>
       </Section>
 
-      <Section eyebrow="Trust through process" title={content.trust.title} intro={content.trust.intro}>
+      <Section title={content.trust.title} intro={content.trust.intro}>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
           <div className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
-              <p className="text-lg leading-8 text-slate-200">
-                Trust should come from regular visits, clear updates, a known service area, and
-                one responsible local setup.
-              </p>
-            </div>
             <div className="relative min-h-[260px] overflow-hidden rounded-2xl border border-white/10">
               <Image
                 src="/marketing/key-handling.png"
@@ -239,11 +225,10 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.72)_76%,rgba(9,14,23,0.9))]" />
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  Access handled carefully
+                  {content.trust.items[2]}
                 </p>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-                  We can show secure key handling now in a brand-neutral way and later replace it
-                  with the real cabinet setup you choose.
+                  {content.trust.items[3]}
                 </p>
               </div>
             </div>
@@ -262,7 +247,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
         </div>
       </Section>
 
-      <Section eyebrow="Simple steps" title={content.process.title} intro={content.process.intro}>
+      <Section eyebrow={content.nav.howItWorks} title={content.process.title} intro={content.process.intro}>
         <div className="grid gap-4 lg:grid-cols-4">
           {content.process.steps.map((step, index) => (
             <Card
@@ -271,7 +256,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
             >
               <CardHeader>
                 <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  Step {index + 1}
+                  {String(index + 1).padStart(2, "0")}
                 </p>
                 <CardTitle>{step.title}</CardTitle>
               </CardHeader>
@@ -283,7 +268,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
         </div>
       </Section>
 
-      <Section eyebrow="Focused launch" title={content.scope.title} intro={content.scope.intro}>
+      <Section title={content.scope.title} intro={content.scope.intro}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {content.scope.bullets.map((item) => (
             <div
@@ -301,7 +286,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="space-y-3">
               <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                First contact should feel easy
+                {content.nav.contact}
               </p>
               <h2 className="text-3xl font-semibold text-white">{content.cta.title}</h2>
               <p className="max-w-2xl text-base leading-7 text-slate-300">

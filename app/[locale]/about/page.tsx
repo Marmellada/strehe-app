@@ -57,10 +57,10 @@ export default async function AboutPage({ params }: AboutPageProps) {
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.1),rgba(9,14,23,0.72)_78%,rgba(9,14,23,0.9))]" />
           <div className="absolute inset-x-0 bottom-0 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-              Local, respectful, accountable
+              {content.aboutPage.valuesTitle}
             </p>
             <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-              The business should feel human and serious without becoming promotional.
+              {content.aboutPage.closing}
             </p>
           </div>
         </div>
