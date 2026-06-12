@@ -71,7 +71,7 @@ test.describe("STREHË private module foundations", () => {
 
       await expect(
         page.getByRole("heading", {
-          name: "Household Finance Reports",
+          name: "Household Finance & Planner",
           exact: true,
         })
       ).toBeVisible();
@@ -143,6 +143,109 @@ test.describe("STREHË private module foundations", () => {
         .getByLabel("Review notes")
         .fill("Approved in the module smoke test.");
       await page.getByRole("button", { name: "Approve Report" }).click();
+      await page.waitForURL(/\/household\/finance\?reviewed=/);
+      await expect(page.getByText("Completed", { exact: true })).toBeVisible();
+    } finally {
+      if (jobId) {
+        const { supabaseUrl, serviceRoleKey } = getServiceConfig();
+        const admin = createClient(supabaseUrl, serviceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        });
+        await admin.from("agent_jobs").delete().eq("id", jobId);
+      }
+    }
+  });
+
+  test("household finance plan can be requested and reviewed", async ({
+    page,
+  }) => {
+    let jobId = "";
+
+    try {
+      await page.goto("/household/finance");
+
+      await page.getByLabel("Plan month").fill("2026-07");
+      await page.getByLabel("Plan name").fill("Smoke plan");
+      await page.getByLabel("Expected income (EUR)").fill("2500");
+      await page.getByLabel("Essential limit (EUR)").fill("1200");
+      await page.getByLabel("Flexible limit (EUR)").fill("400");
+      await page.getByLabel("Savings target (EUR)").fill("300");
+      await page
+        .getByLabel("Assumptions")
+        .fill("Keep enough room for an unexpected household expense.");
+      await page.getByRole("button", { name: "Request Plan" }).click();
+      await page.waitForURL(/\/household\/finance\?requested=/);
+      jobId = new URL(page.url()).searchParams.get("requested") || "";
+
+      await expect(
+        page.getByText("2026-07 plan proposal", { exact: true })
+      ).toBeVisible();
+      await expect(
+        page.getByText("Waiting for the local planning agent.", {
+          exact: true,
+        })
+      ).toBeVisible();
+
+      const { supabaseUrl, serviceRoleKey } = getServiceConfig();
+      const admin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+      const { error } = await admin
+        .from("agent_jobs")
+        .update({
+          status: "awaiting_review",
+          result: {
+            schema_version: 1,
+            plan_type: "monthly_budget",
+            local_plan_id: "11111111-1111-1111-1111-111111111111",
+            month: "2026-07",
+            name: "Smoke plan",
+            currency: "EUR",
+            summary: {
+              opening_balance_cents: 500000,
+              expected_income_cents: 250000,
+              essential_budget_cents: 120000,
+              flexible_budget_cents: 40000,
+              savings_target_cents: 30000,
+              planned_closing_balance_cents: 560000,
+            },
+            rationale:
+              "Keep enough room for an unexpected household expense.",
+            guidance: [
+              "The proposal preserves an estimated 5600.00 EUR closing buffer.",
+            ],
+            privacy: {
+              raw_transactions_uploaded: false,
+              account_details_uploaded: false,
+              receipt_data_uploaded: false,
+            },
+            quality: {
+              status: "passed",
+              attempts: 1,
+              checks: ["schema", "arithmetic", "privacy", "usefulness"],
+              corrections: [],
+              human_review_required: true,
+            },
+          },
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+      expect(error).toBeNull();
+
+      await page.reload();
+      await expect(
+        page.getByText("Smoke plan", { exact: true })
+      ).toBeVisible();
+      await expect(
+        page.getByText("Bounded quality check passed", { exact: true })
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Approve Plan" }).click();
       await page.waitForURL(/\/household\/finance\?reviewed=/);
       await expect(page.getByText("Completed", { exact: true })).toBeVisible();
     } finally {

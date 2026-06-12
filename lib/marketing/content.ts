@@ -1,4 +1,4 @@
-export const marketingLocales = ["en", "sq", "de"] as const;
+export const marketingLocales = ["sq", "en", "de"] as const;
 
 export type MarketingLocale = (typeof marketingLocales)[number];
 
@@ -418,37 +418,39 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       menu: "Meny",
     },
     hero: {
-      eyebrow: "Për pronarët e apartamenteve që jetojnë jashtë",
+      eyebrow: "Kujdes për apartamentet e diasporës",
       title:
-        "Kujdes lokal i besueshëm për apartamentin tuaj në Prishtinë ose Fushë Kosovë ndërsa ju jetoni jashtë.",
+        "Apartamenti juaj në Kosovë, i kontrolluar dhe i dokumentuar edhe kur jeni larg.",
       description:
-        "Ne e kontrollojmë rregullisht apartamentin, kujdesemi për të dhe koordinojmë gjërat praktike që ju të mos mbeteni duke menduar çfarë po ndodh ndërsa jeni larg.",
-      primaryCta: "Na shkruani shpejt në WhatsApp",
-      secondaryCta: "Shihni Shërbimet",
+        "STREHË bën vizita të planifikuara, dërgon raport me foto dhe ndjek çështjet praktike në Prishtinë dhe Fushë Kosovë.",
+      primaryCta: "Na shkruani në WhatsApp",
+      secondaryCta: "Shihni si funksionon",
       reassurance: "Zakonisht përgjigjemi brenda ditës.",
-      statLabels: ["Vetëm apartamente në fillim", "Prishtinë dhe Fushë Kosovë", "Përditësime të qarta pas vizitave"],
+      statLabels: [
+        "Raport me foto pas vizitës",
+        "Prishtinë dhe Fushë Kosovë",
+        "Një kontakt lokal përgjegjës",
+      ],
     },
     problem: {
-      title: "Pse pronarët kanë nevojë për këtë",
+      title: "Kur jeni larg, mungesa e kontrollit kushton",
       intro:
-        "Një apartament bosh harrohet lehtë deri sa një problem i vogël bëhet i kushtueshëm, stresues ose urgjent.",
+        "Një problem i vogël në apartament mund të mbetet pa u vërejtur për muaj.",
       points: [
-        "Askush nuk e kontrollon apartamentin me rregullsi.",
-        "Problemet e vogla vërehen shumë vonë.",
-        "Ardhjet në Kosovë fillojnë me stres që mund të shmanget.",
-        "Familjarët ndihmojnë sa munden, por nuk janë sistem.",
+        "Kontrolle pa ritëm dhe pa dokumentim.",
+        "Probleme të vogla që zbulohen shumë vonë.",
+        "Kthim në Kosovë me punë dhe stres të papritur.",
       ],
-      competitorTitle: "Konkurrenti i vërtetë zakonisht është ndihma joformale",
+      competitorTitle: "Favori nuk është sistem",
       competitorPoints: [
-        "Nuk ka orar të qartë",
-        "Nuk ka raportim me foto",
-        "Nuk ka përgjegjësi kur diçka humbet",
-        "Nuk ka një person të vetëm përgjegjës",
+        "Pa orar të dakorduar",
+        "Pa raport me foto",
+        "Pa një person përgjegjës për ndjekje",
       ],
     },
     servicesPreview: {
-      title: "Çfarë merret STREHË",
-      intro: "Mbështetje praktike, e shpjeguar qartë.",
+      title: "Çfarë bëjmë për apartamentin tuaj",
+      intro: "Kontrollojmë. Dokumentojmë. Ndjekim.",
       items: [
         {
           title: "Kontrolle të rregullta të apartamentit",
@@ -469,9 +471,9 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       ],
     },
     trust: {
-      title: "Pse të keni besim te STREHË",
+      title: "Besimi ndërtohet me prova, jo me premtime",
       intro:
-        "Besimi nuk duhet të varet nga fjalë të bukura. Duhet të vijë nga procesi i qartë dhe përgjegjësia e dukshme.",
+        "Çdo vizitë ka një qëllim, një raport dhe një person përgjegjës për hapat e ardhshëm.",
       items: [
         "Zonë e fokusuar shërbimi, jo premtime të paqarta në gjithë vendin",
         "Vetëm apartamente në fillim që shërbimi të mbetet i disiplinuar",
@@ -482,7 +484,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
     },
     process: {
       title: "Si funksionon",
-      intro: "Hapi i parë duhet të ndihet i thjeshtë, jo i rëndë.",
+      intro: "Nga mesazhi i parë te raporti pas vizitës.",
       steps: [
         {
           title: "Na kontaktoni",
@@ -513,9 +515,9 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       ],
     },
     cta: {
-      title: "Mjafton një bisedë e qetë për të filluar",
+      title: "Le të flasim për apartamentin tuaj",
       description:
-        "Na tregoni ku jetoni, ku ndodhet apartamenti dhe çfarë lloj ndihme ju duhet.",
+        "Na tregoni ku ndodhet dhe çfarë ju shqetëson më shumë. Ne ju përgjigjemi me hapa të qartë.",
       primary: "Na shkruani në WhatsApp",
       secondary: "Kërkoni informata",
     },

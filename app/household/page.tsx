@@ -92,7 +92,7 @@ export default async function HouseholdPage() {
           spaces.length > 0 ? (
             <div className="flex flex-wrap gap-3">
               <Button asChild variant="outline">
-                <Link href="/household/finance">Finance Reports</Link>
+                <Link href="/household/finance">Finance & Planner</Link>
               </Button>
               <Button asChild>
                 <Link href="/household/projects/new">New Project</Link>
@@ -189,7 +189,7 @@ export default async function HouseholdPage() {
                         <div>
                           <Link
                             href={
-                              job.job_type === "finance.report.generate"
+                              job.job_type.startsWith("finance.")
                                 ? "/household/finance"
                                 : "/household"
                             }

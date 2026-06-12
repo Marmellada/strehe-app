@@ -56,7 +56,7 @@ export async function generateMetadata({
       title: content.metaTitle,
       description: content.metaDescription,
       siteName: "STREHË",
-      images: ["/marketing/home-hero.png"],
+      images: ["/marketing/home-hero-v2.webp"],
     },
   };
 }
@@ -92,7 +92,10 @@ export default async function LocaleLayout({
     process.env.NEXT_PUBLIC_APP_URL || "https://app.streheprona.com";
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+    <div
+      lang={locale}
+      className="relative min-h-screen overflow-hidden bg-slate-950 text-white"
+    >
       <div
         aria-hidden="true"
         className="fixed inset-0 bg-[url('/marketing/smart-property-network.jpg')] bg-cover bg-center bg-no-repeat opacity-70"

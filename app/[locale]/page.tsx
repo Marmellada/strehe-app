@@ -1,15 +1,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/Badge";
+import {
+  ArrowRight,
+  CalendarCheck,
+  Camera,
+  CheckCircle2,
+  ClipboardCheck,
+  Home,
+  KeyRound,
+  MapPin,
+  MessageCircle,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
   buildWhatsAppMessage,
   getCompanyProfile,
   toWhatsAppHref,
 } from "@/lib/marketing/company-profile";
-import { isMarketingLocale, marketingContent } from "@/lib/marketing/content";
+import {
+  isMarketingLocale,
+  marketingContent,
+  type MarketingLocale,
+} from "@/lib/marketing/content";
 
 type HomePageProps = {
   params: Promise<{
@@ -17,32 +32,83 @@ type HomePageProps = {
   }>;
 };
 
-function Section({
-  eyebrow,
-  title,
-  intro,
-  children,
-}: {
-  eyebrow?: string;
-  title: string;
-  intro?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mx-auto max-w-7xl px-6 py-14 md:py-20">
-      <div className="mb-8 max-w-3xl space-y-3 md:mb-10">
-        {eyebrow ? (
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/80">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h2 className="text-3xl font-semibold text-white md:text-4xl">{title}</h2>
-        {intro ? <p className="text-base leading-7 text-slate-300">{intro}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
+const homeUi: Record<
+  MarketingLocale,
+  {
+    visitProof: string;
+    proofTitle: string;
+    proofIntro: string;
+    proofItems: string[];
+    serviceEyebrow: string;
+    processEyebrow: string;
+    trustEyebrow: string;
+    faqEyebrow: string;
+    coverage: string;
+    response: string;
+    visualAlt: string;
+    inspectionAlt: string;
+  }
+> = {
+  sq: {
+    visitProof: "Nga vizita te prova",
+    proofTitle: "Pas çdo vizite e dini çfarë u kontrollua.",
+    proofIntro:
+      "Jo vetëm një mesazh se gjithçka është në rregull. Merrni një përmbledhje të qartë që mund ta shihni edhe nga larg.",
+    proofItems: [
+      "Foto nga pikat e kontrolluara",
+      "Listë e shkurtër e gjendjes",
+      "Çështje që kërkojnë vendim ose ndjekje",
+    ],
+    serviceEyebrow: "Kujdes praktik",
+    processEyebrow: "Fillim i thjeshtë",
+    trustEyebrow: "Besim me proces",
+    faqEyebrow: "Pyetje të zakonshme",
+    coverage: "Prishtinë & Fushë Kosovë",
+    response: "Përgjigje zakonisht brenda ditës",
+    visualAlt: "Apartament i mirëmbajtur dhe i ajrosur pas një kontrolli",
+    inspectionAlt: "Kontroll profesional i dritares dhe radiatorit",
+  },
+  en: {
+    visitProof: "From visit to proof",
+    proofTitle: "After every visit, you know what was checked.",
+    proofIntro:
+      "Not just a message saying everything is fine. You receive a clear update you can understand from abroad.",
+    proofItems: [
+      "Photos from the checked areas",
+      "A short condition checklist",
+      "Issues that need a decision or follow-up",
+    ],
+    serviceEyebrow: "Practical care",
+    processEyebrow: "A simple start",
+    trustEyebrow: "Trust through process",
+    faqEyebrow: "Common questions",
+    coverage: "Prishtina & Fushë Kosovë",
+    response: "We usually reply the same day",
+    visualAlt: "A well-kept apartment aired after a scheduled check",
+    inspectionAlt: "A professional checking a window and radiator",
+  },
+  de: {
+    visitProof: "Vom Besuch zum Nachweis",
+    proofTitle: "Nach jedem Besuch wissen Sie, was geprüft wurde.",
+    proofIntro:
+      "Nicht nur eine Nachricht, dass alles in Ordnung ist. Sie erhalten ein klares Update, das Sie auch aus dem Ausland nachvollziehen können.",
+    proofItems: [
+      "Fotos der kontrollierten Bereiche",
+      "Eine kurze Zustandscheckliste",
+      "Punkte, die eine Entscheidung oder Nachverfolgung brauchen",
+    ],
+    serviceEyebrow: "Praktische Betreuung",
+    processEyebrow: "Ein einfacher Start",
+    trustEyebrow: "Vertrauen durch klare Abläufe",
+    faqEyebrow: "Häufige Fragen",
+    coverage: "Prishtina & Fushë Kosovë",
+    response: "Antwort meist noch am selben Tag",
+    visualAlt: "Eine gepflegte Wohnung nach einer geplanten Kontrolle",
+    inspectionAlt: "Professionelle Kontrolle von Fenster und Heizkörper",
+  },
+};
+
+const serviceIcons = [Home, CalendarCheck, Wrench, KeyRound] as const;
 
 export default async function LocalizedHomePage({ params }: HomePageProps) {
   const { locale } = await params;
@@ -53,6 +119,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
 
   const company = await getCompanyProfile();
   const content = marketingContent[locale];
+  const ui = homeUi[locale];
   const whatsappHref = toWhatsAppHref(
     company.phone,
     buildWhatsAppMessage({
@@ -63,245 +130,303 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
   );
 
   return (
-    <main className="pb-12">
-      <section className="mx-auto max-w-7xl px-6 py-6 md:py-8">
-        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/28 shadow-2xl shadow-black/30 backdrop-blur-[2px]">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.05)_0%,rgba(9,14,23,0.42)_46%,rgba(9,14,23,0.84)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(9,14,23,0.9)_0%,rgba(9,14,23,0.62)_42%,rgba(9,14,23,0.18)_78%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_82%,rgba(245,158,11,0.2),transparent_32%)]" />
-
-          <div className="relative grid min-h-[640px] items-end gap-8 px-5 py-6 md:min-h-[720px] md:px-8 md:py-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.6fr)] lg:px-12 lg:py-12">
-            <div className="max-w-3xl space-y-5">
-              <Badge variant="info" className="border border-white/15 bg-black/20 text-white">
-                {content.hero.eyebrow}
-              </Badge>
-
-              <div className="space-y-4">
-                <h1 className="max-w-4xl text-[2.05rem] font-semibold leading-tight text-white md:text-[3.35rem] md:leading-[1.05] lg:text-[4.1rem]">
-                  {content.hero.title}
-                </h1>
-                <p className="max-w-2xl text-base leading-7 text-slate-100/92 md:text-lg md:leading-8">
-                  {content.hero.description}
-                </p>
+    <main className="pb-16">
+      <section className="mx-auto max-w-7xl px-4 py-4 sm:px-6 md:py-8">
+        <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#f1eee7] shadow-2xl shadow-black/35">
+          <div className="grid lg:min-h-[660px] lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="relative z-10 flex flex-col justify-center px-6 py-12 text-slate-950 sm:px-10 lg:px-14 lg:py-16">
+              <div className="mb-8 flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                <span className="rounded-full border border-slate-300 bg-white/70 px-3 py-1.5">
+                  {content.hero.eyebrow}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-amber-700" />
+                  {ui.coverage}
+                </span>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <h1 className="max-w-2xl text-[2.5rem] font-semibold leading-[1.04] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.5rem]">
+                {content.hero.title}
+              </h1>
+              <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+                {content.hero.description}
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Button asChild size="lg">
                   <Link href={whatsappHref} target="_blank" rel="noreferrer">
+                    <MessageCircle className="h-4 w-4" />
                     {content.hero.primaryCta}
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline">
-                  <Link href={`/${locale}/services`}>{content.hero.secondaryCta}</Link>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="border-slate-300 bg-transparent text-slate-900 hover:bg-white"
+                >
+                  <Link href={`/${locale}/how-it-works`}>
+                    {content.hero.secondaryCta}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </Button>
               </div>
 
-              <p className="text-sm text-slate-200/88">{content.hero.reassurance}</p>
-
-              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
-                {content.hero.statLabels.map((label) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-white/12 bg-black/34 px-4 py-4 text-sm font-medium leading-6 text-white backdrop-blur-sm"
-                  >
-                    {label}
-                  </div>
-                ))}
-              </div>
+              <p className="mt-4 inline-flex items-center gap-2 text-sm text-slate-500">
+                <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                {ui.response}
+              </p>
             </div>
 
-            <div className="hidden lg:block">
-              <div className="rounded-2xl border border-white/12 bg-[rgba(10,14,22,0.62)] p-6 backdrop-blur-md">
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  {content.trust.title}
-                </p>
-                <div className="mt-4 grid gap-3">
-                  {content.trust.items.slice(2, 5).map((item) => (
+            <div className="relative min-h-[430px] lg:min-h-full">
+              <Image
+                src="/marketing/home-hero-v2.webp"
+                alt={ui.visualAlt}
+                fill
+                priority
+                sizes="(min-width: 1024px) 58vw, 100vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_55%,rgba(2,6,23,0.62))] lg:bg-[linear-gradient(90deg,rgba(241,238,231,0.38),transparent_22%,transparent_70%,rgba(2,6,23,0.18))]" />
+              <div className="absolute inset-x-5 bottom-5 grid grid-cols-3 gap-2 sm:inset-x-8 sm:bottom-8 sm:gap-3">
+                {content.hero.statLabels.map((label, index) => {
+                  const Icon = [Camera, MapPin, ShieldCheck][index] || ShieldCheck;
+                  return (
                     <div
-                      key={item}
-                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-100"
+                      key={label}
+                      className="rounded-2xl border border-white/20 bg-slate-950/74 p-3 text-white shadow-lg backdrop-blur-md sm:p-4"
                     >
-                      {item}
+                      <Icon className="h-4 w-4 text-amber-300" />
+                      <p className="mt-2 text-[0.68rem] font-medium leading-4 sm:text-xs sm:leading-5">
+                        {label}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <Section
-        eyebrow={content.problem.competitorTitle}
-        title={content.problem.title}
-        intro={content.problem.intro}
-      >
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
-          <div className="grid gap-4 md:grid-cols-2">
-            {content.problem.points.map((point) => (
-              <Card
-                key={point}
-                className="border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(12,18,31,0.96))] text-white"
-              >
-                <CardContent className="pt-6 text-base leading-7 text-slate-200">
-                  {point}
-                </CardContent>
-              </Card>
-            ))}
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:py-20">
+        <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/90 lg:grid-cols-[1.04fr_0.96fr]">
+          <div className="relative min-h-[420px]">
+            <Image
+              src="/marketing/apartment-check-v2.webp"
+              alt={ui.inspectionAlt}
+              fill
+              sizes="(min-width: 1024px) 52vw, 100vw"
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgba(2,6,23,0.78))]" />
+            <div className="absolute bottom-6 left-6 rounded-full border border-white/20 bg-slate-950/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200 backdrop-blur sm:bottom-8 sm:left-8">
+              {ui.visitProof}
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="relative min-h-[320px] overflow-hidden rounded-2xl border border-white/10">
-              <Image
-                src="/marketing/check-moment.png"
-                alt="Calm apartment check in progress"
-                fill
-                sizes="(min-width: 1024px) 42vw, 100vw"
-                className="object-cover object-center"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.58)_72%,rgba(9,14,23,0.88))]" />
-              <div className="absolute inset-x-0 bottom-0 p-5">
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  {content.servicesPreview.items[0].title}
-                </p>
-                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-                  {content.servicesPreview.items[0].description}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(28,25,23,0.76),rgba(15,23,42,0.9))] p-6">
-              <h3 className="mt-3 text-2xl font-semibold text-white">
-                {content.problem.competitorTitle}
-              </h3>
-              <div className="mt-5 grid gap-3">
-                {content.problem.competitorPoints.map((point) => (
-                  <div
-                    key={point}
-                    className="rounded-xl border border-white/10 bg-black/18 px-4 py-3 text-sm leading-6 text-slate-100"
-                  >
-                    {point}
+          <div className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-12">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
+              {ui.visitProof}
+            </p>
+            <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
+              {ui.proofTitle}
+            </h2>
+            <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
+              {ui.proofIntro}
+            </p>
+            <div className="mt-8 grid gap-4">
+              {ui.proofItems.map((item, index) => {
+                const Icon = [Camera, ClipboardCheck, Wrench][index];
+                return (
+                  <div key={item} className="flex items-start gap-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-300 text-slate-950">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <p className="pt-2 text-sm font-medium leading-6 text-slate-100">
+                      {item}
+                    </p>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>
-      </Section>
+      </section>
 
-      <Section
-        eyebrow={content.nav.services}
-        title={content.servicesPreview.title}
-        intro={content.servicesPreview.intro}
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {content.servicesPreview.items.map((item) => (
-            <Card
-              key={item.title}
-              className="border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(11,18,32,0.92))] text-white"
+      <section className="bg-[#f1eee7] text-slate-950">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">
+              {ui.serviceEyebrow}
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-5xl">
+              {content.servicesPreview.title}
+            </h2>
+            <p className="mt-4 text-lg text-slate-600">
+              {content.servicesPreview.intro}
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-px overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
+            {content.servicesPreview.items.map((item, index) => {
+              const Icon = serviceIcons[index] || Home;
+              return (
+                <article
+                  key={item.title}
+                  className="group min-h-64 bg-white p-7 transition-colors hover:bg-amber-50"
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-amber-200">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-8 text-xl font-semibold">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                    {item.description}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="mt-8">
+            <Button
+              asChild
+              variant="outline"
+              className="border-slate-300 bg-transparent text-slate-950 hover:bg-white"
             >
-              <CardHeader>
-                <CardTitle>{item.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm leading-7 text-slate-300">
-                {item.description}
-              </CardContent>
-            </Card>
-          ))}
+              <Link href={`/${locale}/services`}>
+                {content.nav.services}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
-      </Section>
+      </section>
 
-      <Section title={content.trust.title} intro={content.trust.intro}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
-          <div className="space-y-4">
-            <div className="relative min-h-[260px] overflow-hidden rounded-2xl border border-white/10">
-              <Image
-                src="/marketing/key-handling.png"
-                alt="Responsible key handling"
-                fill
-                sizes="(min-width: 1024px) 31vw, 100vw"
-                className="object-cover object-center"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.72)_76%,rgba(9,14,23,0.9))]" />
-              <div className="absolute inset-x-0 bottom-0 p-5">
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  {content.trust.items[2]}
-                </p>
-                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-                  {content.trust.items[3]}
-                </p>
-              </div>
-            </div>
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
+        <div className="grid gap-12 lg:grid-cols-[0.72fr_1.28fr]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
+              {ui.processEyebrow}
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
+              {content.process.title}
+            </h2>
+            <p className="mt-4 max-w-md text-base leading-7 text-slate-300">
+              {content.process.intro}
+            </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {content.trust.items.map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-white/10 bg-slate-900 px-5 py-6 text-sm leading-7 text-slate-200"
+          <ol className="grid gap-4 sm:grid-cols-2">
+            {content.process.steps.map((step, index) => (
+              <li
+                key={step.title}
+                className="rounded-2xl border border-white/10 bg-slate-950/70 p-6"
               >
-                {item}
-              </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold tracking-[0.18em] text-amber-200">
+                    0{index + 1}
+                  </span>
+                  <CheckCircle2 className="h-5 w-5 text-slate-600" />
+                </div>
+                <h3 className="mt-6 text-lg font-semibold text-white">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {step.description}
+                </p>
+              </li>
             ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-14">
+        <div className="rounded-[2rem] border border-amber-200/20 bg-[linear-gradient(135deg,rgba(120,53,15,0.35),rgba(15,23,42,0.94)_55%)] p-7 sm:p-10">
+          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
+                {ui.trustEyebrow}
+              </p>
+              <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
+                {content.trust.title}
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-300">
+                {content.trust.intro}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {content.trust.items.slice(0, 4).map((item) => (
+                <div
+                  key={item}
+                  className="flex gap-3 rounded-2xl border border-white/10 bg-black/15 p-4 text-sm leading-6 text-slate-100"
+                >
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </Section>
+      </section>
 
-      <Section eyebrow={content.nav.howItWorks} title={content.process.title} intro={content.process.intro}>
-        <div className="grid gap-4 lg:grid-cols-4">
-          {content.process.steps.map((step, index) => (
-            <Card
-              key={step.title}
-              className="border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(12,18,31,0.92))] text-white"
-            >
-              <CardHeader>
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                  {String(index + 1).padStart(2, "0")}
-                </p>
-                <CardTitle>{step.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm leading-7 text-slate-300">
-                {step.description}
-              </CardContent>
-            </Card>
-          ))}
+      <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 md:py-24">
+        <div className="text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
+            {ui.faqEyebrow}
+          </p>
+          <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
+            {content.howPage.objectionsTitle}
+          </h2>
         </div>
-      </Section>
-
-      <Section title={content.scope.title} intro={content.scope.intro}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {content.scope.bullets.map((item) => (
-            <div
-              key={item}
-              className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] px-5 py-6 text-base text-slate-100"
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <section className="mx-auto max-w-7xl px-6 pb-20 pt-2">
-        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.98),rgba(28,25,23,0.86))] px-6 py-8 md:px-8 md:py-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-                {content.nav.contact}
+        <div className="mt-10 divide-y divide-white/10 rounded-2xl border border-white/10 bg-slate-950/70 px-6">
+          {content.howPage.objections.map((item) => (
+            <details key={item.question} className="group py-5">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium text-white">
+                {item.question}
+                <span className="text-xl text-amber-200 transition-transform group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <p className="max-w-3xl pb-1 pt-3 text-sm leading-7 text-slate-400">
+                {item.answer}
               </p>
-              <h2 className="text-3xl font-semibold text-white">{content.cta.title}</h2>
-              <p className="max-w-2xl text-base leading-7 text-slate-300">
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-10 sm:px-6">
+        <div className="overflow-hidden rounded-[2rem] bg-amber-300 p-7 text-slate-950 sm:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <h2 className="max-w-3xl text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                {content.cta.title}
+              </h2>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-700">
                 {content.cta.description}
               </p>
             </div>
-
             <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
+              <Button
+                asChild
+                size="lg"
+                className="bg-slate-950 text-white hover:bg-slate-800"
+              >
                 <Link href={whatsappHref} target="_blank" rel="noreferrer">
+                  <MessageCircle className="h-4 w-4" />
                   {content.cta.primary}
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href={`/${locale}/contact`}>{content.cta.secondary}</Link>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-slate-900/30 bg-transparent text-slate-950 hover:bg-white/50"
+              >
+                <Link href={`/${locale}/contact`}>
+                  {content.cta.secondary}
+                </Link>
               </Button>
             </div>
           </div>

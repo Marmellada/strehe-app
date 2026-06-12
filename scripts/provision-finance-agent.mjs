@@ -5,7 +5,30 @@ import { createClient } from "@supabase/supabase-js";
 
 const AGENT_EMAIL = "agent.finance@streheprona.com";
 const AGENT_KEY = "finance.local";
-const CAPABILITY = "finance.report.generate";
+const CAPABILITIES = [
+  {
+    capability_key: "finance.report.generate",
+    constraints: {
+      job_types: ["finance.report.generate"],
+      result_scope: "aggregate_only",
+      raw_finance_uploads: false,
+      quality_checks: ["schema", "arithmetic", "privacy", "usefulness"],
+      max_quality_attempts: 3,
+      human_review_required: true,
+    },
+  },
+  {
+    capability_key: "finance.plan.propose",
+    constraints: {
+      job_types: ["finance.plan.propose"],
+      result_scope: "aggregate_only",
+      raw_finance_uploads: false,
+      quality_checks: ["schema", "arithmetic", "privacy", "usefulness"],
+      max_quality_attempts: 3,
+      human_review_required: true,
+    },
+  },
+];
 
 function readEnv(filePath) {
   const values = new Map();
@@ -110,7 +133,7 @@ const { error: principalError } = await admin.from("agent_principals").upsert({
   agent_key: AGENT_KEY,
   display_name: "Local Finance Agent",
   description:
-    "Generates aggregate household finance reports from the private local ledger.",
+    "Runs private expense intake, aggregate analysis, and planning workflows on the household PC.",
   is_active: true,
 });
 if (principalError) throw principalError;
@@ -118,15 +141,10 @@ if (principalError) throw principalError;
 const { error: capabilityError } = await admin
   .from("agent_capabilities")
   .upsert(
-    {
+    CAPABILITIES.map((capability) => ({
       agent_id: authUser.id,
-      capability_key: CAPABILITY,
-      constraints: {
-        job_types: [CAPABILITY],
-        result_scope: "aggregate_only",
-        raw_finance_uploads: false,
-      },
-    },
+      ...capability,
+    })),
     { onConflict: "agent_id,capability_key" }
   );
 if (capabilityError) throw capabilityError;
@@ -142,5 +160,9 @@ localEnv = setEnvValue(localEnv, "SUPABASE_AGENT_EMAIL", AGENT_EMAIL);
 localEnv = setEnvValue(localEnv, "SUPABASE_AGENT_PASSWORD", password);
 fs.writeFileSync(localEnvPath, localEnv, "utf8");
 
-console.log(`Provisioned ${AGENT_KEY} with ${CAPABILITY}.`);
+console.log(
+  `Provisioned ${AGENT_KEY} with ${CAPABILITIES.map(
+    (capability) => capability.capability_key
+  ).join(", ")}.`
+);
 console.log(`Wrote agent runtime credentials to ${localEnvPath}.`);
