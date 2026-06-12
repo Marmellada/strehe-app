@@ -63,14 +63,15 @@ export async function generateMetadata({
 
 function MarketingNav({ locale }: { locale: MarketingLocale }) {
   const content = marketingContent[locale];
+  const linkClassName = "!text-slate-200 transition-colors hover:!text-white";
 
   return (
-    <nav className="hidden items-center gap-6 text-sm text-slate-100 md:flex">
-      <Link href={`/${locale}`}>{content.nav.home}</Link>
-      <Link href={`/${locale}/services`}>{content.nav.services}</Link>
-      <Link href={`/${locale}/how-it-works`}>{content.nav.howItWorks}</Link>
-      <Link href={`/${locale}/about`}>{content.nav.about}</Link>
-      <Link href={`/${locale}/contact`}>{content.nav.contact}</Link>
+    <nav className="hidden items-center gap-6 text-sm md:flex">
+      <Link className={linkClassName} href={`/${locale}`}>{content.nav.home}</Link>
+      <Link className={linkClassName} href={`/${locale}/services`}>{content.nav.services}</Link>
+      <Link className={linkClassName} href={`/${locale}/how-it-works`}>{content.nav.howItWorks}</Link>
+      <Link className={linkClassName} href={`/${locale}/about`}>{content.nav.about}</Link>
+      <Link className={linkClassName} href={`/${locale}/contact`}>{content.nav.contact}</Link>
     </nav>
   );
 }
@@ -146,22 +147,22 @@ export default async function LocaleLayout({
                 {content.nav.menu}
               </summary>
               <div className="absolute right-0 top-12 z-50 grid min-w-52 gap-1 rounded-xl border border-white/10 bg-slate-950 p-2 shadow-2xl">
-                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}`}>
+                <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}`}>
                   {content.nav.home}
                 </Link>
-                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/services`}>
+                <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}/services`}>
                   {content.nav.services}
                 </Link>
-                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/how-it-works`}>
+                <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}/how-it-works`}>
                   {content.nav.howItWorks}
                 </Link>
-                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/about`}>
+                <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}/about`}>
                   {content.nav.about}
                 </Link>
-                <Link className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" href={`/${locale}/contact`}>
+                <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}/contact`}>
                   {content.nav.contact}
                 </Link>
-                <Link className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-950" href={`${appUrl}/auth/login?next=/dashboard`}>
+                <Link className="rounded-lg bg-white px-3 py-2 text-sm font-medium !text-slate-950" href={`${appUrl}/auth/login?next=/dashboard`}>
                   {content.nav.login}
                 </Link>
               </div>
@@ -182,10 +183,10 @@ export default async function LocaleLayout({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300">
-            <Link href={`/${locale}/services`}>{content.nav.services}</Link>
-            <Link href={`/${locale}/contact`}>{content.nav.contact}</Link>
-            <Link href={`${appUrl}/auth/login?next=/dashboard`}>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/services`}>{content.nav.services}</Link>
+            <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/contact`}>{content.nav.contact}</Link>
+            <Link className="!text-slate-300 hover:!text-white" href={`${appUrl}/auth/login?next=/dashboard`}>
               {content.footer.login}
             </Link>
           </div>

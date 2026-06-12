@@ -26,7 +26,7 @@ export function LocaleSwitcher({ locale }: LocaleSwitcherProps) {
               "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
               active
                 ? "border-white/30 bg-white text-slate-950"
-                : "border-white/15 text-white/80 hover:border-white/30 hover:text-white",
+                : "border-white/15 !text-slate-300 hover:border-white/30 hover:!text-white",
             ].join(" ")}
           >
             {marketingContent[candidate].localeLabel}
