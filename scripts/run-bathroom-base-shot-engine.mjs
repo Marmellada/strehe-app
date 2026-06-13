@@ -2,11 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   analyzeBathroomBaseShot,
-  analyzeBathroomObjectsWithAi,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
-  mergeBathroomAiFindings,
 } from "../lib/inspection-lab/bathroom-base-shot-engine.mjs";
 
 const DEFAULT_MANIFEST = path.resolve(
@@ -52,23 +50,7 @@ async function main() {
 
   const baseline = await analyzeBathroomBaseShot(baselineBuffer, "baseline");
   const current = await analyzeBathroomBaseShot(currentBuffer, "current");
-  const baseComparison = compareBathroomBaseShots(baseline, current);
-
-  let comparison = baseComparison;
-
-  try {
-    const aiAnalysis = await analyzeBathroomObjectsWithAi(
-      baselineBuffer,
-      currentBuffer,
-      baseComparison
-    );
-
-    if (aiAnalysis) {
-      comparison = mergeBathroomAiFindings(baseComparison, aiAnalysis);
-    }
-  } catch (aiError) {
-    console.warn("[INSPECTION_LAB_AI_WARNING]", aiError);
-  }
+  const comparison = compareBathroomBaseShots(baseline, current);
 
   const outputDir = resolveCasePath(
     manifestPath,
@@ -113,13 +95,10 @@ async function main() {
 
   const reportMarkdown = buildBathroomMarkdownReport(
     manifest.case_id,
+    manifest.room_type,
     baseline,
     current,
-    comparison,
-    {
-      baselinePhotoLabel: manifest.baseline_photo.path,
-      currentPhotoLabel: manifest.current_photo.path,
-    }
+    comparison
   );
 
   await fs.writeFile(

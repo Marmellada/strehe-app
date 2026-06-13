@@ -7,11 +7,9 @@ import type {
 
 const {
   analyzeBathroomBaseShot,
-  analyzeBathroomObjectsWithAi,
   buildBathroomMarkdownReport,
   buildBathroomNarrative,
   compareBathroomBaseShots,
-  mergeBathroomAiFindings,
 } = engine;
 
 export type InspectionRunnerPhotoInput = {
@@ -228,27 +226,9 @@ export async function runInspectionCase(
 
   const baseComparison = compareBathroomBaseShots(primaryBaseline, primaryCurrent);
 
-  let comparison: Record<string, unknown> = {
+  const comparison: Record<string, unknown> = {
     ...(baseComparison as Record<string, unknown>),
   };
-
-  try {
-    const aiAnalysis = await analyzeBathroomObjectsWithAi(
-      roomType,
-      primaryBaselinePhoto.buffer,
-      primaryCurrentPhoto.buffer,
-      comparison
-    );
-
-    if (aiAnalysis) {
-      comparison = mergeBathroomAiFindings(
-        comparison,
-        aiAnalysis
-      ) as Record<string, unknown>;
-    }
-  } catch {
-    // Keep deterministic result if AI is unavailable or fails.
-  }
 
   const trackedTargetsFromEngine = normalizeTrackedTargets(comparison.trackedTargets);
   const trackedTargets =

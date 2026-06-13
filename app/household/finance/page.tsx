@@ -18,11 +18,14 @@ import {
   StatusBadge,
   Textarea,
 } from "@/components/ui";
+import { ReceiptUploadForm } from "@/components/household/ReceiptUploadForm";
 import { requireHouseholdAccess } from "@/lib/auth/require-household-access";
 
+const FINANCE_RECEIPT_CAPABILITY = "finance.receipt.ingest";
 const FINANCE_REPORT_CAPABILITY = "finance.report.generate";
 const FINANCE_PLAN_CAPABILITY = "finance.plan.propose";
 const FINANCE_CAPABILITIES = [
+  FINANCE_RECEIPT_CAPABILITY,
   FINANCE_REPORT_CAPABILITY,
   FINANCE_PLAN_CAPABILITY,
 ] as const;
@@ -83,6 +86,24 @@ type PlanResult = {
   };
   rationale: string;
   guidance: string[];
+  quality: QualityResult | null;
+};
+
+type ReceiptResult = {
+  processing_status: string;
+  local_input_id: string;
+  local_expense_created: boolean;
+  needs_local_review: boolean;
+  message: string;
+  privacy: {
+    temporary_transport_only: boolean;
+    raw_receipt_returned: boolean;
+    ocr_text_returned: boolean;
+    financial_details_returned: boolean;
+    local_record_only: boolean;
+    temporary_artifact_deleted: boolean;
+    automatic_expiry_hours: number;
+  };
   quality: QualityResult | null;
 };
 
@@ -226,6 +247,47 @@ function parsePlanResult(value: unknown): PlanResult | null {
   };
 }
 
+function parseReceiptResult(value: unknown): ReceiptResult | null {
+  const candidate = objectValue(value);
+  const privacy = objectValue(candidate?.privacy);
+  if (
+    !candidate ||
+    !privacy ||
+    typeof candidate.processing_status !== "string" ||
+    typeof candidate.local_input_id !== "string" ||
+    typeof candidate.local_expense_created !== "boolean" ||
+    typeof candidate.needs_local_review !== "boolean"
+  ) {
+    return null;
+  }
+
+  return {
+    processing_status: candidate.processing_status,
+    local_input_id: candidate.local_input_id,
+    local_expense_created: candidate.local_expense_created,
+    needs_local_review: candidate.needs_local_review,
+    message:
+      typeof candidate.message === "string"
+        ? candidate.message
+        : "The local finance agent finished this receipt.",
+    privacy: {
+      temporary_transport_only: privacy.temporary_transport_only === true,
+      raw_receipt_returned: privacy.raw_receipt_returned === true,
+      ocr_text_returned: privacy.ocr_text_returned === true,
+      financial_details_returned:
+        privacy.financial_details_returned === true,
+      local_record_only: privacy.local_record_only === true,
+      temporary_artifact_deleted:
+        privacy.temporary_artifact_deleted === true,
+      automatic_expiry_hours:
+        typeof privacy.automatic_expiry_hours === "number"
+          ? privacy.automatic_expiry_hours
+          : 24,
+    },
+    quality: parseQuality(candidate.quality),
+  };
+}
+
 function jobMonth(payload: unknown) {
   const candidate = objectValue(payload);
   return typeof candidate?.month === "string"
@@ -257,6 +319,13 @@ function formatTimestamp(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function receiptFilename(payload: unknown) {
+  const candidate = objectValue(payload);
+  return typeof candidate?.original_filename === "string"
+    ? candidate.original_filename
+    : "Receipt upload";
 }
 
 async function createFinanceJob(
@@ -669,6 +738,78 @@ function PlanJobCard({ job }: { job: FinanceJob }) {
   );
 }
 
+function ReceiptJobCard({ job }: { job: FinanceJob }) {
+  const result = parseReceiptResult(job.result);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>{receiptFilename(job.payload)}</CardTitle>
+            <CardDescription>
+              Uploaded {formatTimestamp(job.created_at)}
+            </CardDescription>
+          </div>
+          <StatusBadge status={job.status} />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {result ? (
+          <>
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
+              <p className="font-medium">
+                {result.local_expense_created
+                  ? "Saved privately on your PC"
+                  : "Local attention is needed"}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {result.message}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-border p-4">
+                <p className="text-sm text-muted-foreground">Local status</p>
+                <p className="mt-1 font-medium">
+                  {result.processing_status.replaceAll("_", " ")}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border p-4">
+                <p className="text-sm text-muted-foreground">
+                  Temporary cloud copy
+                </p>
+                <p className="mt-1 font-medium">
+                  {result.privacy.temporary_artifact_deleted
+                    ? "Deleted after local transfer"
+                    : `Scheduled to expire within ${result.privacy.automatic_expiry_hours} hours`}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              No receipt image, OCR text, items, totals, account data, or
+              extracted financial details were returned to the web app.
+              {result.needs_local_review
+                ? " Review and confirm the detailed expense on the household PC."
+                : ""}
+            </p>
+            <QualitySummary quality={result.quality} />
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {job.status === "queued"
+              ? "The private temporary upload is waiting for your local finance agent."
+              : job.status === "running"
+                ? "Your PC is downloading and processing the receipt locally."
+                : job.status === "failed"
+                  ? "The temporary transfer failed before a local result was saved."
+                  : "No local receipt status is available."}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function HouseholdFinancePage() {
   const { supabase, spaces } = await requireHouseholdAccess();
   const spaceIds = spaces.map((space) => space.id);
@@ -695,7 +836,7 @@ export default async function HouseholdFinancePage() {
     <main className="space-y-6">
       <PageHeader
         title="Household Finance & Planner"
-        description="Ask the private finance workforce on your PC for an aggregate report or a checked monthly plan."
+        description="Upload receipts from the app, then let the private finance workforce on your PC process them, build reports, and prepare checked plans."
         actions={
           <Button asChild variant="ghost">
             <Link href="/household">Back to Household</Link>
@@ -706,9 +847,11 @@ export default async function HouseholdFinancePage() {
       <Alert variant="info">
         <AlertTitle>Your financial ledger stays local</AlertTitle>
         <AlertDescription>
-          The web app stores only temporary requests, aggregate results, and
-          your review. Statements, transactions, account details, receipts,
-          OCR data, and local agent reasoning remain on your PC.
+          Receipt files use a private temporary Supabase inbox only to reach
+          your PC. The local agent saves and processes them locally, deletes
+          the cloud copy after transfer, and returns only operational status.
+          Statements, transactions, account details, OCR data, extracted
+          receipt details, and local agent reasoning remain on your PC.
         </AlertDescription>
       </Alert>
 
@@ -718,146 +861,162 @@ export default async function HouseholdFinancePage() {
           description="Create the Household space before requesting local finance work."
         />
       ) : (
-        <section className="grid gap-4 xl:grid-cols-2">
+        <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Monthly Analysis</CardTitle>
+              <CardTitle>Upload Receipt To Local AI</CardTitle>
               <CardDescription>
-                Income, spending, cash flow, categories, and unmatched records.
+                Use this from a phone or computer. The original file is
+                temporary in Supabase and permanent only on your household PC.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form action={requestMonthlyReport} className="grid gap-5">
-                <HouseholdSpaceSelect
-                  spaces={spaces}
-                  id="report-household-space"
-                />
-                <FormField id="report-month" label="Report month" required>
-                  <Input
-                    id="report-month"
-                    name="month"
-                    type="month"
-                    defaultValue={defaultMonth()}
-                    required
-                  />
-                </FormField>
-                <Button type="submit">Request Report</Button>
-              </form>
+              <ReceiptUploadForm spaces={spaces} />
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Monthly Plan Proposal</CardTitle>
-              <CardDescription>
-                Your PC combines these assumptions with the local opening
-                balance, checks the arithmetic, and returns guidance.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action={requestMonthlyPlan} className="grid gap-5">
-                <HouseholdSpaceSelect
-                  spaces={spaces}
-                  id="plan-household-space"
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField id="plan-month" label="Plan month" required>
+          <section className="grid gap-4 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Analysis</CardTitle>
+                <CardDescription>
+                  Income, spending, cash flow, categories, and unmatched
+                  records.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action={requestMonthlyReport} className="grid gap-5">
+                  <HouseholdSpaceSelect
+                    spaces={spaces}
+                    id="report-household-space"
+                  />
+                  <FormField id="report-month" label="Report month" required>
                     <Input
-                      id="plan-month"
+                      id="report-month"
                       name="month"
                       type="month"
                       defaultValue={defaultMonth()}
                       required
                     />
                   </FormField>
-                  <FormField id="plan-name" label="Plan name" required>
-                    <Input
-                      id="plan-name"
-                      name="name"
-                      placeholder="Normal household month"
-                      maxLength={120}
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    id="expected-income"
-                    label="Expected income (EUR)"
-                    required
-                  >
-                    <Input
-                      id="expected-income"
-                      name="expected_income"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue="0.00"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    id="essential-budget"
-                    label="Essential limit (EUR)"
-                    required
-                  >
-                    <Input
-                      id="essential-budget"
-                      name="essential_budget"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue="0.00"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    id="flexible-budget"
-                    label="Flexible limit (EUR)"
-                    required
-                  >
-                    <Input
-                      id="flexible-budget"
-                      name="flexible_budget"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue="0.00"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    id="savings-target"
-                    label="Savings target (EUR)"
-                    required
-                  >
-                    <Input
-                      id="savings-target"
-                      name="savings_target"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue="0.00"
-                      required
-                    />
-                  </FormField>
-                </div>
-                <FormField
-                  id="plan-rationale"
-                  label="Assumptions"
-                  hint="Avoid account numbers or transaction details. Maximum 500 characters."
-                >
-                  <Textarea
-                    id="plan-rationale"
-                    name="rationale"
-                    rows={3}
-                    maxLength={500}
-                    placeholder="What should this proposal protect or prepare for?"
+                  <Button type="submit">Request Report</Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Plan Proposal</CardTitle>
+                <CardDescription>
+                  Your PC combines these assumptions with the local opening
+                  balance, checks the arithmetic, and returns guidance.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action={requestMonthlyPlan} className="grid gap-5">
+                  <HouseholdSpaceSelect
+                    spaces={spaces}
+                    id="plan-household-space"
                   />
-                </FormField>
-                <Button type="submit">Request Plan</Button>
-              </form>
-            </CardContent>
-          </Card>
-        </section>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField id="plan-month" label="Plan month" required>
+                      <Input
+                        id="plan-month"
+                        name="month"
+                        type="month"
+                        defaultValue={defaultMonth()}
+                        required
+                      />
+                    </FormField>
+                    <FormField id="plan-name" label="Plan name" required>
+                      <Input
+                        id="plan-name"
+                        name="name"
+                        placeholder="Normal household month"
+                        maxLength={120}
+                        required
+                      />
+                    </FormField>
+                    <FormField
+                      id="expected-income"
+                      label="Expected income (EUR)"
+                      required
+                    >
+                      <Input
+                        id="expected-income"
+                        name="expected_income"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue="0.00"
+                        required
+                      />
+                    </FormField>
+                    <FormField
+                      id="essential-budget"
+                      label="Essential limit (EUR)"
+                      required
+                    >
+                      <Input
+                        id="essential-budget"
+                        name="essential_budget"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue="0.00"
+                        required
+                      />
+                    </FormField>
+                    <FormField
+                      id="flexible-budget"
+                      label="Flexible limit (EUR)"
+                      required
+                    >
+                      <Input
+                        id="flexible-budget"
+                        name="flexible_budget"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue="0.00"
+                        required
+                      />
+                    </FormField>
+                    <FormField
+                      id="savings-target"
+                      label="Savings target (EUR)"
+                      required
+                    >
+                      <Input
+                        id="savings-target"
+                        name="savings_target"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue="0.00"
+                        required
+                      />
+                    </FormField>
+                  </div>
+                  <FormField
+                    id="plan-rationale"
+                    label="Assumptions"
+                    hint="Avoid account numbers or transaction details. Maximum 500 characters."
+                  >
+                    <Textarea
+                      id="plan-rationale"
+                      name="rationale"
+                      rows={3}
+                      maxLength={500}
+                      placeholder="What should this proposal protect or prepare for?"
+                    />
+                  </FormField>
+                  <Button type="submit">Request Plan</Button>
+                </form>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
       )}
 
       <section className="space-y-4">
@@ -866,25 +1025,28 @@ export default async function HouseholdFinancePage() {
             Recent Finance Work
           </h2>
           <p className="text-sm text-muted-foreground">
-            Agents can validate and retry their output, but only a household
-            member can approve it.
+            Receipt uploads return transport status only. Reports and plans
+            still require household approval.
           </p>
         </div>
 
         {jobs.length === 0 ? (
           <EmptyState
             title="No finance work requested"
-            description="Request a report or plan above to send the first job to your local PC."
+            description="Upload a receipt or request a report or plan to send the first job to your local PC."
           />
         ) : (
           <div className="grid gap-4">
-            {jobs.map((job) =>
-              job.job_type === FINANCE_PLAN_CAPABILITY ? (
+            {jobs.map((job) => {
+              if (job.job_type === FINANCE_RECEIPT_CAPABILITY) {
+                return <ReceiptJobCard key={job.id} job={job} />;
+              }
+              return job.job_type === FINANCE_PLAN_CAPABILITY ? (
                 <PlanJobCard key={job.id} job={job} />
               ) : (
                 <ReportJobCard key={job.id} job={job} />
-              )
-            )}
+              );
+            })}
           </div>
         )}
       </section>

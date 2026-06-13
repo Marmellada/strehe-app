@@ -50,7 +50,7 @@ test.describe("STREHË private module foundations", () => {
     ).toBeVisible();
   });
 
-  test("agent workspace loads without provisioned agents", async ({ page }) => {
+  test("agent workspace shows the bounded local workforce", async ({ page }) => {
     await page.goto("/agents");
 
     await expect(
@@ -61,6 +61,112 @@ test.describe("STREHË private module foundations", () => {
     ).toBeVisible();
     await expect(page.getByText("Agent Registry", { exact: true })).toBeVisible();
     await expect(page.getByText("Recent Jobs", { exact: true })).toBeVisible();
+    await expect(
+      page
+        .getByRole("main")
+        .getByText("Inspection Comparison", { exact: true })
+    ).toBeVisible();
+  });
+
+  test("inspection comparison explains the local privacy boundary", async ({
+    page,
+  }) => {
+    await page.goto("/inspection-lab/bathroom-base-shot");
+
+    await expect(
+      page.getByRole("heading", {
+        name: "Inspection Comparison",
+        exact: true,
+      })
+    ).toBeVisible();
+    await expect(
+      page.getByText("Local vision with human approval", { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText("Add Room Photo", { exact: true })
+    ).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Menu" })).toBeVisible();
+    await page.getByRole("button", { name: "Menu" }).click();
+    await expect(
+      page.getByRole("link", { name: "Inspection Comparison" })
+    ).toBeVisible();
+  });
+
+  test("household receipt can be uploaded for local processing", async ({
+    page,
+  }) => {
+    let jobId = "";
+    const artifactPaths: string[] = [];
+
+    try {
+      await page.goto("/household/finance");
+      await expect(
+        page.getByRole("button", { name: "Upload Receipt To Local AI" })
+      ).toBeVisible();
+
+      const tinyPng = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64"
+      );
+      await page.getByLabel("Receipt photo or PDF").setInputFiles({
+        name: "playwright-receipt.png",
+        mimeType: "image/png",
+        buffer: tinyPng,
+      });
+      await page
+        .getByLabel("Optional note")
+        .fill("Temporary module smoke-test receipt.");
+      await page
+        .getByRole("button", { name: "Upload Receipt To Local AI" })
+        .click();
+      await page.waitForURL(/\/household\/finance\?receipt=/);
+      jobId = new URL(page.url()).searchParams.get("receipt") || "";
+
+      await expect(
+        page.getByText("playwright-receipt.png", { exact: true })
+      ).toBeVisible();
+
+      const { supabaseUrl, serviceRoleKey } = getServiceConfig();
+      const admin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+      const { data: job, error: jobError } = await admin
+        .from("agent_jobs")
+        .select("job_type, requires_review, payload")
+        .eq("id", jobId)
+        .single();
+      expect(jobError).toBeNull();
+      expect(job?.job_type).toBe("finance.receipt.ingest");
+      expect(job?.requires_review).toBe(false);
+      expect(job?.payload?.temporary_upload).toBe(true);
+    } finally {
+      if (jobId) {
+        const { supabaseUrl, serviceRoleKey } = getServiceConfig();
+        const admin = createClient(supabaseUrl, serviceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        });
+        const { data: artifacts } = await admin
+          .from("agent_artifacts")
+          .select("storage_path")
+          .eq("job_id", jobId);
+        artifactPaths.push(
+          ...(artifacts ?? []).map((artifact) => artifact.storage_path)
+        );
+        if (artifactPaths.length > 0) {
+          await admin.storage.from("agent-artifacts").remove(artifactPaths);
+        }
+        await admin.from("agent_jobs").delete().eq("id", jobId);
+      }
+    }
   });
 
   test("household finance report can be requested", async ({ page }) => {

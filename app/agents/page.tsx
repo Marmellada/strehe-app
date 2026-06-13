@@ -43,7 +43,7 @@ const workforce = [
     name: "Expense Intake",
     status: "active",
     description:
-      "Runs locally with OCR, deterministic extraction, and the local Ollama model. Raw receipts never enter the web app.",
+      "Pulls expiring receipt uploads from the private agent inbox, processes them locally with OCR and Ollama, then deletes the temporary cloud copy.",
   },
   {
     name: "Finance Analyst",
@@ -59,9 +59,9 @@ const workforce = [
   },
   {
     name: "Inspection Comparison",
-    status: "paused",
+    status: "active",
     description:
-      "Kept internal until local vision and temporary photo transport are verified. The old external-AI experiment is not activated.",
+      "Compares expiring room-photo copies on the local GPU, checks its output up to three times, and waits for operational review.",
   },
 ] as const;
 

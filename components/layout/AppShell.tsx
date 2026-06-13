@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
 
 type AppShellProps = {
@@ -21,6 +22,7 @@ type AppShellProps = {
 
 export function AppShell({ children, role, current }: AppShellProps) {
   const pathname = usePathname();
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const isAuthRoute = pathname?.startsWith("/auth");
   const isAdmin = role === "admin";
   const isOffice = role === "office";
@@ -38,14 +40,28 @@ export function AppShell({ children, role, current }: AppShellProps) {
         { href: "/clients", label: "Clients" },
         { href: "/leads", label: "Leads" },
         { href: "/keys", label: "Keys" },
+        {
+          href: "/inspection-lab/bathroom-base-shot",
+          label: "Inspection Comparison",
+        },
       ]
     : isField
       ? [
           { href: "/tasks", label: "Tasks" },
           { href: "/keys", label: "Keys" },
+          {
+            href: "/inspection-lab/bathroom-base-shot",
+            label: "Inspection Comparison",
+          },
         ]
       : isContractor
-        ? [{ href: "/tasks", label: "Tasks" }]
+        ? [
+            { href: "/tasks", label: "Tasks" },
+            {
+              href: "/inspection-lab/bathroom-base-shot",
+              label: "Inspection Comparison",
+            },
+          ]
         : [];
 
   const businessLinks = canUseOfficeSurface
@@ -75,13 +91,34 @@ export function AppShell({ children, role, current }: AppShellProps) {
 
   return (
     <div className="layout">
-      <aside className="sidebar flex min-h-screen flex-col">
+      <aside
+        className={`sidebar flex min-h-screen flex-col ${
+          navigationOpen ? "sidebar-open" : ""
+        }`}
+      >
         <div className="brand">
           <div className="brand-mark" />
           <strong>{shellTitle}</strong>
+          <button
+            type="button"
+            className="sidebar-menu-toggle"
+            aria-expanded={navigationOpen}
+            aria-controls="private-app-navigation"
+            onClick={() => setNavigationOpen((isOpen) => !isOpen)}
+          >
+            {navigationOpen ? "Close" : "Menu"}
+          </button>
         </div>
 
-        <nav className="shell-nav">
+        <nav
+          id="private-app-navigation"
+          className="shell-nav"
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest("a")) {
+              setNavigationOpen(false);
+            }
+          }}
+        >
           <div className="shell-nav-group">
             <Link href={homeHref}>{isHousehold ? "Household" : "Dashboard"}</Link>
             {isHousehold ? (

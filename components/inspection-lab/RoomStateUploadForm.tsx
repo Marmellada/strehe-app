@@ -131,7 +131,7 @@ export function RoomStateUploadForm() {
 
       setMessage(
         slot === "baseline"
-          ? "Photo uploaded. Baseline processing has started and review will unlock when it is ready."
+          ? "Baseline photo uploaded. Labels were prepared from the selected photo type; visual analysis runs only when you send the case to the local agent."
           : "Photo uploaded successfully."
       );
       setFile(null);
@@ -254,7 +254,7 @@ export function RoomStateUploadForm() {
         id="photo"
         label="Room Photo"
         required
-        hint="You can upload from camera or gallery/memory. Direct upload goes to Supabase Storage."
+        hint="The case photo is kept in the private inspection record. Only an expiring copy is staged when you request local comparison."
       >
         <Input
           id="photo"

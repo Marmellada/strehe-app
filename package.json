@@ -26,7 +26,11 @@
     "test:smoke:headed": "playwright test tests/e2e/smoke.spec.ts --headed",
     "playwright:install": "playwright install chromium",
     "provision:finance-agent": "node scripts/provision-finance-agent.mjs",
-    "verify:finance-agent": "node scripts/verify-finance-agent-flow.mjs"
+    "verify:finance-agent": "node scripts/verify-finance-agent-flow.mjs",
+    "provision:inspection-agent": "node scripts/provision-inspection-agent.mjs",
+    "inspection-agent": "node scripts/local-inspection-agent.mjs",
+    "inspection-agent:once": "node scripts/local-inspection-agent.mjs --once",
+    "verify:inspection-agent": "node scripts/verify-inspection-agent-flow.mjs"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.1.1",

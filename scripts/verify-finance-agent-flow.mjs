@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 function readEnv(filePath) {
   const values = new Map();
@@ -55,6 +56,8 @@ if (agentError) throw agentError;
 const python = path.join(localRoot, ".venv", "Scripts", "python.exe");
 const jobIds = [];
 const localPlanIds = [];
+const localReceiptInputIds = [];
+const stagedArtifactPaths = [];
 try {
   const jobsToCreate = [
     {
@@ -76,6 +79,18 @@ try {
         verification: true,
       },
     },
+    {
+      job_type: "finance.receipt.ingest",
+      required_capability: "finance.receipt.ingest",
+      payload: {
+        schema_version: 1,
+        original_filename: "verification-receipt.png",
+        mime_type: "image/png",
+        source_note: "Temporary end-to-end verification receipt.",
+        temporary_upload: true,
+        verification: true,
+      },
+    },
   ];
 
   const { data: jobs, error: jobError } = await admin
@@ -89,13 +104,64 @@ try {
         assigned_agent_id: agent.id,
         status: "queued",
         priority: index + 1,
-        requires_review: true,
+        requires_review: job.job_type !== "finance.receipt.ingest",
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       }))
     )
     .select("id, job_type");
   if (jobError) throw jobError;
   jobIds.push(...jobs.map((job) => job.id));
+
+  const receiptJob = jobs.find(
+    (job) => job.job_type === "finance.receipt.ingest"
+  );
+  if (!receiptJob) {
+    throw new Error("Receipt verification job was not created.");
+  }
+
+  const receiptSvg = `
+    <svg width="1200" height="1600" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="1600" fill="white"/>
+      <g fill="black" font-family="Arial, sans-serif" font-size="78">
+        <text x="100" y="180">ALBI MARKET</text>
+        <text x="100" y="340">KUPON FISKAL</text>
+        <text x="100" y="500">14-06-2026 12:30:00</text>
+        <text x="100" y="760">TOTALI NE EURO 12,20</text>
+        <text x="100" y="920">CASH 12,20</text>
+        <text x="100" y="1200">VERIFICATION ONLY</text>
+      </g>
+    </svg>
+  `;
+  const receiptBuffer = await sharp(Buffer.from(receiptSvg))
+    .png()
+    .toBuffer();
+  const receiptStoragePath =
+    `${agent.id}/${receiptJob.id}/input/receipt.png`;
+  const { error: receiptUploadError } = await admin.storage
+    .from("agent-artifacts")
+    .upload(receiptStoragePath, receiptBuffer, {
+      contentType: "image/png",
+      upsert: false,
+    });
+  if (receiptUploadError) throw receiptUploadError;
+  stagedArtifactPaths.push(receiptStoragePath);
+
+  const { error: receiptArtifactError } = await admin
+    .from("agent_artifacts")
+    .insert({
+      job_id: receiptJob.id,
+      artifact_kind: "input",
+      storage_bucket: "agent-artifacts",
+      storage_path: receiptStoragePath,
+      mime_type: "image/png",
+      byte_size: receiptBuffer.byteLength,
+      metadata: {
+        original_filename: "verification-receipt.png",
+        temporary_transport: true,
+      },
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
+  if (receiptArtifactError) throw receiptArtifactError;
 
   for (const job of jobsToCreate) {
     const worker = spawnSync(python, ["-m", "src.main", "--cloud-once"], {
@@ -116,12 +182,39 @@ try {
   if (completedError) throw completedError;
 
   for (const completed of completedJobs) {
-    if (completed.status !== "awaiting_review") {
+    const expectedStatus =
+      completed.job_type === "finance.receipt.ingest"
+        ? "completed"
+        : "awaiting_review";
+    if (completed.status !== expectedStatus) {
       throw new Error(
         `Unexpected ${completed.job_type} status: ${completed.status}`
       );
     }
     const result = completed.result || {};
+    if (completed.job_type === "finance.receipt.ingest") {
+      const serialized = JSON.stringify(result).toLowerCase();
+      if (
+        result.receipt_type !== "local_expense_ingest" ||
+        result.processing_status !== "saved_for_review" ||
+        result.local_expense_created !== true ||
+        result.privacy?.temporary_transport_only !== true ||
+        result.privacy?.temporary_artifact_deleted !== true ||
+        result.privacy?.raw_receipt_returned !== false ||
+        result.privacy?.ocr_text_returned !== false ||
+        result.privacy?.financial_details_returned !== false ||
+        result.quality?.status !== "passed" ||
+        typeof result.local_input_id !== "string" ||
+        serialized.includes("albi shopping") ||
+        serialized.includes("12.2") ||
+        serialized.includes("structured_extraction")
+      ) {
+        throw new Error("Receipt privacy or local-save verification failed.");
+      }
+      localReceiptInputIds.push(result.local_input_id);
+      continue;
+    }
+
     if (
       result.account_balances ||
       result.transactions ||
@@ -195,13 +288,21 @@ try {
   }
 
   console.log(
-    "Real queue verification passed for report and plan: queued -> local -> awaiting_review."
+    "Real queue verification passed for receipt, report, and plan."
   );
   console.log(
     "Verified bounded quality checks and aggregate-only results with no raw finance records."
   );
+  console.log(
+    "Verified temporary receipt upload -> local OCR/Ollama -> local draft -> cloud artifact deletion."
+  );
   console.log("Verified approved plan review synchronized back to the local PC.");
 } finally {
+  if (stagedArtifactPaths.length > 0) {
+    await admin.storage
+      .from("agent-artifacts")
+      .remove(stagedArtifactPaths);
+  }
   if (jobIds.length > 0) {
     await admin.from("agent_jobs").delete().in("id", jobIds);
   }
@@ -232,6 +333,40 @@ try {
     if (cleanup.status !== 0) {
       console.warn(
         cleanup.stderr || cleanup.stdout || "Local verification plan cleanup failed."
+      );
+    }
+  }
+  if (localReceiptInputIds.length > 0) {
+    const cleanup = spawnSync(
+      python,
+      [
+        "-c",
+        [
+          "import shutil",
+          "import sys",
+          "from src.config import settings",
+          "from src.db import ExpenseDatabase",
+          "database = ExpenseDatabase(settings.database_path)",
+          "database.initialize()",
+          "with database.connect() as connection:",
+          "    for input_id in sys.argv[1:]:",
+          '        connection.execute("DELETE FROM private_expenses WHERE input_id = ?", (input_id,))',
+          '        connection.execute("DELETE FROM agent_work_items WHERE source_id = ?", (input_id,))',
+          '        connection.execute("DELETE FROM private_expense_inputs WHERE id = ?", (input_id,))',
+          "        shutil.rmtree(settings.files_dir / input_id, ignore_errors=True)",
+        ].join("\n"),
+        ...localReceiptInputIds,
+      ],
+      {
+        cwd: localRoot,
+        encoding: "utf8",
+      }
+    );
+    if (cleanup.status !== 0) {
+      console.warn(
+        cleanup.stderr ||
+          cleanup.stdout ||
+          "Local verification receipt cleanup failed."
       );
     }
   }

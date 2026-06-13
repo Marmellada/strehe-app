@@ -12,10 +12,11 @@ import {
   type InspectionRoomType,
   type InspectionCaptureSlot,
 } from "@/lib/inspection-lab/bathroom-base-shot";
-import { runInspectionCase } from "@/lib/inspection-lab/bathroom-base-shot-runner";
-import engine from "@/lib/inspection-lab/bathroom-base-shot-engine-wrapper";
 
-const { detectRoomObjectsInPhotoWithAi } = engine;
+const INSPECTION_AGENT_KEY = "inspection.local";
+const INSPECTION_CAPABILITY = "inspection.photo.compare";
+const AGENT_ARTIFACT_BUCKET = "agent-artifacts";
+const TEMPORARY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 function normalizeRoomType(value: string): InspectionRoomType {
   return value === "living_room" ? "living_room" : "bathroom";
@@ -185,204 +186,62 @@ async function seedBaselineTrackedObjects(options: {
   userId: string;
 }) {
   const supabase = getAdminClient();
-  const aiEnabled = Boolean(process.env.OPENAI_API_KEY);
   const { direct, wideFallback } = getDefaultTrackedObjectSeeds(
     options.roomType,
     options.photoType
   );
   const directSeedLabels = new Set<string>(direct);
   const wideFallbackLabels = new Set<string>(wideFallback);
-  const aiSeededObjects = new Map<
-    string,
-    {
-      visibility: string;
-      confidence: number;
-      reason: string;
-      centerX: number | null;
-      centerY: number | null;
-    }
-  >();
-  let rawAiSeedResult: {
-    attempted: boolean;
-    model: string | null;
-    summary: string;
-    objectChecks: unknown[];
-    trackedObjects: unknown[];
-    error?: string | null;
-    savedCandidates?: unknown[];
-  } = {
-    attempted: aiEnabled,
-    model: aiEnabled
-      ? process.env.OPENAI_INSPECTION_BASELINE_MODEL ||
-        process.env.OPENAI_INSPECTION_MODEL ||
-        "gpt-4.1"
-      : null,
-    summary: aiEnabled
-      ? "AI baseline detection did not return any saved candidates."
-      : "AI baseline detection is disabled.",
-    objectChecks: [],
-    trackedObjects: [],
-    error: null,
-  };
-  let aiSeedFailed = false;
-
   const seededNotes = new Map<string, string>();
 
   for (const label of directSeedLabels) {
     seededNotes.set(label, "Seeded directly from the baseline photo type.");
   }
 
-  try {
-    const { data: imageBlob, error: imageError } = await supabase.storage
-      .from(INSPECTION_STORAGE_BUCKET)
-      .download(options.storagePath);
-
-    if (!imageError && imageBlob) {
-      const aiResult = await detectRoomObjectsInPhotoWithAi(
-        options.roomType,
-        Buffer.from(await imageBlob.arrayBuffer())
-      );
-      const typedAiResult = aiResult as
-        | {
-            model?: string;
-            summary?: string;
-            objectChecks?: unknown[];
-            trackedObjects?: unknown[];
-          }
-        | null;
-
-      const aiTrackedObjects = Array.isArray(
-        typedAiResult?.trackedObjects
-      )
-        ? ((typedAiResult as {
-            trackedObjects?: Array<{
-              objectName?: string;
-              visibility?: string;
-              confidence?: number;
-              centerX?: number | null;
-              centerY?: number | null;
-              reason?: string;
-            }>;
-          }).trackedObjects || [])
-        : [];
-
-      rawAiSeedResult = {
-        attempted: true,
-        model: typeof typedAiResult?.model === "string" ? typedAiResult.model : null,
-        summary:
-          typeof typedAiResult?.summary === "string"
-            ? typedAiResult.summary
-            : aiTrackedObjects.length
-              ? "AI baseline detection returned one or more tracked objects."
-              : "AI baseline detection returned no tracked objects.",
-        objectChecks: Array.isArray(typedAiResult?.objectChecks)
-          ? typedAiResult.objectChecks
-          : [],
-        trackedObjects: aiTrackedObjects,
-        error: null,
-      };
-
-      console.info("[INSPECTION_LAB_BASELINE_AI_SEED_RESULT]", {
-        caseRowId: options.caseRowId,
-        roomType: options.roomType,
-        storagePath: options.storagePath,
-        photoType: options.photoType,
-        detected: aiTrackedObjects.map((item) => ({
-          objectName: item.objectName,
-          visibility: item.visibility,
-          confidence: item.confidence,
-          centerX: item.centerX,
-          centerY: item.centerY,
-        })),
-      });
-
-      for (const item of aiTrackedObjects) {
-        if (
-          item?.objectName &&
-          ["visible", "uncertain"].includes(item.visibility || "") &&
-          (item.confidence ?? 0) >= 0.25
-        ) {
-          aiSeededObjects.set(item.objectName, {
-            visibility: item.visibility || "uncertain",
-            confidence: item.confidence ?? 0,
-            reason: item.reason || "",
-            centerX:
-              typeof item.centerX === "number" && item.centerX >= 0 && item.centerX <= 1
-                ? item.centerX
-                : null,
-            centerY:
-              typeof item.centerY === "number" && item.centerY >= 0 && item.centerY <= 1
-                ? item.centerY
-                : null,
-          });
-          seededNotes.set(
-            item.objectName,
-            `AI seeded from baseline upload (${item.visibility || "uncertain"}, confidence ${(item.confidence ?? 0).toFixed(2)}).`
-          );
-        }
-      }
-    }
-  } catch (error) {
-    aiSeedFailed = true;
-    rawAiSeedResult = {
-      ...rawAiSeedResult,
-      summary:
-        error instanceof Error
-          ? error.message
-          : "Unknown baseline AI seed failure.",
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unknown baseline AI seed failure.",
-      objectChecks: [],
-      trackedObjects: [],
-    };
-    console.error("[INSPECTION_LAB_BASELINE_AI_SEED_WARNING]", {
-      caseRowId: options.caseRowId,
-      storagePath: options.storagePath,
-      message: error instanceof Error ? error.message : "Unknown baseline AI seed failure.",
-    });
-  }
-
-  const fallbackLabelsToUse =
-    !aiEnabled && aiSeededObjects.size === 0 ? wideFallbackLabels : new Set<string>();
-  for (const label of fallbackLabelsToUse) {
-    seededNotes.set(label, "Suggested from a wide baseline shot because AI did not localize a stronger candidate.");
+  for (const label of wideFallbackLabels) {
+    seededNotes.set(
+      label,
+      "Suggested from the selected wide baseline photo type. Visual analysis runs only on the local inspection agent."
+    );
   }
 
   const finalLabels = new Set<string>([
     ...directSeedLabels,
-    ...fallbackLabelsToUse,
-    ...aiSeededObjects.keys(),
+    ...wideFallbackLabels,
   ]);
+  const seedDebugResult = {
+    attempted: false,
+    model: null,
+    summary:
+      "No cloud vision processing was used. Baseline labels were derived from the operator-selected photo type.",
+    objectChecks: [],
+    trackedObjects: [],
+  };
 
   if (finalLabels.size === 0) {
     return {
       seededCandidateCount: 0,
-      seedModel: rawAiSeedResult.model,
-      seedDebugResult: rawAiSeedResult,
-      seedFailed: aiSeedFailed,
+      seedModel: null,
+      seedDebugResult,
+      seedFailed: false,
     };
   }
 
   const rows = [...finalLabels].map((label) => {
-    const aiSeed = aiSeededObjects.get(label);
-    const isAiSeeded = Boolean(aiSeed);
-
     return {
       case_id: options.caseRowId,
       object_key: `${normalizeInspectionObjectKey(label)}-${options.photoId}`,
       label,
       category: label,
-      source: isAiSeeded ? "engine" : "auto_detected",
+      source: "auto_detected",
       importance: "high",
       is_active: true,
       baseline_photo_id: options.photoId,
       baseline_order_index: options.orderIndex,
       baseline_photo_type: options.photoType,
       baseline_storage_path: options.storagePath,
-      marker_x: aiSeed?.centerX ?? null,
-      marker_y: aiSeed?.centerY ?? null,
+      marker_x: null,
+      marker_y: null,
       review_note:
         seededNotes.get(label) || "Seeded from the baseline upload for photo review.",
       created_by_user_id: options.userId,
@@ -404,17 +263,17 @@ async function seedBaselineTrackedObjects(options: {
 
   return {
     seededCandidateCount: finalLabels.size,
-    seedModel: rawAiSeedResult.model,
+    seedModel: null,
     seedDebugResult: {
-      ...rawAiSeedResult,
+      ...seedDebugResult,
       savedCandidates: rows.map((row) => ({
         objectName: row.label,
         source: row.source,
         centerX: row.marker_x,
         centerY: row.marker_y,
-        })),
+      })),
     },
-    seedFailed: aiSeedFailed,
+    seedFailed: false,
   };
 }
 
@@ -574,7 +433,7 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
           seededCandidateCount: 0,
           seedModel: null,
           seedDebugResult: {
-            attempted: Boolean(process.env.OPENAI_API_KEY),
+            attempted: false,
             model: null,
             summary:
               seedError instanceof Error
@@ -674,8 +533,16 @@ export async function updateInspectionPhotoMetadataAction(
 }
 
 export async function runInspectionCaseAction(formData: FormData): Promise<ActionResult> {
+  const stagedPaths: string[] = [];
+  let jobId = "";
+
   try {
-    await requireRole(["admin", "office", "field", "contractor"]);
+    const { appUser } = await requireRole([
+      "admin",
+      "office",
+      "field",
+      "contractor",
+    ]);
     const supabase = getAdminClient();
 
     const rawCaseId = String(formData.get("case_id") || "").trim();
@@ -720,71 +587,161 @@ export async function runInspectionCaseAction(formData: FormData): Promise<Actio
       return { ok: false, error: "Both baseline and current capture sets are required." };
     }
 
-    const downloadAll = async (rowsToDownload: InspectionLabCasePhotoRow[]) => {
-      return Promise.all(
-        rowsToDownload.map(async (photo) => {
-          const { data: photoBlob, error: photoError } = await supabase.storage
-            .from(INSPECTION_STORAGE_BUCKET)
-            .download(photo.storage_path);
+    const { data: agent, error: agentError } = await supabase
+      .from("agent_principals")
+      .select("id, is_active")
+      .eq("agent_key", INSPECTION_AGENT_KEY)
+      .maybeSingle();
+    if (agentError || !agent?.is_active) {
+      return {
+        ok: false,
+        error:
+          "The local inspection agent is not provisioned or is inactive.",
+      };
+    }
 
-          if (photoError || !photoBlob) {
-            throw new Error(
-              `Failed to download photo: ${photoError?.message || photo.storage_path}`
-            );
-          }
+    const { data: capability, error: capabilityError } = await supabase
+      .from("agent_capabilities")
+      .select("id")
+      .eq("agent_id", agent.id)
+      .eq("capability_key", INSPECTION_CAPABILITY)
+      .maybeSingle();
+    if (capabilityError || !capability) {
+      return {
+        ok: false,
+        error: "The inspection agent does not have photo comparison permission.",
+      };
+    }
 
-          return {
-            id: photo.id,
-            captureSlot: photo.capture_slot,
-            orderIndex: photo.order_index,
-            photoType: photo.photo_type,
-            storagePath: photo.storage_path,
-            buffer: Buffer.from(await photoBlob.arrayBuffer()),
-          };
-        })
+    const expiresAt = new Date(Date.now() + TEMPORARY_RETENTION_MS).toISOString();
+    const unavailableUntil = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const { data: job, error: jobError } = await supabase
+      .from("agent_jobs")
+      .insert({
+        job_type: INSPECTION_CAPABILITY,
+        required_capability: INSPECTION_CAPABILITY,
+        workspace_type: "inspection",
+        subject_type: "inspection_lab_case",
+        subject_id: row.id,
+        requested_by_user_id: appUser.id,
+        assigned_agent_id: agent.id,
+        status: "queued",
+        payload: {
+          schema_version: 1,
+          case_id: caseId,
+          room_type: normalizeRoomType(String(row.room_type || "bathroom")),
+          baseline_count: baselinePhotoRows.length,
+          current_count: currentPhotoRows.length,
+          temporary_inputs: true,
+        },
+        requires_review: true,
+        available_at: unavailableUntil,
+        expires_at: expiresAt,
+        max_attempts: 3,
+      })
+      .select("id")
+      .single();
+    if (jobError || !job) {
+      throw new Error(
+        `Failed to queue the local inspection job: ${
+          jobError?.message || "unknown error"
+        }`
       );
-    };
+    }
+    jobId = job.id;
 
-    const [baselinePhotos, currentPhotos] = await Promise.all([
-      downloadAll(baselinePhotoRows),
-      downloadAll(currentPhotoRows),
-    ]);
+    const allPhotos = [...baselinePhotoRows, ...currentPhotoRows];
+    for (const photo of allPhotos) {
+      const { data: photoBlob, error: photoError } = await supabase.storage
+        .from(INSPECTION_STORAGE_BUCKET)
+        .download(photo.storage_path);
+      if (photoError || !photoBlob) {
+        throw new Error(
+          `Failed to stage inspection photo: ${
+            photoError?.message || photo.storage_path
+          }`
+        );
+      }
 
-    const roomType = normalizeRoomType(String(row.room_type || "bathroom"));
+      const extensionMatch = photo.storage_path.match(/\.[a-z0-9]+$/i);
+      const extension = extensionMatch?.[0]?.toLowerCase() || ".jpg";
+      const safeSlot =
+        photo.capture_slot === "current" ? "current" : "baseline";
+      const orderIndex = photo.order_index ?? 0;
+      const storagePath = `${agent.id}/${job.id}/input/${safeSlot}-${String(
+        orderIndex
+      ).padStart(3, "0")}-${photo.id}${extension}`;
+      const photoBuffer = Buffer.from(await photoBlob.arrayBuffer());
+      const mimeType = photoBlob.type || "image/jpeg";
 
-    const result = await runInspectionCase(
-      caseId,
-      roomType,
-      baselinePhotos,
-      currentPhotos
-    );
+      const { error: uploadError } = await supabase.storage
+        .from(AGENT_ARTIFACT_BUCKET)
+        .upload(storagePath, photoBuffer, {
+          contentType: mimeType,
+          upsert: false,
+        });
+      if (uploadError) {
+        throw new Error(
+          `Failed to create a temporary agent input: ${uploadError.message}`
+        );
+      }
+      stagedPaths.push(storagePath);
 
-    const comparisonRecord = result.comparison as Record<string, unknown>;
-    const reviewRequired = Boolean(comparisonRecord.reviewRequired);
+      const { error: artifactError } = await supabase
+        .from("agent_artifacts")
+        .insert({
+          job_id: job.id,
+          artifact_kind: "input",
+          storage_bucket: AGENT_ARTIFACT_BUCKET,
+          storage_path: storagePath,
+          mime_type: mimeType,
+          byte_size: photoBuffer.byteLength,
+          metadata: {
+            capture_slot: safeSlot,
+            order_index: orderIndex,
+            photo_type: photo.photo_type,
+            source_photo_id: photo.id,
+          },
+          expires_at: expiresAt,
+        });
+      if (artifactError) {
+        throw new Error(
+          `Failed to register a temporary agent input: ${artifactError.message}`
+        );
+      }
+    }
 
-    const { error: updateError } = await supabase
+    const { error: releaseError } = await supabase
+      .from("agent_jobs")
+      .update({ available_at: new Date().toISOString() })
+      .eq("id", job.id);
+    if (releaseError) {
+      throw new Error(`Failed to release the local job: ${releaseError.message}`);
+    }
+
+    await supabase
       .from("inspection_lab_cases")
       .update({
-        report_status: reviewRequired ? "review_required" : "ready",
-        comparison_summary: result.comparison,
-        report_markdown: result.reportMarkdown,
-        report_generated_at: new Date().toISOString(),
+        report_status: "draft",
         updated_at: new Date().toISOString(),
       })
       .eq("id", row.id);
 
-    if (updateError) {
-      return {
-        ok: false,
-        error: `Failed to save analysis result: ${updateError.message}`,
-      };
+    revalidatePath("/inspection-lab/bathroom-base-shot");
+    return { ok: true, caseRowId: row.id };
+  } catch (error) {
+    const supabase = getAdminClient();
+    if (stagedPaths.length > 0) {
+      await supabase.storage
+        .from(AGENT_ARTIFACT_BUCKET)
+        .remove(stagedPaths);
+    }
+    if (jobId) {
+      await supabase.from("agent_jobs").delete().eq("id", jobId);
     }
 
-    revalidatePath("/inspection-lab/bathroom-base-shot");
-    return { ok: true };
-  } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unexpected engine run failure.";
+      error instanceof Error ? error.message : "Unexpected inspection queue failure.";
 
     console.error("[INSPECTION_LAB_RUN_ERROR]", {
       message,
@@ -894,6 +851,114 @@ export async function saveInspectionTrackedObjectAction(
     return {
       ok: false,
       error: message,
+    };
+  }
+}
+
+export async function reviewInspectionJobAction(
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    const { appUser } = await requireRole(["admin", "office"]);
+    const supabase = getAdminClient();
+    const jobId = String(formData.get("job_id") || "").trim();
+    const decision = String(formData.get("decision") || "").trim();
+    const notes = String(formData.get("notes") || "").trim();
+
+    if (!jobId || !["approved", "rejected"].includes(decision)) {
+      return { ok: false, error: "A valid review decision is required." };
+    }
+
+    const { data: job, error: jobError } = await supabase
+      .from("agent_jobs")
+      .select("id, job_type, subject_id, status, result")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (
+      jobError ||
+      !job ||
+      job.job_type !== INSPECTION_CAPABILITY ||
+      job.status !== "awaiting_review" ||
+      !job.subject_id
+    ) {
+      return {
+        ok: false,
+        error: "This inspection result is not available for review.",
+      };
+    }
+
+    const reviewedAt = new Date().toISOString();
+    const { error: reviewError } = await supabase
+      .from("agent_jobs")
+      .update({
+        status: decision === "approved" ? "completed" : "failed",
+        review_decision: decision,
+        review_notes: notes.slice(0, 4000) || null,
+        reviewed_by_user_id: appUser.id,
+        reviewed_at: reviewedAt,
+        completed_at: reviewedAt,
+        updated_at: reviewedAt,
+      })
+      .eq("id", job.id)
+      .eq("status", "awaiting_review");
+    if (reviewError) {
+      return {
+        ok: false,
+        error: `Failed to review the inspection result: ${reviewError.message}`,
+      };
+    }
+
+    if (decision === "approved") {
+      const result =
+        job.result && typeof job.result === "object" && !Array.isArray(job.result)
+          ? (job.result as Record<string, unknown>)
+          : {};
+      const comparison =
+        result.comparison &&
+        typeof result.comparison === "object" &&
+        !Array.isArray(result.comparison)
+          ? result.comparison
+          : null;
+      const reportMarkdown =
+        typeof result.report_markdown === "string"
+          ? result.report_markdown
+          : null;
+
+      const { error: caseError } = await supabase
+        .from("inspection_lab_cases")
+        .update({
+          report_status: "ready",
+          comparison_summary: comparison,
+          report_markdown: reportMarkdown,
+          report_generated_at: reviewedAt,
+          updated_at: reviewedAt,
+        })
+        .eq("id", job.subject_id);
+      if (caseError) {
+        return {
+          ok: false,
+          error: `The review was saved, but the case report update failed: ${caseError.message}`,
+        };
+      }
+    } else {
+      await supabase
+        .from("inspection_lab_cases")
+        .update({
+          report_status: "draft",
+          updated_at: reviewedAt,
+        })
+        .eq("id", job.subject_id);
+    }
+
+    revalidatePath("/inspection-lab/bathroom-base-shot");
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unexpected inspection review failure.",
     };
   }
 }
