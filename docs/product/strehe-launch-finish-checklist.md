@@ -69,6 +69,8 @@ Last updated: 2026-06-19
 - Dedicated generator smoke passes: contract -> cron route -> generated task appears -> rerun avoids duplicates.
 - Dedicated editing smoke is scoped to records it creates itself so it avoids mutating shared appearance/system settings.
 - Dedicated public website smoke passes across Albanian, English, and German marketing routes.
+- Full launch-checklist smoke passed on 2026-06-19: 54 Playwright tests.
+- Production deploy verification passed on 2026-06-20 CEST for commit `ee75a34`.
 
 ### Launch Checklist Smoke Command
 
@@ -310,7 +312,7 @@ Launch business baseline: `docs/operations/launch-business-baseline.md`
 - [x] Test monthly service generation
 - [x] Test weekly service generation if used (not used for v1 monthly package cadence)
 - [x] Configure Vercel cron for task generation
-- [ ] Confirm cron secret is set in Vercel
+- [x] Confirm cron secret is set in Vercel
 - [x] Confirm generated task snapshots are correct
 
 ### Important
@@ -491,15 +493,15 @@ The inspection engine is interesting, but launch trust depends more on reliable 
 
 ## 18. Deployment And Vercel
 
-- [ ] Set all required env vars in Vercel
-- [ ] Confirm Supabase URL/key values in Vercel
-- [ ] Confirm service role key is server-only
+- [x] Set all required env vars in Vercel
+- [x] Confirm Supabase URL/key values in Vercel
+- [x] Confirm service role key is server-only
 - [x] Configure cron route for task generation
-- [ ] Check Vercel build
-- [ ] Check Vercel runtime logs
+- [x] Check Vercel build
+- [x] Check Vercel runtime logs
 - [ ] Check Vercel firewall/traffic after launch
-- [ ] Confirm production domain
-- [ ] Confirm public website routes work in production
+- [x] Confirm production domain
+- [x] Confirm public website routes work in production
 
 ---
 
@@ -507,23 +509,23 @@ The inspection engine is interesting, but launch trust depends more on reliable 
 
 Run this full flow before launch:
 
-- [ ] Create user
-- [ ] Create client
-- [ ] Create property
-- [ ] Add key
-- [ ] Create package
-- [ ] Create service
-- [ ] Create contract
-- [ ] Generate task from contract
-- [ ] Complete task report
-- [ ] Create invoice
-- [ ] Apply promotion code if relevant
-- [ ] Generate invoice PDF
-- [ ] Record payment
-- [ ] Confirm finance overview
-- [ ] Create and convert a lead
-- [ ] Submit public website contact form
-- [ ] Click WhatsApp CTA
+- [x] Create user
+- [x] Create client
+- [x] Create property
+- [x] Add key
+- [x] Create package
+- [x] Create service
+- [x] Create contract
+- [x] Generate task from contract
+- [x] Complete task report
+- [x] Create invoice
+- [x] Apply promotion code if relevant
+- [x] Generate invoice PDF
+- [x] Record payment
+- [x] Confirm finance overview
+- [x] Create and convert a lead
+- [x] Submit public website contact form
+- [x] Click WhatsApp CTA
 
 ---
 
