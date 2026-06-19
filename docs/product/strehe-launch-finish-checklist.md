@@ -71,6 +71,7 @@ Last updated: 2026-06-19
 - Dedicated public website smoke passes across Albanian, English, and German marketing routes.
 - Full launch-checklist smoke passed on 2026-06-19: 54 Playwright tests.
 - Production deploy verification passed on 2026-06-20 CEST for commit `ee75a34`.
+- Production promotion-code email delivery passed on 2026-06-20 CEST via Resend from `STREHË <info@streheprona.com>`.
 
 ### Launch Checklist Smoke Command
 
@@ -350,8 +351,8 @@ The task engine is launch-critical because recurring apartment care depends on i
 - [x] Service-line invoice redemption added
 - [x] Promotion target added: package / service / both
 - [x] Apply migration for `promotion_campaigns.applies_to`
-- [ ] Configure real email provider/API key
-- [ ] Test automatic email sending
+- [x] Configure real email provider/API key
+- [x] Test automatic email sending
 - [ ] Test bulk code generation and sending
 - [ ] Add/report campaign performance
 
@@ -369,12 +370,12 @@ The task engine is launch-critical because recurring apartment care depends on i
 
 - [ ] Decide final provider for app transactional email
 - [ ] Configure email provider in Supabase Auth
-- [ ] Configure promotion-code sending provider
+- [x] Configure promotion-code sending provider
 - [ ] Decide sender identity
-- [ ] Verify domain before public launch
+- [x] Verify domain before public launch
 - [ ] Test user setup email
 - [ ] Test password reset email
-- [ ] Test promotion code email
+- [x] Test promotion code email
 
 ### Temporary
 
