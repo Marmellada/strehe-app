@@ -31,7 +31,7 @@ Everything else should support that core.
 
 ## Current Validation Snapshot
 
-Last updated: 2026-04-29
+Last updated: 2026-06-19
 
 - [x] Playwright auth bootstrap now creates/repairs a dedicated admin E2E user automatically
 - [x] Settings smoke suite passes end to end
@@ -60,6 +60,7 @@ Last updated: 2026-04-29
 - [x] Dedicated property integrity smoke covers owner link, location fields, and active-to-vacant status lifecycle
 - [x] Dedicated banking settings smoke covers licensed-bank registry, invoice-visible bank account, and hidden cash account setup
 - [x] Dedicated leads smoke covers lead create, edit, interaction note, and conversion to client
+- [x] Dedicated public website smoke covers `/sq` default, localized public routes, language switcher, WhatsApp CTA markers, contact form rendering, login path, and SEO metadata
 
 ### Current Known E2E Findings
 
@@ -67,6 +68,7 @@ Last updated: 2026-04-29
 - Main smoke suite now passes end to end, including cash-account setup and credit-note settlement.
 - Dedicated generator smoke passes: contract -> cron route -> generated task appears -> rerun avoids duplicates.
 - Dedicated editing smoke is scoped to records it creates itself so it avoids mutating shared appearance/system settings.
+- Dedicated public website smoke passes across Albanian, English, and German marketing routes.
 
 ### Launch Checklist Smoke Command
 
@@ -126,6 +128,12 @@ Run focused CRM leads coverage with:
 npm run test:smoke:leads
 ```
 
+Run focused public website coverage with:
+
+```bash
+npm run test:smoke:public
+```
+
 ---
 
 ## 1. Source Control And Release Hygiene
@@ -134,7 +142,7 @@ npm run test:smoke:leads
 - [x] Push current stable work
 - [x] Exclude temporary local review files from commit
 - [x] Confirm `.env.local` is not committed
-- [ ] Keep a note of manually applied Supabase migrations
+- [x] Keep a note of manually applied Supabase migrations
 - [ ] Rotate exposed/testing secrets before real launch
 
 ### Notes
@@ -143,6 +151,10 @@ Temporary files currently known:
 
 - `tmp-marketing-dev*.log`
 - `tmp-marketing-review/`
+
+Manual migration log:
+
+- `docs/operations/supabase-migration-log.md`
 
 ---
 
@@ -296,8 +308,8 @@ Launch business baseline: `docs/operations/launch-business-baseline.md`
 - [x] Test subscription-generated task creation
 - [x] Test duplicate prevention
 - [x] Test monthly service generation
-- [ ] Test weekly service generation if used
-- [ ] Configure Vercel cron for task generation
+- [x] Test weekly service generation if used (not used for v1 monthly package cadence)
+- [x] Configure Vercel cron for task generation
 - [ ] Confirm cron secret is set in Vercel
 - [x] Confirm generated task snapshots are correct
 
@@ -375,13 +387,13 @@ Personal email/testing sender is acceptable only before real launch.
 - [x] STREHE logo reused from app/company settings
 - [x] Diaspora-family trust visual direction documented
 - [ ] Final website copy review
-- [ ] Final mobile QA
-- [ ] Final desktop QA
-- [ ] Test language switcher
-- [ ] Test WhatsApp CTA
-- [ ] Test contact form
-- [ ] Test login path
-- [ ] Add/confirm SEO metadata
+- [x] Final mobile QA
+- [x] Final desktop QA
+- [x] Test language switcher
+- [x] Test WhatsApp CTA
+- [x] Test contact form
+- [x] Test login path
+- [x] Add/confirm SEO metadata
 - [ ] Replace or polish temporary/generated visuals
 - [ ] Confirm no people-focused photos if that remains the chosen direction
 
@@ -422,6 +434,19 @@ Launch business baseline: `docs/operations/launch-business-baseline.md`
 - [x] Prepare urgent issue procedure
 - [x] Prepare technician coordination procedure
 - [x] Prepare key handling SOP
+- [x] Prepare CRM lead intake SOP
+- [x] Prepare client qualification SOP
+- [x] Prepare contract setup SOP
+- [x] Prepare billing and payment SOP
+- [x] Prepare monthly operations review SOP
+- [x] Prepare client communication SOP
+- [x] Prepare complaint / service issue SOP
+- [x] Prepare vendor / technician approval SOP
+- [x] Prepare privacy and photo handling SOP
+- [x] Prepare staff access control SOP
+- [x] Prepare finance review SOP
+- [x] Prepare backup / deployment SOP
+- [x] Prepare quality review SOP
 
 ---
 
@@ -469,7 +494,7 @@ The inspection engine is interesting, but launch trust depends more on reliable 
 - [ ] Set all required env vars in Vercel
 - [ ] Confirm Supabase URL/key values in Vercel
 - [ ] Confirm service role key is server-only
-- [ ] Configure cron route for task generation
+- [x] Configure cron route for task generation
 - [ ] Check Vercel build
 - [ ] Check Vercel runtime logs
 - [ ] Check Vercel firewall/traffic after launch

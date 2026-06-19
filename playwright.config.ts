@@ -137,6 +137,13 @@ export default defineConfig({
       },
     },
     {
+      name: "public-smoke-chromium",
+      testMatch: /(^|[\\/])public-website-smoke\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+    },
+    {
       name: "modules-smoke-chromium",
       dependencies: ["setup"],
       testMatch: /(^|[\\/])modules-smoke\.spec\.ts$/,

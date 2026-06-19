@@ -52,6 +52,8 @@ export default async function AboutPage({ params }: AboutPageProps) {
             src="/marketing/about-lead.png"
             alt="Grounded local care moment"
             fill
+            priority
+            sizes="(min-width: 1024px) 48vw, 100vw"
             className="object-cover object-center"
           />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.1),rgba(9,14,23,0.72)_78%,rgba(9,14,23,0.9))]" />

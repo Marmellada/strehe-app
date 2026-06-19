@@ -52,6 +52,8 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
             src="/marketing/services-lead.png"
             alt="Apartment being prepared with care"
             fill
+            priority
+            sizes="(min-width: 1024px) 48vw, 100vw"
             className="object-cover object-center"
           />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.72)_76%,rgba(9,14,23,0.88))]" />
