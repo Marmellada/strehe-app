@@ -72,6 +72,7 @@ Last updated: 2026-06-19
 - Full launch-checklist smoke passed on 2026-06-19: 54 Playwright tests.
 - Production deploy verification passed on 2026-06-20 CEST for commit `ee75a34`.
 - Production promotion-code email delivery passed on 2026-06-20 CEST via Resend from `STREHË <info@streheprona.com>`.
+- Production Supabase Auth invite and password reset delivery passed on 2026-06-20 CEST via Resend SMTP from `STREHË <no-reply@streheprona.com>`; Gmail classified reset emails as spam during the first test, so sender reputation/DNS alignment should be monitored.
 
 ### Launch Checklist Smoke Command
 
@@ -169,7 +170,7 @@ Manual migration log:
 - [x] Move active logo usage to `company-logos`
 - [x] Make legacy `branding` bucket non-public
 - [x] Set function search paths for known warning functions
-- [ ] Configure Supabase Auth email provider
+- [x] Configure Supabase Auth email provider
 - [ ] Enable leaked password protection
 - [ ] Review remaining Supabase warnings
 - [ ] Replace broad authenticated RLS policies with role-specific policies later
@@ -195,9 +196,9 @@ Future policy posture:
 - [x] Canonical user management lives in `/settings/users`
 - [x] Legacy `/users` routes redirect to `/settings/users`
 - [x] Old legacy user action code removed
-- [ ] Configure real email sending for user invites/setup
-- [ ] Test staff invite flow end to end with real provider
-- [ ] Test password reset flow end to end
+- [x] Configure real email sending for user invites/setup
+- [x] Test staff invite flow end to end with real provider
+- [x] Test password reset flow end to end
 - [x] Finalize role names and access expectations
 - [x] Add/confirm onboarding instructions for first staff users
 
@@ -368,13 +369,13 @@ The task engine is launch-critical because recurring apartment care depends on i
 
 ## 11. Email
 
-- [ ] Decide final provider for app transactional email
-- [ ] Configure email provider in Supabase Auth
+- [x] Decide final provider for app transactional email
+- [x] Configure email provider in Supabase Auth
 - [x] Configure promotion-code sending provider
-- [ ] Decide sender identity
+- [x] Decide sender identity
 - [x] Verify domain before public launch
-- [ ] Test user setup email
-- [ ] Test password reset email
+- [x] Test user setup email
+- [x] Test password reset email
 - [x] Test promotion code email
 
 ### Temporary
