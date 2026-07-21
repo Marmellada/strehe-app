@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "playwright/.auth/**",
+    "inspection-lab/e2e-runs/**",
+    "inspection-lab/test-results/**",
   ]),
 ]);
 

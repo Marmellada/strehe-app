@@ -34,6 +34,24 @@ yarn-error.log*
 .pnpm-debug.log*
 tmp-marketing-dev*.log
 tmp-marketing-review/
+tmp-pdf-screenshots/
+nul
+
+# Inspection Lab reproducible output
+/inspection-lab/e2e-runs/
+/inspection-lab/test-results/
+/inspection-lab/mobile-app/.expo/
+/inspection-lab/mobile-app/.cache/
+/inspection-lab/mobile-app/node_modules/
+
+# Inspection Lab derived architecture exports
+/inspection-lab/architecture/Inspection_Lab_Lite_Architecture_Pack_v1_5_FINAL_TRUTH.docx
+/inspection-lab/architecture/Inspection_Lab_Lite_Architecture_Pack_v1_5_FINAL_TRUTH.pdf
+
+# local editor and agent state
+/.agents/
+/.vscode/
+/START_NEW_CODEX_CHAT_PROMPT.txt
 
 # env files (can opt-in for committing if needed)
 .env*
