@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 type ServiceRelation =
   | {
@@ -222,7 +222,7 @@ function buildPlannedDueDatesInWindow(params: {
 }
 
 export async function generateTasks(referenceDate = new Date()) {
-  const supabase = await createClient();
+  const supabase = getAdminClient();
 
   const runDate = startOfDay(referenceDate);
   const windowStart = runDate;

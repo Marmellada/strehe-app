@@ -3,31 +3,37 @@ import { generateTasks } from "@/lib/actions/task-generator";
 
 function isAuthorized(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    throw new Error("Missing CRON_SECRET environment variable.");
-  }
+  if (!cronSecret) return false;
 
   const authHeader = request.headers.get("authorization");
   return authHeader === `Bearer ${cronSecret}`;
 }
 
-export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return Response.json(
-      {
-        ok: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
+type GenerateTasksFn = () => Promise<unknown>;
 
-  const result = await generateTasks();
+export function createGenerateTasksHandler(generateTasksFn: GenerateTasksFn) {
+  return async function handleGenerateTasks(request: NextRequest) {
+    if (!isAuthorized(request)) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
 
-  return Response.json({
-    ok: true,
-    mode: "cron",
-    result,
-  });
+    const result = await generateTasksFn();
+
+    return Response.json({
+      ok: true,
+      mode: "cron",
+      result,
+    });
+  };
 }
+
+const handleGenerateTasks = createGenerateTasksHandler(generateTasks);
+
+export const GET = handleGenerateTasks;
+export const POST = handleGenerateTasks;
