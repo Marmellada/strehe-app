@@ -52,15 +52,17 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
             src="/marketing/services-lead.png"
             alt="Apartment being prepared with care"
             fill
+            priority
+            sizes="(min-width: 1024px) 48vw, 100vw"
             className="object-cover object-center"
           />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.12),rgba(9,14,23,0.72)_76%,rgba(9,14,23,0.88))]" />
           <div className="absolute inset-x-0 bottom-0 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-              Practical readiness
+              {content.servicesPage.categories[0].title}
             </p>
             <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-              The service should feel visible and useful, not abstract.
+              {content.servicesPage.categories[0].outcome}
             </p>
           </div>
         </div>

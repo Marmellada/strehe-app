@@ -11,8 +11,8 @@ export type CompanyProfile = {
 
 const FALLBACK_PROFILE: CompanyProfile = {
   companyName: "STREHË",
-  email: "info@strehe.com",
-  phone: "+383 44 000 000",
+  email: "info@streheprona.com",
+  phone: "+383 44 800 047",
   city: "Prishtina",
   country: "Kosovo",
   logoUrl: null,
