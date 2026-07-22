@@ -41,3 +41,24 @@ Before launch, configure a Vercel Firewall rate-limit rule named
 Publish the firewall change separately from this code. Vercel documents the
 dashboard workflow and recommends observing custom rules before enforcement:
 https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting
+
+## Inspection Lab production access
+
+Phase 1 keeps the experimental implementation in the repository but restricts
+every production-facing boundary to active administrators.
+
+| Entry point | Admin | Office | Field | Contractor | Household | Agent | Inactive / unauthenticated |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `/inspection-lab/bathroom-base-shot` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `/inspection-lab/bathroom-base-shot/photos/[photoId]` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `saveInspectionLabPhotoMetadataAction` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `updateInspectionPhotoMetadataAction` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `runInspectionCaseAction` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `saveInspectionTrackedObjectAction` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `saveInspectionTrackedObjectMarkerAction` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+| `toggleInspectionTrackedObjectAction` | Allow | Deny | Deny | Deny | Deny | Deny | Deny |
+
+Both pages already require the admin role. All six exported server actions now
+pass through the same active-admin guard before the service-role client is
+initialized. The algorithms, mobile experiment, storage model, and database
+schema remain unchanged; assignment-aware access is deferred to a later design.

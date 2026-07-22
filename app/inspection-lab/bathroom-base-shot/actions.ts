@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth/require-role";
+import { createInspectionLabAdminAccess } from "@/lib/security/inspection-lab-access";
 import {
   INSPECTION_STORAGE_BUCKET,
   normalizeCaseId,
@@ -16,6 +17,18 @@ import { runInspectionCase } from "@/lib/inspection-lab/bathroom-base-shot-runne
 import engine from "@/lib/inspection-lab/bathroom-base-shot-engine-wrapper";
 
 const { detectRoomObjectsInPhotoWithAi } = engine;
+
+const requireInspectionLabAdmin = createInspectionLabAdminAccess({
+  getIdentity: async () => {
+    const { appUser } = await requireRole(["admin"]);
+    return {
+      id: appUser.id,
+      role: appUser.role,
+      isActive: appUser.is_active,
+    };
+  },
+  getAdminClient,
+});
 
 function normalizeRoomType(value: string): InspectionRoomType {
   return value === "living_room" ? "living_room" : "bathroom";
@@ -427,8 +440,7 @@ export async function saveInspectionLabPhotoMetadataAction(input: {
   storagePath: string;
 }): Promise<ActionResult> {
   try {
-    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-    const supabase = getAdminClient();
+    const { appUser, supabase } = await requireInspectionLabAdmin();
 
     const caseId = normalizeCaseId(String(input.caseId || "").trim());
     const roomType = normalizeRoomType(String(input.roomType || "").trim());
@@ -625,8 +637,7 @@ export async function updateInspectionPhotoMetadataAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-    const supabase = getAdminClient();
+    const { appUser, supabase } = await requireInspectionLabAdmin();
 
     const photoId = String(formData.get("photo_id") || "").trim();
     const caseRowId = String(formData.get("case_row_id") || "").trim();
@@ -675,8 +686,7 @@ export async function updateInspectionPhotoMetadataAction(
 
 export async function runInspectionCaseAction(formData: FormData): Promise<ActionResult> {
   try {
-    await requireRole(["admin", "office", "field", "contractor"]);
-    const supabase = getAdminClient();
+    const { supabase } = await requireInspectionLabAdmin();
 
     const rawCaseId = String(formData.get("case_id") || "").trim();
 
@@ -801,8 +811,7 @@ export async function saveInspectionTrackedObjectAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-    const supabase = getAdminClient();
+    const { appUser, supabase } = await requireInspectionLabAdmin();
 
     const caseRowId = String(formData.get("case_row_id") || "").trim();
     const label = String(formData.get("label") || "").trim();
@@ -902,8 +911,7 @@ export async function saveInspectionTrackedObjectMarkerAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-    const supabase = getAdminClient();
+    const { appUser, supabase } = await requireInspectionLabAdmin();
 
     const trackedObjectId = String(formData.get("tracked_object_id") || "").trim();
     const baselinePhotoId = String(formData.get("baseline_photo_id") || "").trim();
@@ -964,8 +972,7 @@ export async function toggleInspectionTrackedObjectAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    const { appUser } = await requireRole(["admin", "office", "field", "contractor"]);
-    const supabase = getAdminClient();
+    const { appUser, supabase } = await requireInspectionLabAdmin();
 
     const caseRowId = String(formData.get("case_row_id") || "").trim();
     const objectKey = String(formData.get("object_key") || "").trim();

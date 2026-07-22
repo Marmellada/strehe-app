@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:inspection-lab": "eslint app/inspection-lab components/inspection-lab lib/inspection-lab",
     "inspect:bathroom": "node scripts/run-bathroom-base-shot-engine.mjs",
     "test:e2e": "playwright test",
     "test:smoke": "playwright test tests/e2e/smoke.spec.ts",
@@ -24,6 +25,7 @@
     "test:smoke:public": "playwright test --project=public-smoke-chromium",
     "test:security:redirect": "playwright test --config playwright.entry-security.config.ts tests/unit/internal-path.spec.ts",
     "test:security:contact": "playwright test --config playwright.entry-security.config.ts tests/unit/public-contact.spec.ts",
+    "test:security:inspection-lab": "playwright test --config playwright.entry-security.config.ts tests/unit/inspection-lab-access.spec.ts",
     "test:launch-checklist": "playwright test --project=smoke-chromium --project=settings-smoke-chromium --project=generator-smoke-chromium --project=editing-smoke-chromium --project=keys-smoke-chromium --project=tasks-smoke-chromium --project=operations-smoke-chromium --project=finance-smoke-chromium --project=contracts-smoke-chromium --project=properties-smoke-chromium --project=banking-smoke-chromium --project=leads-smoke-chromium",
     "test:smoke:headed": "playwright test tests/e2e/smoke.spec.ts --headed",
     "playwright:install": "playwright install chromium"
