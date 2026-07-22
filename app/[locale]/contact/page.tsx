@@ -60,11 +60,10 @@ export default async function ContactPage({ params }: ContactPageProps) {
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,14,23,0.1),rgba(9,14,23,0.72)_78%,rgba(9,14,23,0.9))]" />
           <div className="absolute inset-x-0 bottom-0 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-amber-200/85">
-              Secure access matters
+              {content.contactPage.methodsTitle}
             </p>
             <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-              We can show careful access handling now, even before the final cabinet model is
-              chosen.
+              {content.contactPage.methods[0].description}
             </p>
           </div>
         </div>
@@ -123,6 +122,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
           labels={content.contactPage.formLabels}
           options={content.contactPage.formOptions}
           helper={content.contactPage.helper}
+          feedback={content.contactPage.feedback}
           locale={locale}
         />
       </section>

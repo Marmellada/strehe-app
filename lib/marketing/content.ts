@@ -1,4 +1,4 @@
-export const marketingLocales = ["en", "sq", "de"] as const;
+export const marketingLocales = ["sq", "en", "de"] as const;
 
 export type MarketingLocale = (typeof marketingLocales)[number];
 
@@ -18,6 +18,7 @@ type MarketingContent = {
     about: string;
     contact: string;
     login: string;
+    menu: string;
   };
   hero: {
     eyebrow: string;
@@ -109,6 +110,10 @@ type MarketingContent = {
       no: string;
     };
     helper: string;
+    feedback: {
+      submitting: string;
+      fallback: string;
+    };
   };
   footer: {
     line: string;
@@ -129,7 +134,8 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       howItWorks: "How It Works",
       about: "About",
       contact: "Contact",
-      login: "Staff Login",
+      login: "Portal Login",
+      menu: "Menu",
     },
     hero: {
       eyebrow: "For apartment owners living abroad",
@@ -223,7 +229,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         "Prishtina",
         "Fushë Kosovë",
         "Apartments only at launch",
-        "House interest can still be registered for later",
+        "A focused service designed specifically for apartments",
       ],
     },
     cta: {
@@ -280,7 +286,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         },
       ],
       note:
-        "Renovation oversight can be mentioned as advanced coordination support, but it is not the main launch story.",
+        "The exact visit rhythm and scope are agreed before service begins. Repairs or outside-provider costs are always discussed separately.",
     },
     howPage: {
       introTitle: "A simple process that reduces uncertainty from the first contact",
@@ -311,7 +317,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         "A service matched to the apartment, not a generic package",
         "A local point of contact instead of scattered informal help",
       ],
-      objectionsTitle: "Questions we should answer clearly",
+      objectionsTitle: "Common questions",
       objections: [
         {
           question: "What if something breaks?",
@@ -331,7 +337,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       introTitle: "A local service for owners who cannot keep watch from abroad",
       introBody:
         "STREHË exists to replace uncertainty with clear local care. The goal is not to sound impressive. The goal is to make owners feel safe handing over responsibility.",
-      valuesTitle: "What should make this business feel different",
+      valuesTitle: "How we work",
       values: [
         {
           title: "Focused",
@@ -384,11 +390,16 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         yes: "Yes",
         no: "No",
       },
-      helper: "This sends your request to our CRM. You can still use the email fallback if needed.",
+      helper:
+        "We use these details only to understand your request and reply. You can also contact us directly by email.",
+      feedback: {
+        submitting: "Sending...",
+        fallback: "Send by email",
+      },
     },
     footer: {
       line: "Trusted local care for apartments in Prishtina and Fushë Kosovë.",
-      login: "Staff Login",
+      login: "Portal Login",
     },
   },
   sq: {
@@ -403,40 +414,43 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       howItWorks: "Si Funksionon",
       about: "Rreth Nesh",
       contact: "Kontakt",
-      login: "Hyrja e Stafit",
+      login: "Hyrja në Portal",
+      menu: "Meny",
     },
     hero: {
-      eyebrow: "Për pronarët e apartamenteve që jetojnë jashtë",
+      eyebrow: "Kujdes për apartamentet e diasporës",
       title:
-        "Kujdes lokal i besueshëm për apartamentin tuaj në Prishtinë ose Fushë Kosovë ndërsa ju jetoni jashtë.",
+        "Apartamenti juaj në Kosovë, i kontrolluar dhe i dokumentuar edhe kur jeni larg.",
       description:
-        "Ne e kontrollojmë rregullisht apartamentin, kujdesemi për të dhe koordinojmë gjërat praktike që ju të mos mbeteni duke menduar çfarë po ndodh ndërsa jeni larg.",
-      primaryCta: "Na shkruani shpejt në WhatsApp",
-      secondaryCta: "Shihni Shërbimet",
+        "STREHË bën vizita të planifikuara, dërgon raport me foto dhe ndjek çështjet praktike në Prishtinë dhe Fushë Kosovë.",
+      primaryCta: "Na shkruani në WhatsApp",
+      secondaryCta: "Shihni si funksionon",
       reassurance: "Zakonisht përgjigjemi brenda ditës.",
-      statLabels: ["Vetëm apartamente në fillim", "Prishtinë dhe Fushë Kosovë", "Përditësime të qarta pas vizitave"],
+      statLabels: [
+        "Raport me foto pas vizitës",
+        "Prishtinë dhe Fushë Kosovë",
+        "Një kontakt lokal përgjegjës",
+      ],
     },
     problem: {
-      title: "Pse pronarët kanë nevojë për këtë",
+      title: "Kur jeni larg, mungesa e kontrollit kushton",
       intro:
-        "Një apartament bosh harrohet lehtë deri sa një problem i vogël bëhet i kushtueshëm, stresues ose urgjent.",
+        "Një problem i vogël në apartament mund të mbetet pa u vërejtur për muaj.",
       points: [
-        "Askush nuk e kontrollon apartamentin me rregullsi.",
-        "Problemet e vogla vërehen shumë vonë.",
-        "Ardhjet në Kosovë fillojnë me stres që mund të shmanget.",
-        "Familjarët ndihmojnë sa munden, por nuk janë sistem.",
+        "Kontrolle pa ritëm dhe pa dokumentim.",
+        "Probleme të vogla që zbulohen shumë vonë.",
+        "Kthim në Kosovë me punë dhe stres të papritur.",
       ],
-      competitorTitle: "Konkurrenti i vërtetë zakonisht është ndihma joformale",
+      competitorTitle: "Favori nuk është sistem",
       competitorPoints: [
-        "Nuk ka orar të qartë",
-        "Nuk ka raportim me foto",
-        "Nuk ka përgjegjësi kur diçka humbet",
-        "Nuk ka një person të vetëm përgjegjës",
+        "Pa orar të dakorduar",
+        "Pa raport me foto",
+        "Pa një person përgjegjës për ndjekje",
       ],
     },
     servicesPreview: {
-      title: "Çfarë merret STREHË",
-      intro: "Mbështetje praktike, e shpjeguar qartë.",
+      title: "Çfarë bëjmë për apartamentin tuaj",
+      intro: "Kontrollojmë. Dokumentojmë. Ndjekim.",
       items: [
         {
           title: "Kontrolle të rregullta të apartamentit",
@@ -457,9 +471,9 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       ],
     },
     trust: {
-      title: "Pse të keni besim te STREHË",
+      title: "Besimi ndërtohet me prova, jo me premtime",
       intro:
-        "Besimi nuk duhet të varet nga fjalë të bukura. Duhet të vijë nga procesi i qartë dhe përgjegjësia e dukshme.",
+        "Çdo vizitë ka një qëllim, një raport dhe një person përgjegjës për hapat e ardhshëm.",
       items: [
         "Zonë e fokusuar shërbimi, jo premtime të paqarta në gjithë vendin",
         "Vetëm apartamente në fillim që shërbimi të mbetet i disiplinuar",
@@ -470,7 +484,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
     },
     process: {
       title: "Si funksionon",
-      intro: "Hapi i parë duhet të ndihet i thjeshtë, jo i rëndë.",
+      intro: "Nga mesazhi i parë te raporti pas vizitës.",
       steps: [
         {
           title: "Na kontaktoni",
@@ -497,13 +511,13 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         "Prishtinë",
         "Fushë Kosovë",
         "Vetëm apartamente në nisje",
-        "Interesimi për shtëpi mund të regjistrohet për më vonë",
+        "Shërbim i fokusuar dhe i krijuar posaçërisht për apartamente",
       ],
     },
     cta: {
-      title: "Mjafton një bisedë e qetë për të filluar",
+      title: "Le të flasim për apartamentin tuaj",
       description:
-        "Na tregoni ku jetoni, ku ndodhet apartamenti dhe çfarë lloj ndihme ju duhet.",
+        "Na tregoni ku ndodhet dhe çfarë ju shqetëson më shumë. Ne ju përgjigjemi me hapa të qartë.",
       primary: "Na shkruani në WhatsApp",
       secondary: "Kërkoni informata",
     },
@@ -554,7 +568,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         },
       ],
       note:
-        "Mbikëqyrja e renovimeve mund të përmendet si mbështetje e avancuar, por nuk është historia kryesore në nisje.",
+        "Ritmi i vizitave dhe fushëveprimi dakordohen para fillimit. Riparimet ose kostot e ofruesve të jashtëm diskutohen gjithmonë veçmas.",
     },
     howPage: {
       introTitle: "Një proces i thjeshtë që ul pasigurinë që në kontaktin e parë",
@@ -585,7 +599,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         "Shërbim të përshtatur për apartamentin tuaj",
         "Një kontakt lokal në vend të ndihmave të shpërndara",
       ],
-      objectionsTitle: "Pyetje që duhet të marrin përgjigje qartë",
+      objectionsTitle: "Pyetje të shpeshta",
       objections: [
         {
           question: "Po nëse prishet diçka?",
@@ -605,7 +619,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       introTitle: "Shërbim lokal për pronarët që nuk mund ta mbajnë vetë nën kujdes pronën nga jashtë",
       introBody:
         "STREHË ekziston për ta zëvendësuar pasigurinë me kujdes lokal të qartë. Qëllimi nuk është të dukemi mbresëlënës. Qëllimi është që pronari të ndihet i sigurt duke lënë përgjegjësinë në duart tona.",
-      valuesTitle: "Çfarë duhet ta bëjë këtë biznes të ndihet ndryshe",
+      valuesTitle: "Si punojmë",
       values: [
         {
           title: "I fokusuar",
@@ -658,11 +672,16 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         yes: "Po",
         no: "Jo",
       },
-      helper: "Kjo e dërgon kërkesën në CRM. Mund të përdorni edhe email-in rezervë nëse duhet.",
+      helper:
+        "Këto të dhëna i përdorim vetëm për ta kuptuar kërkesën dhe për t'ju përgjigjur. Mund të na kontaktoni edhe drejtpërdrejt me email.",
+      feedback: {
+        submitting: "Duke dërguar...",
+        fallback: "Dërgo me email",
+      },
     },
     footer: {
       line: "Kujdes lokal i besueshëm për apartamente në Prishtinë dhe Fushë Kosovë.",
-      login: "Hyrja e Stafit",
+      login: "Hyrja në Portal",
     },
   },
   de: {
@@ -677,7 +696,8 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       howItWorks: "Ablauf",
       about: "Über Uns",
       contact: "Kontakt",
-      login: "Mitarbeiter-Login",
+      login: "Portal-Login",
+      menu: "Menü",
     },
     hero: {
       eyebrow: "Für Wohnungseigentümer im Ausland",
@@ -771,7 +791,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         "Prishtina",
         "Fushë Kosovë",
         "Zum Start nur Wohnungen",
-        "Interesse für Häuser kann bereits vorgemerkt werden",
+        "Ein fokussierter Service speziell für Wohnungen",
       ],
     },
     cta: {
@@ -828,7 +848,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         },
       ],
       note:
-        "Renovierungsbegleitung kann als erweiterte Koordinationshilfe erwähnt werden, steht aber nicht im Mittelpunkt des Starts.",
+        "Besuchsrhythmus und Leistungsumfang werden vor dem Start vereinbart. Reparaturen oder Kosten externer Dienstleister werden immer separat abgestimmt.",
     },
     howPage: {
       introTitle: "Ein einfacher Ablauf, der Unsicherheit schon beim ersten Kontakt reduziert",
@@ -859,7 +879,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         "Einen Service passend zur Wohnung statt eines generischen Pakets",
         "Eine lokale Kontaktperson statt verstreuter informeller Hilfe",
       ],
-      objectionsTitle: "Fragen, die klar beantwortet werden sollten",
+      objectionsTitle: "Häufige Fragen",
       objections: [
         {
           question: "Was passiert, wenn etwas kaputtgeht?",
@@ -879,7 +899,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       introTitle: "Ein lokaler Service für Eigentümer, die ihre Wohnung aus dem Ausland nicht selbst im Blick behalten können",
       introBody:
         "STREHË soll Unsicherheit durch klare lokale Betreuung ersetzen. Es geht nicht darum, beeindruckend zu wirken. Es geht darum, Verantwortung vertrauensvoll zu übernehmen.",
-      valuesTitle: "Was dieses Unternehmen glaubwürdig machen soll",
+      valuesTitle: "So arbeiten wir",
       values: [
         {
           title: "Fokussiert",
@@ -932,11 +952,16 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
         yes: "Ja",
         no: "Nein",
       },
-      helper: "Dadurch wird Ihre Anfrage im CRM gespeichert. Die E-Mail-Alternative bleibt verfügbar.",
+      helper:
+        "Wir verwenden diese Angaben nur, um Ihre Anfrage zu verstehen und zu beantworten. Sie können uns auch direkt per E-Mail kontaktieren.",
+      feedback: {
+        submitting: "Wird gesendet...",
+        fallback: "Per E-Mail senden",
+      },
     },
     footer: {
       line: "Verlässliche lokale Betreuung für Wohnungen in Prishtina und Fushë Kosovë.",
-      login: "Mitarbeiter-Login",
+      login: "Portal-Login",
     },
   },
 };

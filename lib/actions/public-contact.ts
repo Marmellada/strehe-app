@@ -14,6 +14,24 @@ function clean(value: FormDataEntryValue | null) {
   return text || null;
 }
 
+const messages = {
+  en: {
+    success: "Thanks. We received your request and will reply shortly.",
+    required: "Please add your name and email or phone.",
+    error: "We could not save the request yet. Please use the email option.",
+  },
+  sq: {
+    success: "Faleminderit. E pranuam kërkesën tuaj dhe do t'ju përgjigjemi së shpejti.",
+    required: "Ju lutemi shkruani emrin dhe email-in ose telefonin.",
+    error: "Kërkesa nuk u ruajt. Ju lutemi përdorni opsionin e email-it.",
+  },
+  de: {
+    success: "Vielen Dank. Wir haben Ihre Anfrage erhalten und melden uns in Kürze.",
+    required: "Bitte geben Sie Ihren Namen und Ihre E-Mail-Adresse oder Telefonnummer an.",
+    error: "Die Anfrage konnte nicht gespeichert werden. Bitte nutzen Sie die E-Mail-Option.",
+  },
+} as const;
+
 function buildMailtoHref({
   email,
   name,
@@ -59,6 +77,7 @@ export async function createPublicContactLeadAction(
   const area = clean(formData.get("area"));
   const message = clean(formData.get("message"));
   const locale = clean(formData.get("locale"));
+  const copy = messages[locale as keyof typeof messages] || messages.en;
   const mailtoHref = buildMailtoHref({
     email,
     name,
@@ -72,7 +91,7 @@ export async function createPublicContactLeadAction(
   if (honeypot) {
     return {
       status: "success",
-      message: "Thanks. We received your request.",
+      message: copy.success,
       mailtoHref,
     };
   }
@@ -80,7 +99,7 @@ export async function createPublicContactLeadAction(
   if (!name || !contact) {
     return {
       status: "error",
-      message: "Please add your name and email or phone.",
+      message: copy.required,
       mailtoHref,
     };
   }
@@ -96,16 +115,18 @@ export async function createPublicContactLeadAction(
     .join("\n");
 
   const supabase = getAdminClient();
+  const contactIsEmail = contact.includes("@");
   const { error } = await supabase.from("leads").insert([
     {
       full_name: name,
-      phone: contact,
-      country: "Kosovo",
+      phone: contactIsEmail ? null : contact,
+      email: contactIsEmail ? contact : null,
+      country: country || null,
       city: area,
       source: "website",
       status: "new",
       priority: "normal",
-      preferred_contact_method: contact.includes("@") ? "email" : "whatsapp",
+      preferred_contact_method: contactIsEmail ? "email" : "whatsapp",
       service_interest: "not_sure",
       notes: notes || null,
       updated_at: new Date().toISOString(),
@@ -115,7 +136,7 @@ export async function createPublicContactLeadAction(
   if (error) {
     return {
       status: "error",
-      message: "We could not save the request yet. Please use the email fallback.",
+      message: copy.error,
       mailtoHref,
     };
   }
@@ -124,7 +145,7 @@ export async function createPublicContactLeadAction(
 
   return {
     status: "success",
-    message: "Thanks. Your request is now in our lead list.",
+    message: copy.success,
     mailtoHref,
   };
 }
