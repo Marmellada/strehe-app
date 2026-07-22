@@ -3,8 +3,8 @@
 import { useActionState, useMemo, useState } from "react";
 import {
   createPublicContactLeadAction,
-  type PublicContactLeadState,
 } from "@/lib/actions/public-contact";
+import type { PublicContactLeadState } from "@/lib/security/public-contact";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -91,6 +91,7 @@ export function ContactRequestForm({
           name="website_url"
           tabIndex={-1}
           autoComplete="off"
+          maxLength={200}
           className="hidden"
         />
 
@@ -101,6 +102,7 @@ export function ContactRequestForm({
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
+            maxLength={100}
             required
           />
         </div>
@@ -112,6 +114,7 @@ export function ContactRequestForm({
             name="contact"
             value={contact}
             onChange={(event) => setContact(event.target.value)}
+            maxLength={254}
             required
           />
         </div>
@@ -137,6 +140,7 @@ export function ContactRequestForm({
             name="country"
             value={country}
             onChange={(event) => setCountry(event.target.value)}
+            maxLength={80}
           />
         </div>
 
@@ -147,6 +151,7 @@ export function ContactRequestForm({
             name="area"
             value={area}
             onChange={(event) => setArea(event.target.value)}
+            maxLength={120}
           />
         </div>
 
@@ -158,6 +163,7 @@ export function ContactRequestForm({
             rows={5}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
+            maxLength={2000}
           />
         </div>
 

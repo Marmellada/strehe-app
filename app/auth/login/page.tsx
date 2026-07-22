@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { getSafeInternalPath } from "@/lib/security/internal-path";
 
 interface LoginPageProps {
   searchParams: Promise<{
@@ -30,7 +31,7 @@ async function loginAction(formData: FormData) {
     );
   }
 
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  const safeNext = getSafeInternalPath(next);
   let email = identifier.toLowerCase();
 
   if (!identifier.includes("@")) {
@@ -69,8 +70,7 @@ async function loginAction(formData: FormData) {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const nextPath =
-    params?.next && params.next.startsWith("/") ? params.next : "/dashboard";
+  const nextPath = getSafeInternalPath(params?.next);
   const error = params?.error || "";
 
   return (
