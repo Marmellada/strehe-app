@@ -55,6 +55,7 @@ nul
 
 # env files (can opt-in for committing if needed)
 .env*
+!/inspection-lab/mobile-app/.env.example
 
 # vercel
 .vercel
