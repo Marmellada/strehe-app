@@ -19,6 +19,11 @@ function validForm(overrides: Record<string, string> = {}) {
     country: "Germany",
     area: "Dardania",
     message: "Please inspect the apartment.",
+    utm_source: "meta",
+    utm_medium: "paid_social",
+    utm_campaign: "strehe_meta_diaspora_founders_202608",
+    landing_locale: "en",
+    landing_page: "/en/contact",
     ...overrides,
   };
   const formData = new FormData();
@@ -117,6 +122,8 @@ test.describe("public contact action containment", () => {
       city: "Dardania",
       source: "website",
       status: "new",
+      utm_source: "meta",
+      first_touch_at: fixedNow.toISOString(),
     });
     expect(harness.revalidateCalls).toBe(1);
   });
@@ -130,6 +137,8 @@ test.describe("public contact action containment", () => {
     { name: "invalid contact", values: { contact: "call me" } },
     { name: "oversized name", values: { name: "A".repeat(101) } },
     { name: "oversized message", values: { message: "A".repeat(2001) } },
+    { name: "unsafe attribution", values: { utm_campaign: "<script>" } },
+    { name: "oversized click id", values: { click_id: "A".repeat(201) } },
   ];
 
   for (const invalidCase of invalidCases) {

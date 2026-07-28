@@ -18,6 +18,12 @@ test.describe.serial("leads CRM smoke", () => {
   const laterFollowUp = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];
+  const consultationStart = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+  const offerValidUntil = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
 
   test("capture a public contact request as a lead", async ({ page }) => {
     await page.goto("/en");
@@ -123,6 +129,46 @@ test.describe.serial("leads CRM smoke", () => {
     await expect(page.getByText("Timeline")).toBeVisible();
     await expect(page.getByText("Status changed to interested")).toBeVisible();
 
+    await page.getByLabel("Outcome", { exact: true }).first().selectOption("qualified");
+    await page.getByLabel("Eligibility and notes").fill("Eligible apartment in Prishtina with absent owner.");
+    await page.getByRole("button", { name: "Save qualification" }).click();
+    await expect(page.getByText("Qualified:").locator("..")).not.toContainText("—");
+
+    await page.getByLabel("Scheduled start").fill(consultationStart);
+    await page.getByLabel("Format").selectOption("whatsapp_video");
+    await page.getByLabel("Status", { exact: true }).last().selectOption("booked");
+    await page.getByLabel("Property location").fill("Prishtina");
+    await page.getByLabel("Primary concerns").fill("Visible condition and arrival readiness.");
+    await page.getByRole("button", { name: "Save consultation" }).click();
+    await expect(page.getByText("1 consultation record(s)")).toBeVisible();
+
+    await page.getByLabel("Scheduled start").fill(consultationStart);
+    await page.getByLabel("Status", { exact: true }).last().selectOption("completed");
+    await page.getByLabel("Outcome", { exact: true }).last().fill("Eligible; Essential Check recommended.");
+    await page.getByLabel("Next action").fill("Send written offer.");
+    await page.getByRole("button", { name: "Save consultation" }).click();
+    await expect(page.getByText("2 consultation record(s)")).toBeVisible();
+
+    await page.getByLabel("Package").selectOption("essential_check");
+    await page.getByLabel("Founding customer").selectOption("yes");
+    await page.getByLabel("Valid until (required to send)").fill(offerValidUntil);
+    await page.getByLabel("Consultation summary").fill("Apartment eligible; monthly visible-condition checks requested.");
+    await page.getByRole("button", { name: "Create Albanian offer" }).click();
+    const pdfLink = page.getByRole("link", { name: "Albanian PDF" }).first();
+    await expect(pdfLink).toBeVisible();
+    const pdfHref = await pdfLink.getAttribute("href");
+    const pdfResponse = await page.request.get(pdfHref || "");
+    expect(pdfResponse.ok()).toBeTruthy();
+    expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
+
+    const sentForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Mark sent" }) });
+    await sentForm.locator('input[name="follow_up_date"]').fill(laterFollowUp);
+    await sentForm.getByRole("button", { name: "Mark sent" }).click();
+    const acceptForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Accept" }) });
+    await acceptForm.locator('input[name="acceptance_evidence_note"]').fill("Accepted in WhatsApp message.");
+    await acceptForm.getByRole("button", { name: "Accept" }).click();
+    await expect(page.getByText("offer accepted", { exact: true })).toBeVisible();
+
     await page.getByLabel("Create Draft Property").selectOption("yes");
     await page.getByLabel("Property Title").fill(convertedPropertyTitle);
     await page.getByLabel("Property Address").fill("Converted Address 1");
@@ -152,7 +198,7 @@ test.describe.serial("leads CRM smoke", () => {
     await expect(page.getByText("No Follow-up Set")).toBeVisible();
 
     await page.goto("/leads/reports");
-    await expect(page.getByRole("heading", { name: "Lead Reports" })).toBeVisible();
-    await expect(page.getByText("By Source")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Founding Customer Funnel" })).toBeVisible();
+    await expect(page.getByText("By source")).toBeVisible();
   });
 });
