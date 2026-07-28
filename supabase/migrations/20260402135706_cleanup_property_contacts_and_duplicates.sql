@@ -1,12 +1,9 @@
 -- 1) Rename misleading property contact columns
-ALTER TABLE public.properties
-  RENAME COLUMN property_contact_name TO property_contact_name;
-
-ALTER TABLE public.properties
-  RENAME COLUMN property_contact_email TO property_contact_email;
-
-ALTER TABLE public.properties
-  RENAME COLUMN property_contact_phone TO property_contact_phone;
+-- The original migration contained three invalid self-renames. These columns
+-- already have their intended property_contact_* names at this migration point,
+-- so the no-op statements are removed to allow deterministic clean replay.
+-- The original is preserved under the STREHE-LAUNCH-003 record with SHA-256
+-- e2f7893b4a8cae5703fa2b227c6abde3a09fd0def191712ea07f0b2f19ff59bb.
 
 
 -- 2) Remove duplicate constraints / indexes on keys and key_logs
