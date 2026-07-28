@@ -61,3 +61,5 @@ Then open `http://localhost:3000`.
 
 - The app uses Next.js App Router and Supabase.
 - Some internal tooling and labs remain in the repo but are intentionally not part of launch-facing v1.
+- The authoritative production commit and release evidence are recorded in
+  `docs/operations/production-release-baseline.md`.
