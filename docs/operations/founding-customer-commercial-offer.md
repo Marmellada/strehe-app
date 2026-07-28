@@ -16,6 +16,11 @@ fixed for the first 12 months. Founding status never means unlimited support.
 Renewal after month 12 follows the then-current price unless agreed otherwise in
 writing.
 
+The application prevents more than three active founding proposals from
+reserving a place. An expired, rejected, or superseded proposal releases its
+place. Before service begins, the operator must confirm that the customer is
+eligible and is among the first three who actually record payment.
+
 Package prices exclude contractor charges, parts/materials, separately agreed
 deep cleaning, major repairs, unlimited errands or coordination, rental
 management, and guaranteed 24/7 emergency response.
@@ -30,4 +35,3 @@ visit frequency and support your apartment needs.”
 
 Legal status: commercial baseline approved by the Founder; customer-facing legal
 terms and privacy wording still require separate review.
-

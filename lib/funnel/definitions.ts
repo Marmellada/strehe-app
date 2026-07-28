@@ -61,3 +61,9 @@ export function getCommercialStage(lead: FunnelEvidence) {
 export function safeCost(spendCents: number, count: number) {
   return count > 0 ? Math.round(spendCents / count) : null;
 }
+
+export function assertFoundingCapacity(activeOfferCount: number) {
+  if (activeOfferCount >= 3) {
+    throw new Error("All three founding-customer places are already reserved by active offers.");
+  }
+}

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
-import { FOUNDING_PACKAGES, STANDARD_EXCLUSIONS, type FoundingPackageKey } from "@/lib/funnel/definitions";
+import { assertFoundingCapacity, FOUNDING_PACKAGES, STANDARD_EXCLUSIONS, type FoundingPackageKey } from "@/lib/funnel/definitions";
 import { assertOfferCanBeSent, assertOfferTransition, type OfferStatus } from "@/lib/funnel/transitions";
 
 function text(formData: FormData, key: string, max = 2000) {
@@ -168,6 +168,15 @@ export async function createOfferAction(leadId: string, formData: FormData) {
     await event(supabase, leadId, "offer_superseded", `Offer ${previous.offer_number} superseded by a new version`, userId, { offer_id: previous.id });
   }
   const founding = text(formData, "founding_customer_eligible", 10) === "yes";
+  if (founding) {
+    const { count: reservedFoundingPlaces, error: foundingError } = await supabase
+      .from("lead_offers")
+      .select("id", { count: "exact", head: true })
+      .eq("founding_customer_eligible", true)
+      .in("status", ["draft", "sent", "accepted"]);
+    if (foundingError) throw new Error(foundingError.message);
+    assertFoundingCapacity(reservedFoundingPlaces || 0);
+  }
   const { data, error } = await supabase.from("lead_offers").insert({
     lead_id: leadId,
     consultation_id: text(formData, "consultation_id", 40),

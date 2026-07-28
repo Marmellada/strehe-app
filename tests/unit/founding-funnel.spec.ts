@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeAttribution } from "@/lib/funnel/attribution";
-import { FOUNDING_PACKAGES, getCommercialStage, safeCost } from "@/lib/funnel/definitions";
+import { assertFoundingCapacity, FOUNDING_PACKAGES, getCommercialStage, safeCost } from "@/lib/funnel/definitions";
 import { firstPaymentForClient } from "@/lib/funnel/paying-customer";
 import { campaignCosts, countFunnel, type FunnelLead } from "@/lib/funnel/reporting";
 import { assertOfferCanBeSent, assertOfferTransition } from "@/lib/funnel/transitions";
@@ -49,6 +49,8 @@ test("offer lifecycle rejects invalid transitions and missing validity", () => {
   expect(() => assertOfferTransition("sent", "accepted")).not.toThrow();
   expect(() => assertOfferCanBeSent({ validUntil: null })).toThrow();
   expect(() => assertOfferCanBeSent({ validUntil: "2030-01-01", sentAt: new Date("2026-01-01") })).not.toThrow();
+  expect(() => assertFoundingCapacity(2)).not.toThrow();
+  expect(() => assertFoundingCapacity(3)).toThrow();
 });
 
 test("campaign funnel metrics handle zero denominators and payment-backed CAC", () => {
@@ -88,4 +90,3 @@ test("migration keeps consultations and offers internal under RLS", () => {
   expect(sql).not.toContain("to anon");
   expect(sql).toContain("protect_lead_first_touch");
 });
-
