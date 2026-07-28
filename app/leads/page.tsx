@@ -17,6 +17,7 @@ import {
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
+import { getCommercialStage } from "@/lib/funnel/definitions";
 
 type AssignedUser =
   | { full_name: string | null; email: string | null }
@@ -31,6 +32,8 @@ type LeadRow = {
   city: string | null;
   country: string | null;
   source: string | null;
+  source_detail: string | null;
+  campaign_name: string | null;
   service_interest: string | null;
   preferred_contact_method: string | null;
   status: string | null;
@@ -39,6 +42,15 @@ type LeadRow = {
   estimated_monthly_value_cents: number | null;
   last_interaction_at: string | null;
   converted_client_id: string | null;
+  created_at: string;
+  qualified_at: string | null;
+  consultation_scheduled_at: string | null;
+  consultation_status: string | null;
+  consultation_completed_at: string | null;
+  offer_drafted_at: string | null;
+  current_offer_status: string | null;
+  offer_sent_at: string | null;
+  offer_accepted_at: string | null;
   assigned: AssignedUser;
 };
 
@@ -60,6 +72,11 @@ function isDue(date: string | null) {
   if (!date) return false;
   const today = new Date().toISOString().split("T")[0];
   return date <= today;
+}
+
+function isOverdue(date: string | null) {
+  if (!date) return false;
+  return date < new Date().toISOString().split("T")[0];
 }
 
 function formatDate(date: string | null) {
@@ -108,6 +125,8 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
       city,
       country,
       source,
+      source_detail,
+      campaign_name,
       service_interest,
       preferred_contact_method,
       status,
@@ -116,6 +135,15 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
       estimated_monthly_value_cents,
       last_interaction_at,
       converted_client_id,
+      created_at,
+      qualified_at,
+      consultation_scheduled_at,
+      consultation_status,
+      consultation_completed_at,
+      offer_drafted_at,
+      current_offer_status,
+      offer_sent_at,
+      offer_accepted_at,
       assigned:app_users!leads_assigned_user_id_fkey(full_name, email)
     `
     )
@@ -142,15 +170,24 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
     { count: newCount },
     { count: contactedCount },
     { count: interestedCount },
+    { data: paymentData },
   ] = await Promise.all([
     leadsQuery,
     supabase.from("leads").select("*", { count: "exact", head: true }),
     supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "new"),
     supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "contacted"),
     supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "interested"),
+    supabase.from("payments").select("amount_cents,payment_date,invoice:invoices!payments_invoice_id_fkey(client_id)").gt("amount_cents", 0),
   ]);
 
   const rows = (leads || []) as LeadRow[];
+  const firstPaymentByClient = new Map<string, string>();
+  for (const payment of paymentData || []) {
+    const invoice = Array.isArray(payment.invoice) ? payment.invoice[0] : payment.invoice;
+    if (!invoice?.client_id || !payment.payment_date) continue;
+    const current = firstPaymentByClient.get(invoice.client_id);
+    if (!current || payment.payment_date < current) firstPaymentByClient.set(invoice.client_id, payment.payment_date);
+  }
   const dueCount = rows.filter((lead) => isDue(lead.next_follow_up_date)).length;
   const openValue = rows
     .filter((lead) => !["won", "lost"].includes(lead.status || ""))
@@ -342,6 +379,7 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
                 <TableRow>
                   <TableHead>Lead</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Funnel</TableHead>
                   <TableHead>Interest</TableHead>
                   <TableHead>Value</TableHead>
                   <TableHead>Follow-up</TableHead>
@@ -363,6 +401,13 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
                   ]
                     .filter(Boolean)
                     .join(" • ");
+                  const firstPaymentAt = lead.converted_client_id
+                    ? firstPaymentByClient.get(lead.converted_client_id) || null
+                    : null;
+                  const commercialStage = getCommercialStage({
+                    ...lead,
+                    first_payment_at: firstPaymentAt,
+                  });
 
                   return (
                     <TableRow key={lead.id}>
@@ -373,6 +418,11 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
                         <div className="mt-1 text-xs text-muted-foreground">
                           {leadMeta || "No contact details"}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={commercialStage === "paying_customer" ? "success" : "neutral"}>
+                          {formatStatusLabel(commercialStage)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(lead.status)}>
@@ -400,6 +450,9 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
                         >
                           {formatDate(lead.next_follow_up_date)}
                         </span>
+                        {isOverdue(lead.next_follow_up_date) ? (
+                          <div className="mt-1 text-xs font-medium text-[var(--badge-danger-text)]">Overdue</div>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {assigned?.full_name || assigned?.email || "Unassigned"}

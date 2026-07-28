@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
   createPublicContactLeadAction,
 } from "@/lib/actions/public-contact";
@@ -59,6 +59,32 @@ export function ContactRequestForm({
   const [country, setCountry] = useState("");
   const [area, setArea] = useState("");
   const [message, setMessage] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const attribution = {
+      source_detail: document.referrer || "",
+      campaign_name: params.get("campaign") || params.get("utm_campaign") || "",
+      utm_source: params.get("utm_source") || "",
+      utm_medium: params.get("utm_medium") || "",
+      utm_campaign: params.get("utm_campaign") || "",
+      utm_content: params.get("utm_content") || "",
+      utm_term: params.get("utm_term") || "",
+      click_id:
+        params.get("gclid") ||
+        params.get("msclkid") ||
+        params.get("fbclid") ||
+        "",
+      landing_locale: locale,
+      landing_page: `${window.location.pathname}${window.location.search}`,
+    };
+    for (const [name, value] of Object.entries(attribution)) {
+      const field = formRef.current?.elements.namedItem(name);
+      const max = name === "landing_page" ? 500 : name === "click_id" ? 200 : name === "landing_locale" ? 10 : name === "utm_source" || name === "utm_medium" ? 100 : 160;
+      if (field instanceof HTMLInputElement) field.value = value.slice(0, max);
+    }
+  }, [locale]);
 
   const mailtoHref = useMemo(() => {
     const subject = `Website inquiry from ${name || "new contact"}`;
@@ -81,11 +107,18 @@ export function ContactRequestForm({
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-white">{title}</h2>
         <p className="text-sm text-slate-300">{description}</p>
+        <p className="text-sm text-slate-300">
+          Packages start from €75 per month. The right setup depends on the visit
+          frequency and support your apartment needs.
+        </p>
       </div>
 
-      <form action={formAction} className="mt-6 grid gap-4 sm:grid-cols-2">
+      <form ref={formRef} action={formAction} className="mt-6 grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="company_email" value={email} />
         <input type="hidden" name="locale" value={locale} />
+        {["source_detail", "campaign_name", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "click_id", "landing_locale", "landing_page"].map((name) => (
+          <input key={name} type="hidden" name={name} defaultValue={name === "landing_locale" ? locale : ""} />
+        ))}
         <input
           type="text"
           name="website_url"

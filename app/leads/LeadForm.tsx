@@ -21,6 +21,13 @@ type Lead = {
   country?: string | null;
   city?: string | null;
   source?: string | null;
+  source_detail?: string | null;
+  campaign_name?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_content?: string | null;
+  utm_term?: string | null;
   preferred_contact_method?: string | null;
   service_interest?: string | null;
   property_count?: number | null;
@@ -88,6 +95,7 @@ export default function LeadForm({
                 id="source"
                 name="source"
                 defaultValue={initialData?.source || "manual"}
+                disabled={isEdit}
                 className={nativeSelectClassName}
               >
                 <option value="manual">Manual</option>
@@ -99,6 +107,41 @@ export default function LeadForm({
                 <option value="phone">Phone</option>
               </select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="source_detail">Source Detail</Label>
+              <Input id="source_detail" name="source_detail" maxLength={160} defaultValue={initialData?.source_detail || ""} disabled={isEdit} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="campaign_name">Campaign</Label>
+              <Input id="campaign_name" name="campaign_name" maxLength={160} defaultValue={initialData?.campaign_name || ""} disabled={isEdit} placeholder="strehe_channel_market_objective_yyyymm" />
+              <p className="text-xs text-muted-foreground">Convention: strehe_&lt;channel&gt;_&lt;market&gt;_&lt;objective&gt;_&lt;yyyymm&gt;</p>
+            </div>
+            {!isEdit ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="utm_source">UTM Source</Label>
+                  <Input id="utm_source" name="utm_source" maxLength={100} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="utm_medium">UTM Medium</Label>
+                  <Input id="utm_medium" name="utm_medium" maxLength={100} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="utm_campaign">UTM Campaign</Label>
+                  <Input id="utm_campaign" name="utm_campaign" maxLength={160} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="utm_content">UTM Content</Label>
+                  <Input id="utm_content" name="utm_content" maxLength={160} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="utm_term">UTM Term</Label>
+                  <Input id="utm_term" name="utm_term" maxLength={160} />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground md:col-span-2">First-touch attribution is immutable. Create an interaction note to document later attribution evidence.</p>
+            )}
           </div>
         </SectionCard>
 

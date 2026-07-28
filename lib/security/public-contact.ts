@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeAttribution } from "@/lib/funnel/attribution";
 
 export type PublicContactLeadState = {
   status: "idle" | "success" | "error";
@@ -13,6 +14,16 @@ type RecentLead = {
   country: string | null;
   city: string | null;
   notes: string | null;
+  source_detail?: string | null;
+  campaign_name?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_content?: string | null;
+  utm_term?: string | null;
+  click_id?: string | null;
+  landing_locale?: string | null;
+  landing_page?: string | null;
 };
 
 type RecentLeadQuery = {
@@ -28,6 +39,7 @@ type LeadInsert = RecentLead & {
   preferred_contact_method: "email" | "whatsapp";
   service_interest: "not_sure";
   updated_at: string;
+  first_touch_at: string;
 };
 
 export type PublicContactAdminClient = {
@@ -170,6 +182,23 @@ export function createPublicContactLeadHandler(
     }
 
     const input = parsed.data;
+    let attribution;
+    try {
+      attribution = normalizeAttribution({
+        source_detail: readString(formData, "source_detail"),
+        campaign_name: readString(formData, "campaign_name"),
+        utm_source: readString(formData, "utm_source"),
+        utm_medium: readString(formData, "utm_medium"),
+        utm_campaign: readString(formData, "utm_campaign"),
+        utm_content: readString(formData, "utm_content"),
+        utm_term: readString(formData, "utm_term"),
+        click_id: readString(formData, "click_id"),
+        landing_locale: readString(formData, "landing_locale"),
+        landing_page: readString(formData, "landing_page"),
+      });
+    } catch {
+      return { status: "error", message: copy.required };
+    }
     const contactIsEmail = input.contact.includes("@");
     const notes = [
       input.message || null,
@@ -187,6 +216,7 @@ export function createPublicContactLeadHandler(
       country: input.country || null,
       city: input.area || null,
       notes: notes || null,
+      ...attribution,
     };
     const mailtoHref = buildMailtoHref(input);
 
@@ -218,6 +248,7 @@ export function createPublicContactLeadHandler(
           priority: "normal",
           preferred_contact_method: contactIsEmail ? "email" : "whatsapp",
           service_interest: "not_sure",
+          first_touch_at: dependencies.now().toISOString(),
           updated_at: dependencies.now().toISOString(),
         },
       ]);

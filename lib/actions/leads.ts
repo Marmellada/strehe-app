@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeAttribution } from "@/lib/funnel/attribution";
 
 function clean(value: FormDataEntryValue | null) {
   const text = String(value || "").trim();
@@ -70,20 +71,19 @@ async function createLeadEvent({
   }
 }
 
-function getLeadPayload(formData: FormData) {
+function getLeadPayload(formData: FormData, includeFirstTouch = false) {
   const fullName = clean(formData.get("full_name"));
 
   if (!fullName) {
     throw new Error("Lead name is required.");
   }
 
-  return {
+  const payload = {
     full_name: fullName,
     phone: clean(formData.get("phone")),
     email: clean(formData.get("email")),
     country: clean(formData.get("country")) || "Kosovo",
     city: clean(formData.get("city")),
-    source: clean(formData.get("source")),
     preferred_contact_method: clean(formData.get("preferred_contact_method")),
     service_interest: clean(formData.get("service_interest")),
     property_count: cleanNumber(formData.get("property_count")),
@@ -99,6 +99,32 @@ function getLeadPayload(formData: FormData) {
     notes: clean(formData.get("notes")),
     updated_at: new Date().toISOString(),
   };
+
+  if (!includeFirstTouch) return payload;
+
+  const source = clean(formData.get("source")) || "manual";
+  if (!["manual", "whatsapp", "website", "referral", "facebook", "instagram", "phone"].includes(source)) {
+    throw new Error("Invalid lead source.");
+  }
+  const attribution = normalizeAttribution({
+    source_detail: String(formData.get("source_detail") || ""),
+    campaign_name: String(formData.get("campaign_name") || ""),
+    utm_source: String(formData.get("utm_source") || ""),
+    utm_medium: String(formData.get("utm_medium") || ""),
+    utm_campaign: String(formData.get("utm_campaign") || ""),
+    utm_content: String(formData.get("utm_content") || ""),
+    utm_term: String(formData.get("utm_term") || ""),
+    click_id: String(formData.get("click_id") || ""),
+    landing_locale: String(formData.get("landing_locale") || ""),
+    landing_page: String(formData.get("landing_page") || ""),
+  });
+
+  return {
+    ...payload,
+    source,
+    ...attribution,
+    first_touch_at: new Date().toISOString(),
+  };
 }
 
 export async function createLeadAction(formData: FormData) {
@@ -113,7 +139,7 @@ export async function createLeadAction(formData: FormData) {
     .from("leads")
     .insert([
       {
-        ...getLeadPayload(formData),
+        ...getLeadPayload(formData, true),
         created_by_user_id: user?.id || null,
       },
     ])
@@ -173,7 +199,6 @@ export async function updateLeadAction(id: string, formData: FormData) {
     "email",
     "country",
     "city",
-    "source",
     "preferred_contact_method",
     "service_interest",
     "property_count",
@@ -287,6 +312,14 @@ export async function convertLeadToClientAction(id: string) {
     throw new Error("Lead not found.");
   }
 
+  const { count: acceptedOfferCount, error: acceptedOfferError } = await supabase
+    .from("lead_offers")
+    .select("id", { count: "exact", head: true })
+    .eq("lead_id", id)
+    .eq("status", "accepted");
+  if (acceptedOfferError) throw new Error(acceptedOfferError.message);
+  if (!acceptedOfferCount) throw new Error("An accepted written offer is required before conversion.");
+
   if (lead.converted_client_id) {
     redirect(`/clients/${lead.converted_client_id}`);
   }
@@ -348,6 +381,13 @@ export async function convertLeadToClientAction(id: string) {
     metadata: { client_id: client.id },
   });
 
+  const { error: offerLinkError } = await supabase
+    .from("lead_offers")
+    .update({ converted_client_id: client.id })
+    .eq("lead_id", id)
+    .eq("status", "accepted");
+  if (offerLinkError) throw new Error(offerLinkError.message);
+
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
   revalidatePath("/clients");
@@ -374,6 +414,14 @@ export async function convertLeadWithOptionsAction(id: string, formData: FormDat
   if (leadError) throw new Error(leadError.message);
   if (!lead) throw new Error("Lead not found.");
   if (lead.converted_client_id) redirect(`/clients/${lead.converted_client_id}`);
+
+  const { count: acceptedOfferCount, error: acceptedOfferError } = await supabase
+    .from("lead_offers")
+    .select("id", { count: "exact", head: true })
+    .eq("lead_id", id)
+    .eq("status", "accepted");
+  if (acceptedOfferError) throw new Error(acceptedOfferError.message);
+  if (!acceptedOfferCount) throw new Error("An accepted written offer is required before conversion.");
 
   const leadNotes = [
     lead.notes,
@@ -451,6 +499,13 @@ export async function convertLeadWithOptionsAction(id: string, formData: FormDat
     userId: user?.id,
     metadata: { client_id: client.id, property_id: propertyId },
   });
+
+  const { error: offerLinkError } = await supabase
+    .from("lead_offers")
+    .update({ converted_client_id: client.id, converted_property_id: propertyId })
+    .eq("lead_id", id)
+    .eq("status", "accepted");
+  if (offerLinkError) throw new Error(offerLinkError.message);
 
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);

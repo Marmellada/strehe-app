@@ -7,6 +7,7 @@ import {
   createPromotionCampaignAction,
   createPromotionCodeAction,
   markPromotionCodeSentAction,
+  updateCampaignTrackingAction,
 } from "@/lib/actions/promotions";
 import {
   Badge,
@@ -40,6 +41,10 @@ type CampaignRow = {
   ends_at: string | null;
   active: boolean | null;
   created_at: string | null;
+  channel: string | null;
+  campaign_status: string | null;
+  planned_budget_cents: number | null;
+  actual_spend_cents: number | null;
 };
 
 type CodeCampaignRelation =
@@ -128,7 +133,7 @@ export default async function PromotionsPage() {
     supabase
       .from("promotion_campaigns")
       .select(
-        "id, name, description, discount_type, applies_to, discount_percent, discount_amount_cents, starts_at, ends_at, active, created_at"
+        "id, name, description, discount_type, applies_to, discount_percent, discount_amount_cents, starts_at, ends_at, active, created_at, channel, campaign_status, planned_budget_cents, actual_spend_cents"
       )
       .order("created_at", { ascending: false }),
     supabase
@@ -185,7 +190,7 @@ export default async function PromotionsPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <SectionCard
           title="New Campaign"
-          description="Defines the discount rule. For survey testing, create a 10% campaign."
+          description="Defines the discount rule and channel-neutral acquisition spend. Naming: strehe_<channel>_<market>_<objective>_<yyyymm>."
         >
           <form action={createPromotionCampaignAction} className="grid gap-4">
             <div className="space-y-2">
@@ -196,7 +201,7 @@ export default async function PromotionsPage() {
                 id="name"
                 name="name"
                 required
-                placeholder="Survey Launch Discount"
+                placeholder="strehe_meta_diaspora_founders_202608"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
@@ -213,8 +218,30 @@ export default async function PromotionsPage() {
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
+            <div className="space-y-2">
+              <label htmlFor="campaign_notes" className="text-sm font-medium">Acquisition Notes</label>
+              <textarea id="campaign_notes" name="campaign_notes" rows={2} maxLength={2000} className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="channel" className="text-sm font-medium">Channel</label>
+                <input id="channel" name="channel" maxLength={80} placeholder="meta, referral, direct" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="campaign_status" className="text-sm font-medium">Campaign Status</label>
+                <select id="campaign_status" name="campaign_status" defaultValue="planned" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <option value="planned">Planned</option><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="planned_budget" className="text-sm font-medium">Planned Budget (€)</label>
+                <input id="planned_budget" name="planned_budget" type="number" min="0" step="0.01" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="actual_spend" className="text-sm font-medium">Actual Spend (€)</label>
+                <input id="actual_spend" name="actual_spend" type="number" min="0" step="0.01" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
               <div className="space-y-2">
                 <label htmlFor="discount_type" className="text-sm font-medium">
                   Discount Type
@@ -557,6 +584,7 @@ export default async function PromotionsPage() {
                     <TableHead>Applies To</TableHead>
                     <TableHead>Dates</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Acquisition Tracking</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -577,6 +605,20 @@ export default async function PromotionsPage() {
                         <Badge variant={campaign.active ? "success" : "neutral"}>
                           {campaign.active ? "Active" : "Inactive"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <form action={updateCampaignTrackingAction.bind(null, campaign.id)} className="grid min-w-[260px] gap-2">
+                          <input name="name" defaultValue={campaign.name} required className="h-8 rounded-md border bg-background px-2 text-xs" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input name="channel" defaultValue={campaign.channel || ""} placeholder="Channel" className="h-8 rounded-md border bg-background px-2 text-xs" />
+                            <select name="campaign_status" defaultValue={campaign.campaign_status || "planned"} className="h-8 rounded-md border bg-background px-2 text-xs">
+                              <option value="planned">Planned</option><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+                            </select>
+                            <input aria-label={`${campaign.name} planned budget`} name="planned_budget" type="number" min="0" step="0.01" defaultValue={campaign.planned_budget_cents == null ? "" : campaign.planned_budget_cents / 100} placeholder="Budget €" className="h-8 rounded-md border bg-background px-2 text-xs" />
+                            <input aria-label={`${campaign.name} actual spend`} name="actual_spend" type="number" min="0" step="0.01" defaultValue={campaign.actual_spend_cents == null ? "" : campaign.actual_spend_cents / 100} placeholder="Spend €" className="h-8 rounded-md border bg-background px-2 text-xs" />
+                          </div>
+                          <Button type="submit" size="sm" variant="outline">Update tracking</Button>
+                        </form>
                       </TableCell>
                     </TableRow>
                   ))}

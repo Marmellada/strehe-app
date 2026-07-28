@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { formatStatusLabel, getStatusVariant } from "@/lib/ui/status";
+import { FunnelPanel } from "./FunnelPanel";
 
 type AssignedUser =
   | { full_name: string | null; email: string | null }
@@ -100,7 +101,7 @@ export default async function LeadDetailPage({
   const supabase = await createClient();
   const { id } = await params;
 
-  const [{ data: lead }, { data: interactions }, { data: events }] = await Promise.all([
+  const [{ data: lead }, { data: interactions }, { data: events }, { data: consultations }, { data: offers }] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -138,9 +139,31 @@ export default async function LeadDetailPage({
       .eq("lead_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("lead_consultations")
+      .select("id,status,scheduled_start,contact_format,recommended_package,completed_at")
+      .eq("lead_id", id)
+      .order("scheduled_start", { ascending: false }),
+    supabase
+      .from("lead_offers")
+      .select("id,offer_number,version,status,selected_package,monthly_price_cents,valid_until,sent_at,follow_up_date,accepted_at,rejected_at")
+      .eq("lead_id", id)
+      .order("version", { ascending: false }),
   ]);
 
   if (!lead) return notFound();
+
+  let firstPaymentAt: string | null = null;
+  if (lead.converted_client_id) {
+    const { data: paymentRows } = await supabase
+      .from("payments")
+      .select("amount_cents,payment_date,invoice:invoices!payments_invoice_id_fkey!inner(client_id)")
+      .eq("invoice.client_id", lead.converted_client_id)
+      .gt("amount_cents", 0)
+      .order("payment_date", { ascending: true })
+      .limit(1);
+    firstPaymentAt = paymentRows?.[0]?.payment_date || null;
+  }
 
   const duplicateConditions = [lead.phone, lead.email]
     .filter(Boolean)
@@ -170,6 +193,7 @@ export default async function LeadDetailPage({
   const eventRows = (events || []) as LeadEvent[];
   const duplicateLeadRows = (duplicateLeads || []) as DuplicateLead[];
   const duplicateClientRows = (duplicateClients || []) as DuplicateClient[];
+  const acceptedOffer = (offers || []).some((offer) => offer.status === "accepted");
 
   return (
     <div className="space-y-6">
@@ -188,11 +212,11 @@ export default async function LeadDetailPage({
               <Button asChild>
                 <Link href={`/clients/${lead.converted_client_id}`}>Open Client</Link>
               </Button>
-            ) : (
+            ) : acceptedOffer ? (
               <form action={convertLead}>
                 <Button type="submit">Convert to Client</Button>
               </form>
-            )}
+            ) : null}
           </>
         }
       />
@@ -257,6 +281,8 @@ export default async function LeadDetailPage({
 
         <SectionCard title="Pipeline" contentClassName="grid gap-4">
           <DetailField label="Source" value={formatStatusLabel(lead.source)} />
+          <DetailField label="Source detail" value={lead.source_detail || "-"} />
+          <DetailField label="Campaign" value={lead.campaign_name || lead.utm_campaign || "-"} />
           <DetailField
             label="Interest"
             value={formatStatusLabel(lead.service_interest)}
@@ -284,6 +310,13 @@ export default async function LeadDetailPage({
           </div>
         </SectionCard>
       </section>
+
+      <FunnelPanel
+        lead={lead}
+        consultations={(consultations || []) as never[]}
+        offers={(offers || []) as never[]}
+        firstPaymentAt={firstPaymentAt}
+      />
 
       {duplicateLeadRows.length || duplicateClientRows.length ? (
         <SectionCard title="Possible Duplicates">
@@ -406,7 +439,7 @@ export default async function LeadDetailPage({
         </SectionCard>
       </div>
 
-      {!lead.converted_client_id ? (
+      {!lead.converted_client_id && acceptedOffer ? (
         <SectionCard title="Convert Lead">
           <form action={convertLead} className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">

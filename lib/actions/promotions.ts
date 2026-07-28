@@ -148,8 +148,8 @@ async function sendAndMarkPromotionCode({
 export async function createPromotionCampaignAction(formData: FormData) {
   await requireRole(["admin"]);
 
-  const name = String(formData.get("name") || "").trim();
-  const description = String(formData.get("description") || "").trim();
+  const name = String(formData.get("name") || "").normalize("NFKC").trim().slice(0, 160);
+  const description = String(formData.get("description") || "").normalize("NFKC").trim().slice(0, 2000);
   const discountType = String(formData.get("discount_type") || "percent");
   const appliesTo = String(formData.get("applies_to") || "package_fee").trim();
   const discountPercentRaw = String(formData.get("discount_percent") || "").trim();
@@ -157,9 +157,20 @@ export async function createPromotionCampaignAction(formData: FormData) {
   const startsAt = String(formData.get("starts_at") || "").trim();
   const endsAt = String(formData.get("ends_at") || "").trim();
   const maxRedemptionsRaw = String(formData.get("max_redemptions") || "").trim();
+  const channel = String(formData.get("channel") || "").normalize("NFKC").trim().slice(0, 80);
+  const campaignStatus = String(formData.get("campaign_status") || "planned").trim();
+  const plannedBudgetCents = moneyToCents(String(formData.get("planned_budget") || "").trim());
+  const actualSpendCents = moneyToCents(String(formData.get("actual_spend") || "").trim());
+  const campaignNotes = String(formData.get("campaign_notes") || "").normalize("NFKC").trim().slice(0, 2000);
 
   if (!name) {
     throw new Error("Campaign name is required.");
+  }
+  if (/[<>{}\u0000-\u001f]/u.test(name) || /[<>{}\u0000]/u.test(description)) {
+    throw new Error("Campaign text contains unsupported content.");
+  }
+  if (!["planned", "active", "paused", "completed", "cancelled"].includes(campaignStatus)) {
+    throw new Error("Invalid campaign status.");
   }
 
   const discountPercent =
@@ -182,6 +193,9 @@ export async function createPromotionCampaignAction(formData: FormData) {
   if (maxRedemptionsRaw && Number.isNaN(maxRedemptions)) {
     throw new Error("Max redemptions must be a number.");
   }
+  if ((plannedBudgetCents !== null && plannedBudgetCents < 0) || (actualSpendCents !== null && actualSpendCents < 0)) {
+    throw new Error("Campaign budget and spend cannot be negative.");
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("promotion_campaigns").insert({
@@ -196,6 +210,11 @@ export async function createPromotionCampaignAction(formData: FormData) {
     ends_at: endsAt || null,
     active: true,
     max_redemptions: maxRedemptions,
+    channel: channel || null,
+    campaign_status: campaignStatus,
+    planned_budget_cents: plannedBudgetCents,
+    actual_spend_cents: actualSpendCents,
+    campaign_notes: campaignNotes || null,
   });
 
   if (error) {
@@ -204,6 +223,35 @@ export async function createPromotionCampaignAction(formData: FormData) {
 
   revalidatePath("/settings/promotions");
   redirect("/settings/promotions");
+}
+
+export async function updateCampaignTrackingAction(id: string, formData: FormData) {
+  await requireRole(["admin"]);
+  const name = String(formData.get("name") || "").normalize("NFKC").trim().slice(0, 160);
+  const channel = String(formData.get("channel") || "").normalize("NFKC").trim().slice(0, 80);
+  const campaignStatus = String(formData.get("campaign_status") || "planned").trim();
+  const plannedBudgetCents = moneyToCents(String(formData.get("planned_budget") || "").trim());
+  const actualSpendCents = moneyToCents(String(formData.get("actual_spend") || "").trim());
+  if (!name) throw new Error("Campaign name is required.");
+  if (/[<>{}\u0000-\u001f]/u.test(name)) throw new Error("Campaign name contains unsupported content.");
+  if (!["planned", "active", "paused", "completed", "cancelled"].includes(campaignStatus)) {
+    throw new Error("Invalid campaign status.");
+  }
+  if ((plannedBudgetCents !== null && plannedBudgetCents < 0) || (actualSpendCents !== null && actualSpendCents < 0)) {
+    throw new Error("Campaign budget and spend cannot be negative.");
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("promotion_campaigns").update({
+    name,
+    channel: channel || null,
+    campaign_status: campaignStatus,
+    planned_budget_cents: plannedBudgetCents,
+    actual_spend_cents: actualSpendCents,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings/promotions");
+  revalidatePath("/leads/reports");
 }
 
 export async function createPromotionCodeAction(formData: FormData) {
