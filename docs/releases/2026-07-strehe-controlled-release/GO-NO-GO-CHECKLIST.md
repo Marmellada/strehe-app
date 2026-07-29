@@ -1,11 +1,14 @@
 # Production Go/No-Go Checklist
 
 Current recommendation:
-**DATABASE MIGRATION PASS — READY FOR FOUNDER APPLICATION GO/NO-GO**
+**APPLICATION DEPLOYMENT PASS — READY FOR HERMES POST-DEPLOYMENT REVIEW**
 
 `STREHE-RELEASE-005` completed the bounded database execution and immediate
-read-only verification successfully. The application remains undeployed. See
-`PRODUCTION-DATABASE-MIGRATION-2026-07-30.md`.
+read-only verification successfully. Under the Founder's separate application
+GO, `STREHE-RELEASE-006` then deployed the exact frozen RC and completed
+bounded read-only production verification. See
+`PRODUCTION-DATABASE-MIGRATION-2026-07-30.md` and
+`PRODUCTION-APPLICATION-DEPLOYMENT-2026-07-30.md`.
 
 ## Technical gates
 
@@ -26,15 +29,19 @@ read-only verification successfully. The application remains undeployed. See
 | Hermes release-package review | PASS | STREHE-RELEASE-003-HERMES-REVIEW-001 |
 | Repaired preflight Hermes review | PASS | Reviewed SHA `dd3e3b5…27e22` |
 | Founder database authorization | EXECUTED — PASS | Exactly three approved migrations applied and verified |
-| Founder application authorization | NOT GRANTED | Separate GO after DB PASS |
+| Founder application authorization | EXECUTED — PASS | Exact frozen RC fast-forwarded and deployed under separate GO |
+| Production application deployment | PASS | `origin/main` and Vercel source equal exact frozen RC; deployment READY |
+| Bounded post-deployment smoke | PASS | Domains/locales/login/browser/runtime logs checked read-only; no production write |
+| Hermes post-deployment review | PENDING | `STREHE-RELEASE-006-HERMES-POST-DEPLOYMENT-REVIEW-001` |
 
 ## Decision sequence
 
-1. Founder explicitly accepts or rejects the remaining database-restore risk.
-2. Founder separately decides database GO/NO-GO.
-3. Apply and verify migrations only under a later execution authorization.
-4. Founder separately decides application GO/NO-GO after database verification.
-5. Deploy and run read-only smoke only under a later application authorization.
+1. Database authorization, migration, and verification: completed PASS.
+2. Separate Founder application GO: issued and executed.
+3. Exact frozen-RC deployment and bounded read-only smoke: completed PASS.
+4. Hermes independently performs
+   `STREHE-RELEASE-006-HERMES-POST-DEPLOYMENT-REVIEW-001`.
+5. Founder considers the Hermes result.
 6. Keep public launch, onboarding, and paid acquisition separately gated.
 
 Technical deployment may be approved without approving paid acquisition.

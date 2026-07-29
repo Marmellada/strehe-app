@@ -15,6 +15,7 @@
 - [Commercial/legal gates](COMMERCIAL-LEGAL-GATES.md)
 - [Authenticated production evidence](PRODUCTION-EVIDENCE-2026-07-29.md)
 - [Production database migration result](PRODUCTION-DATABASE-MIGRATION-2026-07-30.md)
+- [Production application deployment result](PRODUCTION-APPLICATION-DEPLOYMENT-2026-07-30.md)
 
 ## Existing authoritative references
 
@@ -100,3 +101,22 @@ with validated coverage and hashes. Phase 3 resumed from clean state:
 Evidence root:
 
 `D:\Personal\Projects\Strehe-Prona\STREHE-PRESERVATION\STREHE-RELEASE-005-2026-07-30`
+
+## STREHE-RELEASE-006 application deployment
+
+The Founder-authorized application deployment advanced only `main` by
+fast-forward from `a308b63a5fad0521057b42ecd763dff22c00e716` to the frozen RC
+`eb30d0ec0f698bfd3a7c0404b519e67e38718f97`. Vercel production deployment
+`dpl_GEctFMo1oRc7Tdv23aWrTyDHkEck` reached `READY`, all three production
+domains were attached, and bounded read-only HTTP/browser/runtime-log checks
+passed without a production write.
+
+Evidence root:
+
+`D:\Personal\Projects\Strehe-Prona\STREHE-PRESERVATION\STREHE-RELEASE-006-2026-07-30`
+
+Current classification:
+**APPLICATION DEPLOYMENT PASS — READY FOR HERMES POST-DEPLOYMENT REVIEW**.
+
+Public launch, onboarding, service delivery, and paid acquisition remain
+separately gated.
