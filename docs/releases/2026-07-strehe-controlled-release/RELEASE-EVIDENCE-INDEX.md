@@ -14,6 +14,7 @@
 - [Go/no-go checklist](GO-NO-GO-CHECKLIST.md)
 - [Commercial/legal gates](COMMERCIAL-LEGAL-GATES.md)
 - [Authenticated production evidence](PRODUCTION-EVIDENCE-2026-07-29.md)
+- [Production database migration result](PRODUCTION-DATABASE-MIGRATION-2026-07-30.md)
 
 ## Existing authoritative references
 
@@ -82,3 +83,14 @@ STREHE-RELEASE-004 evidence root:
 
 The external `EVIDENCE-MANIFEST.json` contains hashes, sizes, sources, purposes,
 sensitivity, and commit eligibility.
+
+## STREHE-RELEASE-005 closure
+
+The Founder-authorized database work order stopped in Phase 2. The fresh
+role-only logical export was interrupted by the local command timeout before an
+export file was created. No retry, preflight, migration, post-migration
+verification, or application deployment followed.
+
+Evidence root:
+
+`D:\Personal\Projects\Strehe-Prona\STREHE-PRESERVATION\STREHE-RELEASE-005-2026-07-30`

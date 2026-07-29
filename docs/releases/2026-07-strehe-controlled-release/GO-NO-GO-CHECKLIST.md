@@ -1,7 +1,11 @@
 # Production Go/No-Go Checklist
 
-Current recommendation: **TECHNICALLY ELIGIBLE FOR A FOUNDER DATABASE DECISION;
-NO RELEASE EXECUTION IS AUTHORIZED**
+Current recommendation:
+**DATABASE MIGRATION FAILED — NO APPLICATION DEPLOYMENT**
+
+`STREHE-RELEASE-005` authorized a bounded database execution, but the mandatory
+fresh backup failed before any migration began. See
+`PRODUCTION-DATABASE-MIGRATION-2026-07-30.md`.
 
 ## Technical gates
 
@@ -12,14 +16,14 @@ NO RELEASE EXECUTION IS AUTHORIZED**
 | Local replay/regressions | PASS | Replay, dry run, tests, smokes, lint, TS, build |
 | Production structural preflight | PASS | Reviewed script exit 0; all 23 checks PASS |
 | Production data preflight | PASS | `has_stops=false`; `stop_count=0`; aggregate-only evidence |
-| Backup/recovery | PARTIAL/RISK DECISION | Encrypted logical exports and 27 Storage objects exist; database restore remains partially proven |
+| Backup/recovery | BLOCKED | Required fresh backup incomplete; prior recovery remains only partially proven |
 | Vercel project/production branch | PASS | Authenticated project; production branch `main` |
 | Vercel rollback | PASS | OWNER; baseline deployment recorded; controls accessible |
 | Critical environment variables | PASS | Effective required production set present; values not recorded |
 | Contact rate limiting | PASS | Active live POST rule, 10/IP/60s, all locales |
 | Hermes release-package review | PASS | STREHE-RELEASE-003-HERMES-REVIEW-001 |
 | Repaired preflight Hermes review | PASS | Reviewed SHA `dd3e3b5…27e22` |
-| Founder database authorization | NOT GRANTED | New explicit GO |
+| Founder database authorization | GRANTED FOR RELEASE-005; STOPPED | Fresh successful backup required before a new execution decision |
 | Founder application authorization | NOT GRANTED | Separate GO after DB PASS |
 
 ## Decision sequence
