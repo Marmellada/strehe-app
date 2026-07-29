@@ -46,7 +46,9 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Message").fill("Website CRM capture smoke request");
     await page.getByRole("button", { name: "Send request" }).click();
 
-    await expect(page.getByText("now in our lead list")).toBeVisible({
+    await expect(
+      page.getByText("Thanks. We received your request and will reply shortly.")
+    ).toBeVisible({
       timeout: 15000,
     });
 
@@ -62,7 +64,7 @@ test.describe.serial("leads CRM smoke", () => {
   test("quick-create a WhatsApp lead with defaults", async ({ page }) => {
     await page.goto("/leads/new?source=whatsapp");
     await expect(page.getByRole("heading", { name: "New Lead" })).toBeVisible();
-    await expect(page.getByLabel("Source")).toHaveValue("whatsapp");
+    await expect(page.getByLabel("Source", { exact: true })).toHaveValue("whatsapp");
     await expect(page.getByLabel("Preferred Contact")).toHaveValue("whatsapp");
 
     await page.getByLabel("Full Name").fill(whatsappLeadName);
@@ -84,7 +86,7 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Phone").fill("+38344111777");
     await page.getByLabel("Email").fill(leadEmail);
     await page.getByLabel("City").fill("Prishtina");
-    await page.getByLabel("Source").selectOption("whatsapp");
+    await page.getByLabel("Source", { exact: true }).selectOption("whatsapp");
     await page.getByLabel("Preferred Contact").selectOption("whatsapp");
     await page.getByLabel("Service Interest").selectOption("care_plus");
     await page.getByLabel("Estimated Monthly Value").fill("89.00");
@@ -101,7 +103,7 @@ test.describe.serial("leads CRM smoke", () => {
       timeout: 15000,
     });
     await expect(page.getByText("High")).toBeVisible();
-    await expect(page.getByText("Care Plus")).toBeVisible();
+    await expect(page.locator("div").filter({ hasText: /^Care Plus$/ }).first()).toBeVisible();
     await expect(page.getByText("€89.00")).toBeVisible();
     await expect(page.getByText("Playwright Admin").first()).toBeVisible();
 
@@ -116,7 +118,7 @@ test.describe.serial("leads CRM smoke", () => {
     await expect(page.getByText("Interested").first()).toBeVisible();
 
     await page.getByLabel("Type", { exact: true }).selectOption("call");
-    await page.getByLabel("Summary").fill(note);
+    await page.getByLabel("Summary", { exact: true }).fill(note);
     await page.getByLabel("Next Follow-up Date").fill(laterFollowUp);
     await page.getByRole("button", { name: "Add Note" }).click();
     await expect(page).toHaveURL(new RegExp(`${leadUrl.replace(/\//g, "\\/")}$`), {
@@ -132,7 +134,7 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByLabel("Outcome", { exact: true }).first().selectOption("qualified");
     await page.getByLabel("Eligibility and notes").fill("Eligible apartment in Prishtina with absent owner.");
     await page.getByRole("button", { name: "Save qualification" }).click();
-    await expect(page.getByText("Qualified:").locator("..")).not.toContainText("—");
+    await expect(page.getByText(/^Qualified:/)).not.toHaveText("Qualified: —");
 
     await page.getByLabel("Scheduled start").fill(consultationStart);
     await page.getByLabel("Format").selectOption("whatsapp_video");
@@ -149,7 +151,7 @@ test.describe.serial("leads CRM smoke", () => {
     await page.getByRole("button", { name: "Save consultation" }).click();
     await expect(page.getByText("2 consultation record(s)")).toBeVisible();
 
-    await page.getByLabel("Package").selectOption("essential_check");
+    await page.getByLabel("Package", { exact: true }).selectOption("essential_check");
     await page.getByLabel("Founding customer").selectOption("yes");
     await page.getByLabel("Valid until (required to send)").fill(offerValidUntil);
     await page.getByLabel("Consultation summary").fill("Apartment eligible; monthly visible-condition checks requested.");
@@ -199,6 +201,6 @@ test.describe.serial("leads CRM smoke", () => {
 
     await page.goto("/leads/reports");
     await expect(page.getByRole("heading", { name: "Founding Customer Funnel" })).toBeVisible();
-    await expect(page.getByText("By source")).toBeVisible();
+    await expect(page.getByText("By source", { exact: true })).toBeVisible();
   });
 });

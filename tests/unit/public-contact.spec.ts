@@ -42,6 +42,7 @@ function createHarness(options: {
   }>;
   queryError?: unknown;
   insertError?: unknown;
+  revalidateError?: unknown;
 } = {}) {
   let adminCalls = 0;
   let revalidateCalls = 0;
@@ -84,6 +85,7 @@ function createHarness(options: {
     now: () => fixedNow,
     revalidateLeads: () => {
       revalidateCalls += 1;
+      if (options.revalidateError) throw options.revalidateError;
     },
   });
 
@@ -214,5 +216,14 @@ test.describe("public contact action containment", () => {
     expect(result.message).not.toContain("private database detail");
     expect(harness.insertedRows).toHaveLength(1);
     expect(harness.revalidateCalls).toBe(0);
+  });
+
+  test("reports success when persistence succeeds but revalidation fails", async () => {
+    const harness = createHarness({ revalidateError: new Error("cache unavailable") });
+    const result = await harness.handler(idleState, validForm());
+
+    expect(result.status).toBe("success");
+    expect(harness.insertedRows).toHaveLength(1);
+    expect(harness.revalidateCalls).toBe(1);
   });
 });

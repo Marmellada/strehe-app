@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeAttribution } from "@/lib/funnel/attribution";
@@ -81,12 +82,63 @@ test("generates an Albanian proposal PDF with proposal boundaries", async () => 
   });
   expect(result.bytes.byteLength).toBeGreaterThan(1000);
   expect(result.filename).toContain("_sq.pdf");
+  const hash = createHash("sha256").update(result.bytes).digest("hex");
+  expect(hash).toMatch(/^[a-f0-9]{64}$/);
+  if (process.env.FUNNEL_PDF_OUTPUT) {
+    const outputPath = path.resolve(process.env.FUNNEL_PDF_OUTPUT);
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, result.bytes);
+    console.log(`FUNNEL_PDF_SHA256=${hash}`);
+  }
 });
 
 test("migration keeps consultations and offers internal under RLS", () => {
   const sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260728120000_add_founding_customer_funnel.sql"), "utf8");
   expect(sql).toContain("alter table public.lead_consultations enable row level security");
   expect(sql).toContain("alter table public.lead_offers enable row level security");
+  expect(sql).toContain("on table public.lead_consultations, public.lead_offers");
+  expect(sql).toContain("on sequence public.lead_offer_number_seq to authenticated");
+  expect(sql).toContain("function public.can_manage_sales_funnel()");
+  expect(sql).toContain("role in ('admin', 'office')");
   expect(sql).not.toContain("to anon");
   expect(sql).toContain("protect_lead_first_touch");
+});
+
+test("migration enforces founding capacity and one active founding offer per lead", () => {
+  const sql = fs.readFileSync(
+    path.join(process.cwd(), "supabase/migrations/20260728120000_add_founding_customer_funnel.sql"),
+    "utf8"
+  );
+  expect(sql).toContain("idx_lead_offers_one_active_founding_per_lead");
+  expect(sql).toContain("founding_customer_capacity");
+  expect(sql).toContain("reserved_places < maximum_places");
+  expect(sql).toContain("Founding-customer capacity is limited to three active places.");
+});
+
+test("lead detail explicitly selects the latest consultation", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/leads/[id]/page.tsx"), "utf8");
+  expect(source).toMatch(
+    /\.from\("lead_consultations"\)[\s\S]*?\.eq\("lead_id", id\)[\s\S]*?\.order\("scheduled_start", \{ ascending: false \}\)\s*\.order\("created_at", \{ ascending: false \}\)/
+  );
+});
+
+test("offer transition rejects a concurrent loser before writing its event", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "lib/actions/funnel.ts"), "utf8");
+  const concurrencyCheck = source.indexOf('if (!transitionedOffer)');
+  const eventWrite = source.indexOf("await event(", concurrencyCheck);
+  expect(concurrencyCheck).toBeGreaterThan(-1);
+  expect(eventWrite).toBeGreaterThan(concurrencyCheck);
+});
+
+test("forward reconciliation restores CRM runtime privileges without anonymous access", () => {
+  const sql = fs.readFileSync(
+    path.join(process.cwd(), "supabase/migrations/20260729001000_restore_crm_runtime_privileges.sql"),
+    "utf8"
+  );
+  expect(sql).toContain("public.app_users");
+  expect(sql).toContain("public.leads");
+  expect(sql).toContain("public.lead_events");
+  expect(sql).toContain("public.properties");
+  expect(sql).toContain("to authenticated, service_role");
+  expect(sql).not.toMatch(/\bto\s+anon\b/);
 });

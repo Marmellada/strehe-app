@@ -181,7 +181,7 @@ setup("login and save auth state", async ({ page }) => {
 
   await page.waitForURL((url) => !url.pathname.startsWith("/auth/login"));
   await page.goto("/clients");
-  await expect(page.getByRole("heading", { name: "Clients" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Clients", exact: true })).toBeVisible();
 
   await page.context().storageState({ path: AUTH_FILE });
 });
