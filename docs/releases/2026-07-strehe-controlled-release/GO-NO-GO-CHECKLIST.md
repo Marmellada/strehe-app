@@ -1,10 +1,10 @@
 # Production Go/No-Go Checklist
 
 Current recommendation:
-**DATABASE MIGRATION FAILED — NO APPLICATION DEPLOYMENT**
+**DATABASE MIGRATION PASS — READY FOR FOUNDER APPLICATION GO/NO-GO**
 
-`STREHE-RELEASE-005` authorized a bounded database execution, but the mandatory
-fresh backup failed before any migration began. See
+`STREHE-RELEASE-005` completed the bounded database execution and immediate
+read-only verification successfully. The application remains undeployed. See
 `PRODUCTION-DATABASE-MIGRATION-2026-07-30.md`.
 
 ## Technical gates
@@ -16,14 +16,16 @@ fresh backup failed before any migration began. See
 | Local replay/regressions | PASS | Replay, dry run, tests, smokes, lint, TS, build |
 | Production structural preflight | PASS | Reviewed script exit 0; all 23 checks PASS |
 | Production data preflight | PASS | `has_stops=false`; `stop_count=0`; aggregate-only evidence |
-| Backup/recovery | BLOCKED | Required fresh backup incomplete; prior recovery remains only partially proven |
+| Backup/recovery | PASS FOR AUTHORIZED RISK POSTURE | Fresh seven-export logical backup and hashes complete; restore remains partially proven as accepted by Founder |
+| Production migration | PASS | Three approved versions applied; Local and Remote histories reconcile |
+| Post-migration verification | PASS | 21/21 metadata and aggregate checks PASS |
 | Vercel project/production branch | PASS | Authenticated project; production branch `main` |
 | Vercel rollback | PASS | OWNER; baseline deployment recorded; controls accessible |
 | Critical environment variables | PASS | Effective required production set present; values not recorded |
 | Contact rate limiting | PASS | Active live POST rule, 10/IP/60s, all locales |
 | Hermes release-package review | PASS | STREHE-RELEASE-003-HERMES-REVIEW-001 |
 | Repaired preflight Hermes review | PASS | Reviewed SHA `dd3e3b5…27e22` |
-| Founder database authorization | GRANTED FOR RELEASE-005; STOPPED | Fresh successful backup required before a new execution decision |
+| Founder database authorization | EXECUTED — PASS | Exactly three approved migrations applied and verified |
 | Founder application authorization | NOT GRANTED | Separate GO after DB PASS |
 
 ## Decision sequence

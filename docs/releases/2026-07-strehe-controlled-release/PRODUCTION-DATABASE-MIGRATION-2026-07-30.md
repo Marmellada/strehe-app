@@ -3,74 +3,106 @@
 Authority: `STREHE-RELEASE-005`
 
 Result:
-**DATABASE MIGRATION FAILED — NO APPLICATION DEPLOYMENT**
+**DATABASE MIGRATION PASS — READY FOR FOUNDER APPLICATION GO/NO-GO**
 
-The database migration did not start. The mandatory fresh logical backup failed
-at its first export category when the local execution wrapper timed out while
-running the role-only dump. No export file was produced, the command was not
-retried, and the release stopped in Phase 2 as required.
+Exactly the three Founder-authorized migrations were applied to the linked
+production project and passed immediate read-only verification. The application
+was not deployed.
 
-## Freeze verification
+## Starting state and backup
 
 - Branch: `release/strehe-controlled-production-plan`
-- Starting HEAD: `130666e61cef60a52c9b7e89e404c77fa0225bf1`
+- Starting HEAD: `f16b8c5027655f14fdc95dc10a202fb78957be3e`
 - Worktree: clean
 - `origin/main`: `a308b63a5fad0521057b42ecd763dff22c00e716`
 - Frozen RC: `eb30d0ec0f698bfd3a7c0404b519e67e38718f97`
-- RC relation to `origin/main`: 10 ahead, 0 behind
 - Linked project: `evrravcuhrryiyywofwe`
 - Project status: `ACTIVE_HEALTHY`
-- Concurrent database DDL/migration session: none detected
-- Running Vercel deployment: none detected
-- Preflight SHA-256:
-  `dd3e3b501781b722ea229857989d8e31302ce140cb91602a525d4c4f16527e22`
-- Migration SHA-256 values:
-  - `20260728120000`:
-    `3f34f067966fc80a832aff275932a28bdb2117bfb68a11c1aa848c26a6f496d5`
-  - `20260729000000`:
-    `b9121a002561e41c5a240ceb4ec3456e0325bf62f245065853c372d3f26c375e`
-  - `20260729001000`:
-    `93ee5ee9acfae8d689044e2d3cb98776d5868bdc1d52a51cb924dd332ef25080`
+- Fresh backup:
+  `D:\Personal\Projects\Strehe-Prona\STREHE-BACKUPS\pre-migration-retry-2026-07-30_20260729_222219Z`
+- Backup result: `FRESH DATABASE BACKUP PASS`
+- All 39 backup artifacts and recorded hashes revalidated before migration.
 
-The linked migration inventory contained exactly the three approved local-only
-versions before the backup attempt.
+## Immediate preflight
 
-## Backup stop
+Reviewed source SHA-256:
+`dd3e3b501781b722ea229857989d8e31302ce140cb91602a525d4c4f16527e22`.
 
-Backup path:
+Previously verified read-only transport SHA-256:
+`4a04828763dff46704713d410137a5033772461af55b7aa7c432f41a717f4cf7`.
 
-`D:\Personal\Projects\Strehe-Prona\STREHE-BACKUPS\pre-migration-2026-07-30_20260729_221007Z`
+The immediate production execution returned:
 
-Attempted category: `roles`
+- exit code `0`;
+- `transaction_read_only=on`;
+- `has_stops=false`;
+- `stop_count=0`;
+- 23 of 23 checks `PASS`;
+- zero blocking table locks;
+- zero long-running transactions.
 
-Attempted command:
+## Final inventory and dry run
+
+Immediately before execution, exactly these versions remained local-only:
+
+1. `20260728120000_add_founding_customer_funnel.sql`
+2. `20260729000000_restore_business_identity_task_attachment_policy.sql`
+3. `20260729001000_restore_crm_runtime_privileges.sql`
+
+There was no remote-only version. All three migration hashes matched the
+approved package. The pinned dry run listed exactly the same three files in
+timestamp order and exited `0`.
+
+## Migration execution
+
+CLI: `2.109.1`
+
+Command:
 
 ```text
-npx --yes supabase@2.109.1 db dump --linked --role-only --file <backup>/database/roles.sql
+npx --yes supabase@2.109.1 db push --linked
 ```
 
-The local command runner interrupted the process with exit code `124`. No
-database export file was created. The preserved directory and its evidence are
-an incomplete, unusable backup and must not be represented as recoverable.
-Recovery remains only partially proven.
+- Start: `2026-07-29T22:58:51.5995558Z`
+- Finish: `2026-07-29T22:58:56.0590707Z`
+- Duration: `4.460` seconds
+- Exit code: `0`
 
-The current Storage inventory matched the previously verified 27-object
-inventory by object count, total bytes, and the sorted bucket/name/size
-fingerprint. No Storage object was re-downloaded.
+Each approved migration emitted an `Applying migration` result. The only
+warnings were the known local `[inbucket]` configuration deprecation and notice
+that a newer CLI exists. The pinned CLI was not changed.
 
-## Unexecuted phases
+## Immediate read-only verification
 
-Because the backup failed:
+The post-migration verification ran with `transaction_read_only=on` and passed
+21 of 21 aggregate and metadata checks.
 
-- the immediate 23-check production preflight was not run;
-- the final pre-migration history checkpoint was not reached;
-- `npx --yes supabase@2.109.1 db push --linked` was not run;
-- none of the three approved migrations was applied;
-- post-migration schema, RLS, policy, grant, identity, and capacity checks were
-  not run.
-
-A read-only closure check confirmed all three approved versions remain absent
-remotely, with no active DDL/migration session.
+- Local and Remote histories reconcile across all 40 versions.
+- The three approved versions are recorded remotely.
+- Lead and campaign additions, consultation and offer tables, capacity table,
+  offer sequence, constraints, indexes, functions, and triggers exist.
+- The capacity and funnel-authorization functions are security definer with
+  fixed search paths; the first-touch function has its approved security mode.
+- Consultations, offers, and capacity have RLS enabled.
+- Exactly the approved consultation and offer policies exist.
+- The access predicate supports active admin/office users and excludes field
+  and agent identities.
+- Human/agent overlap and incompatible application-role counts are zero.
+- The restrictive `Business identities gate task attachments` policy exists
+  with its approved `ALL`, authenticated, task-bucket definition.
+- All 26 unrelated Storage policy names remain unchanged.
+- Authenticated and service-role CRM CRUD grants exist on all six approved
+  tables.
+- The anonymous grant inventory on those original six CRM tables remains at
+  its preflight count of 42; the CRM grant migration added no anonymous grant.
+- New funnel tables have Supabase default ACL entries, but effective anonymous
+  and field access is denied by enabled RLS and the authenticated-only policies.
+- Capacity is exactly one row with `maximum_places=3` and
+  `reserved_places=0`.
+- Active founding offers reconcile to zero.
+- Consultations and offers remain empty; no synthetic or business row was
+  created.
+- The offer sequence starts at one and remains unused.
 
 ## Safety closure
 
@@ -83,11 +115,11 @@ External evidence:
 
 `D:\Personal\Projects\Strehe-Prona\STREHE-PRESERVATION\STREHE-RELEASE-005-2026-07-30`
 
-Hermes should verify the Phase 2 stop evidence, confirm that the role-only dump
-produced no export file, independently confirm the three versions remain
-local-only, and require a newly authorized execution window with a fresh
-successful backup before any migration is reconsidered.
+Hermes should independently rehash the evidence, reconcile the three migration
+versions, review all 23 preflight and 21 post-migration checks, verify the
+effective RLS/policy interpretation, and confirm no application deployment
+occurred.
 
 The Founder decision now possible is:
-**NO-GO for database migration continuation and NO-GO for application
-deployment.**
+**APPLICATION GO/NO-GO**. Database migration evidence is PASS, but application
+deployment remains unauthorized until that separate decision.

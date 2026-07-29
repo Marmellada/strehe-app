@@ -86,10 +86,16 @@ sensitivity, and commit eligibility.
 
 ## STREHE-RELEASE-005 closure
 
-The Founder-authorized database work order stopped in Phase 2. The fresh
-role-only logical export was interrupted by the local command timeout before an
-export file was created. No retry, preflight, migration, post-migration
-verification, or application deployment followed.
+The initial backup attempt stopped safely before migration. The bounded
+`STREHE-RELEASE-005A` retry then produced a fresh seven-export logical backup
+with validated coverage and hashes. Phase 3 resumed from clean state:
+
+- immediate read-only preflight: 23/23 PASS;
+- final pending inventory and pinned dry run: PASS;
+- exactly three authorized migrations applied with exit `0`;
+- final Local and Remote history: fully reconciled;
+- immediate read-only post-migration verification: 21/21 PASS;
+- application deployment: not performed.
 
 Evidence root:
 
