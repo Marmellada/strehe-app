@@ -195,40 +195,140 @@ create table public.lead_offers (
 create index idx_lead_offers_lead_id on public.lead_offers(lead_id, version desc);
 create index idx_lead_offers_status on public.lead_offers(status);
 
+create unique index idx_lead_offers_one_active_founding_per_lead
+  on public.lead_offers(lead_id)
+  where founding_customer_eligible
+    and status in ('draft', 'sent', 'accepted');
+
+create table public.founding_customer_capacity (
+  singleton boolean primary key default true check (singleton),
+  maximum_places smallint not null default 3 check (maximum_places = 3),
+  reserved_places smallint not null default 0,
+  constraint founding_customer_capacity_reserved_check
+    check (reserved_places between 0 and maximum_places)
+);
+
+insert into public.founding_customer_capacity (
+  singleton,
+  maximum_places,
+  reserved_places
+)
+values (true, 3, 0);
+
+alter table public.founding_customer_capacity enable row level security;
+revoke all on table public.founding_customer_capacity from anon, authenticated;
+
+create or replace function public.enforce_founding_customer_capacity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  was_reserved boolean := false;
+  will_be_reserved boolean := false;
+  capacity_reserved smallint;
+begin
+  if tg_op <> 'INSERT' then
+    was_reserved :=
+      old.founding_customer_eligible
+      and old.status in ('draft', 'sent', 'accepted');
+  end if;
+
+  if tg_op <> 'DELETE' then
+    will_be_reserved :=
+      new.founding_customer_eligible
+      and new.status in ('draft', 'sent', 'accepted');
+  end if;
+
+  if was_reserved = will_be_reserved then
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
+  end if;
+
+  if will_be_reserved then
+    update public.founding_customer_capacity
+    set reserved_places = reserved_places + 1
+    where singleton
+      and reserved_places < maximum_places
+    returning reserved_places into capacity_reserved;
+
+    if capacity_reserved is null then
+      raise exception
+        'Founding-customer capacity is limited to three active places.';
+    end if;
+  else
+    update public.founding_customer_capacity
+    set reserved_places = reserved_places - 1
+    where singleton
+      and reserved_places > 0
+    returning reserved_places into capacity_reserved;
+
+    if capacity_reserved is null then
+      raise exception
+        'Founding-customer capacity accounting is inconsistent.';
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.enforce_founding_customer_capacity() from public;
+
+create trigger enforce_founding_customer_capacity_trigger
+before insert or update of founding_customer_eligible, status or delete
+on public.lead_offers
+for each row execute function public.enforce_founding_customer_capacity();
+
 alter table public.lead_consultations enable row level security;
 alter table public.lead_offers enable row level security;
+
+grant select, insert, update, delete
+  on table public.lead_consultations, public.lead_offers
+  to authenticated;
+grant usage, select on sequence public.lead_offer_number_seq to authenticated;
+
+create or replace function public.can_manage_sales_funnel()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1
+    from public.app_users
+    where id = (select auth.uid())
+      and is_active = true
+      and role in ('admin', 'office')
+  )
+  and not exists (
+    select 1
+    from public.agent_principals
+    where id = (select auth.uid())
+  );
+$$;
+
+revoke all on function public.can_manage_sales_funnel() from public;
+grant execute on function public.can_manage_sales_funnel() to authenticated;
 
 create policy "Authorized internal users can manage consultations"
   on public.lead_consultations
   for all to authenticated
-  using (
-    exists (
-      select 1 from public.app_users
-      where id = auth.uid() and is_active and role in ('admin', 'office')
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.app_users
-      where id = auth.uid() and is_active and role in ('admin', 'office')
-    )
-  );
+  using ((select public.can_manage_sales_funnel()))
+  with check ((select public.can_manage_sales_funnel()));
 
 create policy "Authorized internal users can manage offers"
   on public.lead_offers
   for all to authenticated
-  using (
-    exists (
-      select 1 from public.app_users
-      where id = auth.uid() and is_active and role in ('admin', 'office')
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.app_users
-      where id = auth.uid() and is_active and role in ('admin', 'office')
-    )
-  );
+  using ((select public.can_manage_sales_funnel()))
+  with check ((select public.can_manage_sales_funnel()));
 
 alter table public.lead_events drop constraint if exists lead_events_type_check;
 alter table public.lead_events

@@ -236,8 +236,17 @@ export async function transitionOfferAction(offerId: string, formData: FormData)
   } else if (target === "superseded") {
     update.superseded_at = now;
   }
-  const { error: updateError } = await supabase.from("lead_offers").update(update).eq("id", offerId).eq("status", offer.status);
+  const { data: transitionedOffer, error: updateError } = await supabase
+    .from("lead_offers")
+    .update(update)
+    .eq("id", offerId)
+    .eq("status", offer.status)
+    .select("id")
+    .maybeSingle();
   if (updateError) throw new Error(updateError.message);
+  if (!transitionedOffer) {
+    throw new Error("Offer changed concurrently. Reload before trying another transition.");
+  }
   const leadUpdate: Record<string, unknown> = { updated_at: now, current_offer_status: target };
   if (target === "sent") {
     leadUpdate.offer_sent_at = now;

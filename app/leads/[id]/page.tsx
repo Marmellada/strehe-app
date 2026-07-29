@@ -141,9 +141,10 @@ export default async function LeadDetailPage({
       .limit(20),
     supabase
       .from("lead_consultations")
-      .select("id,status,scheduled_start,contact_format,recommended_package,completed_at")
+      .select("id,status,scheduled_start,contact_format,recommended_package,completed_at,created_at")
       .eq("lead_id", id)
-      .order("scheduled_start", { ascending: false }),
+      .order("scheduled_start", { ascending: false })
+      .order("created_at", { ascending: false }),
     supabase
       .from("lead_offers")
       .select("id,offer_number,version,status,selected_package,monthly_price_cents,valid_until,sent_at,follow_up_date,accepted_at,rejected_at")

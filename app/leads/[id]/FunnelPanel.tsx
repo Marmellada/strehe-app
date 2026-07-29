@@ -10,6 +10,7 @@ type Consultation = {
   contact_format: string;
   recommended_package: string | null;
   completed_at: string | null;
+  created_at: string;
 };
 
 type Offer = {
