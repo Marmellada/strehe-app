@@ -1,6 +1,7 @@
 # Production Go/No-Go Checklist
 
-Current recommendation: **NO-GO for production execution**
+Current recommendation: **TECHNICALLY ELIGIBLE FOR A FOUNDER DATABASE DECISION;
+NO RELEASE EXECUTION IS AUTHORIZED**
 
 ## Technical gates
 
@@ -9,28 +10,26 @@ Current recommendation: **NO-GO for production execution**
 | Release candidate frozen | PASS | RC `eb30d0ec…`, linear and 0 behind main |
 | Pending migration list frozen | PASS | Exactly three linked pending versions |
 | Local replay/regressions | PASS | Replay, dry run, tests, smokes, lint, TS, build |
-| Production structural preflight | PASS WITH FINAL CHECK | Recent schema evidence; rerun fail-closed script |
-| Production data preflight | PENDING/BLOCKING | `stop_count=0` immediately before migration |
-| Backup/recovery | FAIL/BLOCKING | No listed backup; PITR false |
-| Vercel project/production branch | UNRESOLVED/BLOCKING | Authenticated dashboard evidence |
-| Vercel rollback | UNRESOLVED/BLOCKING | Last healthy deployment and promotion access |
-| Critical environment variables | UNRESOLVED/BLOCKING | Presence/targets verified without values |
-| Contact rate limiting | UNVERIFIED/BLOCKING FOR PUBLIC LAUNCH | Firewall rule evidence |
-| Hermes release-package review | PENDING/BLOCKING | PASS on this package |
+| Production structural preflight | PASS | Reviewed script exit 0; all 23 checks PASS |
+| Production data preflight | PASS | `has_stops=false`; `stop_count=0`; aggregate-only evidence |
+| Backup/recovery | PARTIAL/RISK DECISION | Encrypted logical exports and 27 Storage objects exist; database restore remains partially proven |
+| Vercel project/production branch | PASS | Authenticated project; production branch `main` |
+| Vercel rollback | PASS | OWNER; baseline deployment recorded; controls accessible |
+| Critical environment variables | PASS | Effective required production set present; values not recorded |
+| Contact rate limiting | PASS | Active live POST rule, 10/IP/60s, all locales |
+| Hermes release-package review | PASS | STREHE-RELEASE-003-HERMES-REVIEW-001 |
+| Repaired preflight Hermes review | PASS | Reviewed SHA `dd3e3b5…27e22` |
 | Founder database authorization | NOT GRANTED | New explicit GO |
 | Founder application authorization | NOT GRANTED | Separate GO after DB PASS |
 
 ## Decision sequence
 
-1. Resolve backup/recovery.
-2. Resolve Vercel and rate-limit evidence.
-3. Obtain Hermes package review.
-4. Run final preflight and capture zero STOP counts.
-5. Founder decides database GO/NO-GO.
-6. Apply and verify migrations if GO.
-7. Founder decides application GO/NO-GO.
-8. Deploy and run read-only smoke if GO.
-9. Keep onboarding and paid acquisition separately gated.
+1. Founder explicitly accepts or rejects the remaining database-restore risk.
+2. Founder separately decides database GO/NO-GO.
+3. Apply and verify migrations only under a later execution authorization.
+4. Founder separately decides application GO/NO-GO after database verification.
+5. Deploy and run read-only smoke only under a later application authorization.
+6. Keep public launch, onboarding, and paid acquisition separately gated.
 
 Technical deployment may be approved without approving paid acquisition.
 Customer onboarding/service commencement remains blocked until applicable legal,

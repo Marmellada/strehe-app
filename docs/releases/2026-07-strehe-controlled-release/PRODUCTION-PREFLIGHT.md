@@ -1,8 +1,20 @@
 # Production Preflight
 
-Status: structural preflight supported; final data preflight not yet executed
-Production execution gate: BLOCKED pending all STOP-count queries and backup
-evidence
+Status: authenticated production preflight completed successfully
+Production execution gate: **TECHNICAL PASS — SEPARATE FOUNDER GO REQUIRED**
+
+## STREHE-RELEASE-004 result
+
+The Hermes-reviewed script SHA-256 is
+`dd3e3b501781b722ea229857989d8e31302ce140cb91602a525d4c4f16527e22`.
+It ran through the authenticated Supabase Management API using a transport-only
+copy that retained `BEGIN TRANSACTION READ ONLY` and contained no write
+statement. Transport SHA-256:
+`4a04828763dff46704713d410137a5033772461af55b7aa7c432f41a717f4cf7`.
+
+Execution returned exit 0, `has_stops=false`, `stop_count=0`, and all 23 checks
+as `PASS`. Only metadata and bounded aggregate counts were returned. No
+production write occurred. See `PRODUCTION-EVIDENCE-2026-07-29.md`.
 
 ## Evidence used
 
@@ -77,31 +89,26 @@ overlap, unexpected partial funnel objects, and policy/grant drift have not been
 executed during planning. They are mandatory STOP-count checks in
 `scripts/production-release-preflight.sql`.
 
-The script was syntax- and behavior-tested only against the isolated local
-database on 2026-07-29. It emitted valid JSON with 23 checks, returned `STOP`
-with 9 expected stop checks because the local database is already
-post-migration (and has no seeded task-attachments bucket), and exited with
-code 3. This is validation of fail-closed behavior, not production evidence.
-The script was not executed against production.
+The repaired script was behavior-tested against the isolated local database. It
+emitted 23 checks, passed the repaired role/type checks, returned `STOP` with 9
+expected post-migration/local-environment stops, and exited 3. This is local
+validation only.
 
 ## Immediate preflight procedure
 
-1. Confirm the connection target is production without printing its URL.
-2. Run the SQL script through `psql` with `ON_ERROR_STOP`; it starts
-   `BEGIN TRANSACTION READ ONLY`.
-3. Preserve its JSON output.
-4. Require process exit 0 and `"stop_count": 0`.
-5. Separately run linked migration comparison and require exactly the three
-   pending versions.
-6. Inspect current exclusive locks and long-running transactions.
-7. STOP on any unexpected object, incompatible role, identity overlap, pending
-   history difference, RLS change, or nonzero data-quality count.
+1. Preserve the successful JSON evidence and script/transport hashes.
+2. Reconfirm the frozen RC and exactly three pending versions at execution time.
+3. Founder explicitly decides whether to accept the remaining recovery risk.
+4. Founder separately authorizes or rejects database migration execution.
+5. If authorized later, rerun this read-only preflight immediately before the
+   migration and require exit 0 with `"stop_count": 0`.
 
 ## Divergences and unresolved items
 
 - Production Inspection Lab policy/index drift is known and excluded.
 - Production existing table ACLs include historical anonymous privileges; this
   release does not add them. Effective access is controlled by RLS/policies.
-- Current lock state and current custom data aggregates remain execution-time
-  checks.
-- Backup/recovery readiness is not proven and is a hard blocker.
+- All 23 current production checks passed.
+- Recovery remains partially proven. The Founder has temporarily accepted this
+  limitation for pre-client release consideration, but must make an explicit
+  risk-acceptance and migration decision later.

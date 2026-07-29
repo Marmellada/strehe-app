@@ -121,8 +121,26 @@ checks(check_name, status, observed_count, details) AS (
     ON c.table_schema = r.schema_name
    AND c.table_name = r.table_name
    AND c.column_name = r.column_name
-   AND c.data_type = r.data_type
-   AND c.udt_name = r.udt_name
+   AND (
+     (
+       r.schema_name = 'public'
+       AND r.table_name = 'app_users'
+       AND r.column_name = 'role'
+       AND (
+         (c.data_type = 'text' AND c.udt_name = 'text')
+         OR (c.data_type = 'USER-DEFINED' AND c.udt_name = 'app_role')
+       )
+     )
+     OR (
+       NOT (
+         r.schema_name = 'public'
+         AND r.table_name = 'app_users'
+         AND r.column_name = 'role'
+       )
+       AND c.data_type = r.data_type
+       AND c.udt_name = r.udt_name
+     )
+   )
   WHERE c.column_name IS NULL
 
   UNION ALL
@@ -252,9 +270,10 @@ checks(check_name, status, observed_count, details) AS (
     'app_user_roles_compatible',
     CASE WHEN count(*) = 0 THEN 'PASS' ELSE 'STOP' END,
     count(*)::bigint,
-    'App-user roles outside admin, office, field, or blocked'
+    'App-user roles outside admin, office, field, contractor, or household'
   FROM public.app_users
-  WHERE role IS NULL OR role NOT IN ('admin', 'office', 'field', 'blocked')
+  WHERE role IS NULL
+    OR role::text NOT IN ('admin', 'office', 'field', 'contractor', 'household')
 
   UNION ALL
 

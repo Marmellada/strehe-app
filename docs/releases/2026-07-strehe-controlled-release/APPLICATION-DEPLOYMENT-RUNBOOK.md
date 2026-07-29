@@ -7,7 +7,7 @@ Execution requires separate Founder authorization after database verification.
 - Source branch: `fix/local-migration-replay-and-funnel-verification`
 - Exact source commit:
   `eb30d0ec0f698bfd3a7c0404b519e67e38718f97`
-- Target/expected production branch: `main` (must be confirmed in Vercel)
+- Target/confirmed production branch: `main`
 - Planning branch is documentation only and must not be deployed as the RC.
 
 Create a reviewed pull request from the exact RC branch. Prefer a fast-forward
@@ -34,15 +34,20 @@ Remote branches that would be needed later:
 
 ## Vercel preflight
 
-The local repository is not bound to a Vercel project, so an authorized operator
-must verify in the dashboard:
+Authenticated evidence captured under STREHE-RELEASE-004 confirms:
 
-- correct team and project;
-- production branch is `main`;
-- current production deployment ID and source commit;
-- latest deployment is healthy;
-- automatic production deployment behavior;
-- rollback/promotion permission.
+- team: `milotberisha-9215's projects`;
+- project: `strehe-app-9lf1`
+  (`prj_pnHvdbxVAK1pqstHXAHhp4wn5Tes`);
+- repository: GitHub `Marmellada/strehe-app`;
+- production branch: `main`;
+- current READY deployment:
+  `dpl_E1YgwMrbRMjaDHPN5MFPXXwxTT4x`;
+- current production commit:
+  `a308b63a5fad0521057b42ecd763dff22c00e716`;
+- authenticated account: confirmed OWNER;
+- runtime logs and rollback/promotion controls: accessible;
+- frozen RC: not deployed.
 
 Confirm presence, target, and last-update metadata without exposing values for:
 
@@ -57,6 +62,9 @@ Confirm presence, target, and last-update metadata without exposing values for:
 - any enabled Inspection Lab OpenAI variables
 
 STOP on a missing critical variable or a production/preview target mismatch.
+All effective required variables were present in production. `SITE_URL` was
+absent, but current code uses the present `NEXT_PUBLIC_APP_URL` and
+`NEXT_PUBLIC_SITE_URL` first. Values were not retrieved for reporting.
 
 ## Build and deployment
 
@@ -92,8 +100,8 @@ Never deploy the application before its required database schema exists.
 
 ## Application rollback
 
-If build or runtime verification fails, promote the recorded last healthy
-Vercel deployment, expected to correspond to baseline `a308b63…`. Do not remove
+If build or runtime verification fails, promote recorded deployment
+`dpl_E1YgwMrbRMjaDHPN5MFPXXwxTT4x` at baseline `a308b63…`. Do not remove
 the new database schema merely to roll back the application; the prior
 application is compatible with the additive schema. Preserve logs and prepare a
 new reviewed application commit.

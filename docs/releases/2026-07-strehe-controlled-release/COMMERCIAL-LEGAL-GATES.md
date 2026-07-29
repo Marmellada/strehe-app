@@ -3,6 +3,10 @@
 Software readiness does not constitute legal, commercial, or service-operations
 approval.
 
+STREHE-RELEASE-004 proved an active production contact rate limit and
+authenticated Vercel monitoring/ownership. Those technical controls do not
+resolve the legal or service-operation gates below.
+
 ## Commercial/legal gates
 
 | Gate | Current status | Release requirement |
