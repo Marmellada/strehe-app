@@ -257,7 +257,11 @@ export function createPublicContactLeadHandler(
         return { status: "error", message: copy.error, mailtoHref };
       }
 
-      dependencies.revalidateLeads();
+      try {
+        dependencies.revalidateLeads();
+      } catch (error) {
+        console.error("Lead saved but lead-list revalidation failed.", error);
+      }
       return { status: "success", message: copy.success, mailtoHref };
     } catch {
       return { status: "error", message: copy.error, mailtoHref };
