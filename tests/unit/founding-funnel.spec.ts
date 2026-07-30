@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { createHash } from "node:crypto";
+import { execFile, execFileSync } from "node:child_process";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeAttribution } from "@/lib/funnel/attribution";
@@ -141,4 +142,654 @@ test("forward reconciliation restores CRM runtime privileges without anonymous a
   expect(sql).toContain("public.properties");
   expect(sql).toContain("to authenticated, service_role");
   expect(sql).not.toMatch(/\bto\s+anon\b/);
+});
+
+const RT003_LOCAL_DB = process.env.RT003_LOCAL_DB === "1";
+const RT003_DB_CONTAINER =
+  process.env.SUPABASE_DB_CONTAINER || "supabase_db_strehe-app";
+const RT003_SOURCE_DETAIL = "rt003-offer-lifecycle-local-test";
+const rt003RoleIds = {
+  admin: randomUUID(),
+  office: randomUUID(),
+  field: randomUUID(),
+  contractor: randomUUID(),
+  agent: randomUUID(),
+};
+
+const rt003PsqlArgs = [
+  "exec",
+  "-i",
+  RT003_DB_CONTAINER,
+  "psql",
+  "-U",
+  "postgres",
+  "-d",
+  "postgres",
+  "-X",
+  "-v",
+  "ON_ERROR_STOP=1",
+  "-At",
+];
+
+function rt003Psql(sql: string) {
+  return execFileSync("docker", rt003PsqlArgs, {
+    encoding: "utf8",
+    input: sql,
+    maxBuffer: 4 * 1024 * 1024,
+  }).trim();
+}
+
+function rt003PsqlConcurrent(sql: string) {
+  return new Promise<{ ok: boolean; stdout: string; stderr: string }>(
+    (resolve) => {
+      const child = execFile(
+        "docker",
+        rt003PsqlArgs,
+        { encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          resolve({
+            ok: !error,
+            stdout: stdout.trim(),
+            stderr: stderr.trim(),
+          });
+        }
+      );
+      child.stdin!.end(sql);
+    }
+  );
+}
+
+function rt003DatabaseFailure(sql: string) {
+  try {
+    rt003Psql(sql);
+  } catch (error) {
+    const failure = error as {
+      stderr?: string | Buffer;
+      message?: string;
+    };
+    return String(failure.stderr || failure.message || error);
+  }
+  throw new Error("Expected the database operation to fail.");
+}
+
+function rt003CreateLead() {
+  const leadId = randomUUID();
+  rt003Psql(`
+    insert into public.leads(
+      id, full_name, source, source_detail, first_touch_at
+    ) values (
+      '${leadId}', 'RT-003 Synthetic Lead', 'local_test',
+      '${RT003_SOURCE_DETAIL}', now()
+    );
+  `);
+  return leadId;
+}
+
+function rt003InsertDraft(options?: {
+  leadId?: string;
+  founding?: boolean;
+  validUntil?: string | null;
+  monthlyPriceCents?: number;
+}) {
+  const offerId = randomUUID();
+  const leadId = options?.leadId || rt003CreateLead();
+  const founding = options?.founding === true;
+  const validUntil =
+    options?.validUntil === undefined
+      ? "current_date + 14"
+      : options.validUntil === null
+        ? "null"
+        : `'${options.validUntil}'::date`;
+  rt003Psql(`
+    insert into public.lead_offers(
+      id, lead_id, version, status, selected_package, monthly_price_cents,
+      founding_customer_eligible, price_lock_months, price_lock_statement,
+      property_service_area_summary, visit_frequency, included_services,
+      exclusions, valid_until, consultation_summary
+    ) values (
+      '${offerId}', '${leadId}', 1, 'draft', 'essential_check',
+      ${options?.monthlyPriceCents || 7500}, ${founding},
+      ${founding ? "12" : "null"},
+      ${founding ? "'Çmimi fiksohet për 12 muaj.'" : "null"},
+      'RT-003 local area', 'Monthly', 'Synthetic services',
+      'Synthetic exclusions', ${validUntil}, 'Synthetic consultation'
+    );
+  `);
+  return { offerId, leadId };
+}
+
+function rt003SendOffer(
+  offerId: string,
+  sentAt = "2026-08-15T10:00:00+02:00",
+  validUntil = "2026-08-15"
+) {
+  rt003Psql(`
+    update public.lead_offers
+    set status = 'sent',
+        sent_at = '${sentAt}'::timestamptz,
+        valid_until = '${validUntil}'::date
+    where id = '${offerId}';
+  `);
+}
+
+function rt003RoleUpdate(
+  roleId: string,
+  offerId: string,
+  updateSql: string
+) {
+  return rt003Psql(`
+    begin;
+    set local role authenticated;
+    select set_config('request.jwt.claim.sub', '${roleId}', true);
+    with changed as (
+      update public.lead_offers
+      set ${updateSql}
+      where id = '${offerId}'
+      returning id
+    )
+    select count(*) from changed;
+    commit;
+  `)
+    .split(/\r?\n/)
+    .find((line) => /^\d+$/.test(line));
+}
+
+function rt003LocalSupabaseEnvironment() {
+  const apiUrl = process.env.RT003_API_URL || "";
+  const anonKey = process.env.RT003_ANON_KEY || "";
+  const jwtSecret = process.env.RT003_JWT_SECRET || "";
+  if (
+    !/^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?$/.test(apiUrl) ||
+    !anonKey ||
+    !jwtSecret
+  ) {
+    throw new Error("RT-003 tests require loopback-only local Supabase.");
+  }
+  return { apiUrl, anonKey, jwtSecret };
+}
+
+function rt003AuthenticatedToken(userId: string, jwtSecret: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value: object) =>
+    Buffer.from(JSON.stringify(value)).toString("base64url");
+  const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
+    aud: "authenticated",
+    exp: now + 3600,
+    iat: now,
+    role: "authenticated",
+    sub: userId,
+  })}`;
+  const signature = createHmac("sha256", jwtSecret)
+    .update(unsigned)
+    .digest("base64url");
+  return `${unsigned}.${signature}`;
+}
+
+async function rt003DirectPatch(
+  offerId: string,
+  body: Record<string, unknown>
+) {
+  const { apiUrl, anonKey, jwtSecret } = rt003LocalSupabaseEnvironment();
+  const accessToken = rt003AuthenticatedToken(rt003RoleIds.admin, jwtSecret);
+  return fetch(
+    `${apiUrl}/rest/v1/lead_offers?id=eq.${offerId}&select=id,status`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: anonKey,
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+        prefer: "return=representation",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+}
+
+test.describe("RT-003 local database lifecycle enforcement", () => {
+  test.describe.configure({ mode: "serial" });
+  test.skip(
+    !RT003_LOCAL_DB,
+    "Set RT003_LOCAL_DB=1 to run the isolated local database controls."
+  );
+
+  test.beforeAll(() => {
+    rt003Psql(`
+      delete from public.leads
+      where source_detail = '${RT003_SOURCE_DETAIL}';
+      delete from public.app_users
+      where id in (
+        '${rt003RoleIds.admin}', '${rt003RoleIds.office}',
+        '${rt003RoleIds.field}', '${rt003RoleIds.contractor}'
+      );
+      delete from auth.users
+      where id in (
+        '${rt003RoleIds.admin}', '${rt003RoleIds.office}',
+        '${rt003RoleIds.field}', '${rt003RoleIds.contractor}',
+        '${rt003RoleIds.agent}'
+      );
+
+      insert into auth.users(id) values
+        ('${rt003RoleIds.admin}'),
+        ('${rt003RoleIds.office}'),
+        ('${rt003RoleIds.field}'),
+        ('${rt003RoleIds.contractor}'),
+        ('${rt003RoleIds.agent}');
+
+      insert into public.app_users(id, role, is_active) values
+        ('${rt003RoleIds.admin}', 'admin', true),
+        ('${rt003RoleIds.office}', 'office', true),
+        ('${rt003RoleIds.field}', 'field', true),
+        ('${rt003RoleIds.contractor}', 'contractor', true);
+
+      insert into public.agent_principals(id, agent_key, display_name)
+      values ('${rt003RoleIds.agent}', 'rt003-agent', 'RT-003 Agent');
+    `);
+  });
+
+  test.afterEach(() => {
+    rt003Psql(`
+      delete from public.leads
+      where source_detail = '${RT003_SOURCE_DETAIL}';
+    `);
+  });
+
+  test.afterAll(() => {
+    rt003Psql(`
+      delete from public.leads
+      where source_detail = '${RT003_SOURCE_DETAIL}';
+      delete from public.app_users
+      where id in (
+        '${rt003RoleIds.admin}', '${rt003RoleIds.office}',
+        '${rt003RoleIds.field}', '${rt003RoleIds.contractor}'
+      );
+      delete from auth.users
+      where id in (
+        '${rt003RoleIds.admin}', '${rt003RoleIds.office}',
+        '${rt003RoleIds.field}', '${rt003RoleIds.contractor}',
+        '${rt003RoleIds.agent}'
+      );
+    `);
+  });
+
+  test("RT003-T01 draft INSERT succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    expect(rt003Psql(
+      `select status from public.lead_offers where id = '${offerId}';`
+    )).toBe("draft");
+  });
+
+  test("RT003-T02 direct sent INSERT fails", () => {
+    const leadId = rt003CreateLead();
+    const failure = rt003DatabaseFailure(`
+      insert into public.lead_offers(
+        lead_id, status, selected_package, monthly_price_cents,
+        property_service_area_summary, visit_frequency, included_services,
+        exclusions, sent_at, valid_until
+      ) values (
+        '${leadId}', 'sent', 'essential_check', 7500, 'Area', 'Monthly',
+        'Services', 'Exclusions', now(), current_date + 1
+      );
+    `);
+    expect(failure).toContain("New offers must be created in draft status.");
+  });
+
+  test("RT003-T03 draft INSERT containing a lifecycle timestamp fails", () => {
+    const leadId = rt003CreateLead();
+    const failure = rt003DatabaseFailure(`
+      insert into public.lead_offers(
+        lead_id, status, selected_package, monthly_price_cents,
+        property_service_area_summary, visit_frequency, included_services,
+        exclusions, accepted_at
+      ) values (
+        '${leadId}', 'draft', 'essential_check', 7500, 'Area', 'Monthly',
+        'Services', 'Exclusions', now()
+      );
+    `);
+    expect(failure).toContain("cannot have lifecycle timestamps");
+  });
+
+  test("RT003-T04 draft valid_until editing succeeds", () => {
+    const { offerId } = rt003InsertDraft({ validUntil: null });
+    rt003Psql(`
+      update public.lead_offers set valid_until = '2026-08-20'
+      where id = '${offerId}';
+    `);
+    expect(rt003Psql(
+      `select valid_until from public.lead_offers where id = '${offerId}';`
+    )).toBe("2026-08-20");
+  });
+
+  test("RT003-T05 draft price editing succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003Psql(`
+      update public.lead_offers set monthly_price_cents = 8800
+      where id = '${offerId}';
+    `);
+    expect(rt003Psql(
+      `select monthly_price_cents from public.lead_offers where id = '${offerId}';`
+    )).toBe("8800");
+  });
+
+  test("RT003-T06 draft lifecycle timestamp editing fails", () => {
+    const { offerId } = rt003InsertDraft();
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set accepted_at = now()
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("Draft offers cannot have lifecycle");
+  });
+
+  test("RT003-T07 valid draft to sent succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    expect(rt003Psql(
+      `select status from public.lead_offers where id = '${offerId}';`
+    )).toBe("sent");
+  });
+
+  test("RT003-T08 sent without valid_until fails", () => {
+    const { offerId } = rt003InsertDraft({ validUntil: null });
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set status = 'sent', sent_at = now()
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("require sent_at and valid_until");
+  });
+
+  test("RT003-T09 sent without sent_at fails", () => {
+    const { offerId } = rt003InsertDraft();
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set status = 'sent'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("require sent_at and valid_until");
+  });
+
+  test("RT003-T10 valid_until before sent_at date fails", () => {
+    const { offerId } = rt003InsertDraft({ validUntil: "2026-08-14" });
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers
+      set status = 'sent', sent_at = '2026-08-15T10:00:00+02:00'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("valid_until must be on or after sent_at");
+  });
+
+  test("RT003-T11 same-day valid_until succeeds", () => {
+    const { offerId } = rt003InsertDraft({ validUntil: "2026-08-15" });
+    rt003SendOffer(offerId);
+    expect(rt003Psql(
+      `select status from public.lead_offers where id = '${offerId}';`
+    )).toBe("sent");
+  });
+
+  test("RT003-T12 draft to accepted fails", () => {
+    const { offerId } = rt003InsertDraft();
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now(),
+          acceptance_evidence_note = 'Synthetic evidence'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("Cannot transition from draft to accepted");
+  });
+
+  test("RT003-T13 valid sent to accepted succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    rt003Psql(`
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now(),
+          acceptance_evidence_note = 'Synthetic acceptance evidence'
+      where id = '${offerId}';
+    `);
+    expect(rt003Psql(
+      `select status from public.lead_offers where id = '${offerId}';`
+    )).toBe("accepted");
+  });
+
+  test("RT003-T14 acceptance without evidence fails", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now()
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("non-blank acceptance evidence");
+  });
+
+  test("RT003-T15 conflicting accepted and rejected timestamps fail", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now(), rejected_at = now(),
+          acceptance_evidence_note = 'Synthetic evidence'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("conflicting lifecycle data");
+  });
+
+  test("RT003-T16 terminal transition fails", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    rt003Psql(`
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now(),
+          acceptance_evidence_note = 'Synthetic evidence'
+      where id = '${offerId}';
+    `);
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set status = 'rejected'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("Cannot transition from terminal status accepted");
+  });
+
+  test("RT003-T17 sent price editing fails", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set monthly_price_cents = 9900
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("Commercial offer fields cannot change");
+  });
+
+  test("RT003-T18 sent consultation-summary editing fails", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set consultation_summary = 'Changed summary'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("Commercial offer fields cannot change");
+  });
+
+  test("RT003-T19 sent follow_up_date editing succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    rt003Psql(`
+      update public.lead_offers set follow_up_date = '2026-08-18'
+      where id = '${offerId}';
+    `);
+    expect(rt003Psql(
+      `select follow_up_date from public.lead_offers where id = '${offerId}';`
+    )).toBe("2026-08-18");
+  });
+
+  test("RT003-T20 same-state lifecycle timestamp rewriting fails", () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    const failure = rt003DatabaseFailure(`
+      update public.lead_offers set sent_at = sent_at + interval '1 second'
+      where id = '${offerId}';
+    `);
+    expect(failure).toContain("Lifecycle fields cannot be modified");
+  });
+
+  test("RT003-T21 direct PostgREST draft to accepted fails", async () => {
+    const { offerId } = rt003InsertDraft();
+    const response = await rt003DirectPatch(offerId, {
+      status: "accepted",
+      accepted_at: new Date().toISOString(),
+      acceptance_evidence_note: "Synthetic direct evidence",
+    });
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain(
+      "Cannot transition from draft to accepted"
+    );
+  });
+
+  test("RT003-T22 admin valid transition succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    expect(rt003RoleUpdate(
+      rt003RoleIds.admin,
+      offerId,
+      "status = 'sent', sent_at = now(), valid_until = current_date"
+    )).toBe("1");
+  });
+
+  test("RT003-T23 office valid transition succeeds", () => {
+    const { offerId } = rt003InsertDraft();
+    expect(rt003RoleUpdate(
+      rt003RoleIds.office,
+      offerId,
+      "status = 'sent', sent_at = now(), valid_until = current_date"
+    )).toBe("1");
+  });
+
+  test("RT003-T24 field transition fails through RLS", () => {
+    const { offerId } = rt003InsertDraft();
+    expect(rt003RoleUpdate(
+      rt003RoleIds.field,
+      offerId,
+      "status = 'sent', sent_at = now(), valid_until = current_date"
+    )).toBe("0");
+  });
+
+  test("RT003-T25 contractor transition fails through RLS", () => {
+    const { offerId } = rt003InsertDraft();
+    expect(rt003RoleUpdate(
+      rt003RoleIds.contractor,
+      offerId,
+      "status = 'sent', sent_at = now(), valid_until = current_date"
+    )).toBe("0");
+  });
+
+  test("RT003-T26 agent transition fails through RLS", () => {
+    const { offerId } = rt003InsertDraft();
+    expect(rt003RoleUpdate(
+      rt003RoleIds.agent,
+      offerId,
+      "status = 'sent', sent_at = now(), valid_until = current_date"
+    )).toBe("0");
+  });
+
+  test("RT003-T27 anonymous transition fails", () => {
+    const { offerId } = rt003InsertDraft();
+    const failure = rt003DatabaseFailure(`
+      begin;
+      set local role anon;
+      update public.lead_offers
+      set status = 'sent', sent_at = now(), valid_until = current_date
+      where id = '${offerId}';
+      commit;
+    `);
+    expect(failure).toContain("permission denied for table lead_offers");
+  });
+
+  test("RT003-T28 competing sent transitions produce one winner", async () => {
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    const accepted = `
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now(),
+          acceptance_evidence_note = 'Concurrent acceptance'
+      where id = '${offerId}' and status = 'sent'
+      returning id;
+    `;
+    const rejected = `
+      update public.lead_offers
+      set status = 'rejected', rejected_at = now(),
+          rejection_reason = 'Concurrent rejection'
+      where id = '${offerId}' and status = 'sent'
+      returning id;
+    `;
+    const results = await Promise.all([
+      rt003PsqlConcurrent(accepted),
+      rt003PsqlConcurrent(rejected),
+    ]);
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect(results.filter((result) => result.stdout.includes(offerId))).toHaveLength(1);
+    expect(rt003Psql(
+      `select status from public.lead_offers where id = '${offerId}';`
+    )).toMatch(/^(accepted|rejected)$/);
+  });
+
+  test("RT003-T29 acceptance leaves contract and payment separation intact", () => {
+    const paymentCountBefore = rt003Psql(
+      "select count(*) from public.payments;"
+    );
+    const { offerId } = rt003InsertDraft();
+    rt003SendOffer(offerId);
+    rt003Psql(`
+      update public.lead_offers
+      set status = 'accepted', accepted_at = now(),
+          acceptance_evidence_note = 'Synthetic evidence'
+      where id = '${offerId}';
+    `);
+    expect(rt003Psql(`
+      select
+        (contract_id is null)::text || '|' ||
+        (converted_client_id is null)::text || '|' ||
+        (converted_property_id is null)::text
+      from public.lead_offers where id = '${offerId}';
+    `)).toBe("true|true|true");
+    expect(rt003Psql("select count(*) from public.payments;")).toBe(
+      paymentCountBefore
+    );
+  });
+
+  test("RT003-T30 fourth founding place remains rejected", () => {
+    for (let index = 0; index < 3; index += 1) {
+      rt003InsertDraft({ founding: true });
+    }
+    const leadId = rt003CreateLead();
+    const failure = rt003DatabaseFailure(`
+      insert into public.lead_offers(
+        lead_id, status, selected_package, monthly_price_cents,
+        founding_customer_eligible, price_lock_months,
+        property_service_area_summary, visit_frequency, included_services,
+        exclusions
+      ) values (
+        '${leadId}', 'draft', 'essential_check', 7500, true, 12,
+        'Area', 'Monthly', 'Services', 'Exclusions'
+      );
+    `);
+    expect(failure).toContain(
+      "Founding-customer capacity is limited to three active places"
+    );
+  });
+
+  test("RT003-T31 duplicate active founding offer remains rejected", () => {
+    const leadId = rt003CreateLead();
+    rt003InsertDraft({ leadId, founding: true });
+    const failure = rt003DatabaseFailure(`
+      insert into public.lead_offers(
+        lead_id, version, status, selected_package, monthly_price_cents,
+        founding_customer_eligible, price_lock_months,
+        property_service_area_summary, visit_frequency, included_services,
+        exclusions
+      ) values (
+        '${leadId}', 2, 'draft', 'essential_check', 7500, true, 12,
+        'Area', 'Monthly', 'Services', 'Exclusions'
+      );
+    `);
+    expect(failure).toContain(
+      "idx_lead_offers_one_active_founding_per_lead"
+    );
+  });
 });
