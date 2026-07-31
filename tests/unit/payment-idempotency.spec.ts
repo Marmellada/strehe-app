@@ -22,7 +22,21 @@ const ids = {
   account: "95000000-0000-0000-0000-000000000020",
   invoiceA: "95000000-0000-0000-0000-000000000030",
   invoiceB: "95000000-0000-0000-0000-000000000031",
+  invoiceReplay: "95000000-0000-0000-0000-000000000032",
+  invoiceStatus: "95000000-0000-0000-0000-000000000033",
+  invoiceAcceptance: "95000000-0000-0000-0000-000000000034",
 };
+
+const fixtureInvoiceIds = [
+  ids.invoiceA,
+  ids.invoiceB,
+  ids.invoiceReplay,
+  ids.invoiceStatus,
+  ids.invoiceAcceptance,
+];
+
+let nonFixtureBaseline = "";
+let protectedReplayKey = "";
 
 const psqlArgs = [
   "exec",
@@ -114,34 +128,30 @@ function paymentInsert(options?: {
   };
 }
 
-function cleanupPayments() {
-  psql(`
-    delete from public.payments
-    where invoice_id in ('${ids.invoiceA}', '${ids.invoiceB}')
-       or notes = '${RT005_MARKER}'
-       or reference_number = '${RT005_MARKER}';
-    update public.invoices
-    set status = 'issued'
-    where id in ('${ids.invoiceA}', '${ids.invoiceB}');
-  `);
-}
-
-function cleanupFixture() {
-  psql(`
-    delete from public.payments
-    where invoice_id in ('${ids.invoiceA}', '${ids.invoiceB}')
-       or notes = '${RT005_MARKER}'
-       or reference_number = '${RT005_MARKER}';
-    delete from public.invoices
-    where id in ('${ids.invoiceA}', '${ids.invoiceB}');
-    delete from public.company_bank_accounts where id = '${ids.account}';
-    delete from public.clients where id = '${ids.client}';
-    delete from public.app_users
-    where id in ('${ids.admin}', '${ids.office}', '${ids.inactive}');
-    delete from auth.users
-    where id in (
-      '${ids.admin}', '${ids.office}', '${ids.agent}', '${ids.inactive}'
-    );
+function nonFixtureFingerprint() {
+  const invoiceIds = fixtureInvoiceIds.map((id) => `'${id}'`).join(", ");
+  return psql(`
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.id::text), ''), 'sha256'), 'hex')
+    from public.payments as row_value
+    where row_value.invoice_id not in (${invoiceIds})
+      and coalesce(row_value.notes, '') <> '${RT005_MARKER}'
+      and coalesce(row_value.reference_number, '') <> '${RT005_MARKER}';
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.id::text), ''), 'sha256'), 'hex')
+    from public.invoices as row_value where row_value.id not in (${invoiceIds});
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.id::text), ''), 'sha256'), 'hex')
+    from public.clients as row_value where row_value.id <> '${ids.client}';
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.id::text), ''), 'sha256'), 'hex')
+    from public.company_bank_accounts as row_value where row_value.id <> '${ids.account}';
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.id::text), ''), 'sha256'), 'hex')
+    from public.app_users as row_value
+    where row_value.id not in ('${ids.admin}', '${ids.office}', '${ids.inactive}');
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.id::text), ''), 'sha256'), 'hex')
+    from auth.users as row_value
+    where row_value.id not in ('${ids.admin}', '${ids.office}', '${ids.agent}', '${ids.inactive}');
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.year), ''), 'sha256'), 'hex')
+    from public.invoice_number_sequences as row_value;
+    select encode(digest(coalesce(string_agg(row_to_json(row_value)::text, ',' order by row_value.year), ''), 'sha256'), 'hex')
+    from public.credit_note_number_sequences as row_value;
   `);
 }
 
@@ -219,6 +229,18 @@ async function directPaymentKeyUpdate(
   );
 }
 
+async function directPaymentDelete(userId: string, paymentId: string) {
+  const { apiUrl, anonKey, jwtSecret } = localApiEnvironment();
+  return fetch(`${apiUrl}/rest/v1/payments?id=eq.${paymentId}`, {
+    method: "DELETE",
+    headers: {
+      apikey: anonKey,
+      authorization: `Bearer ${authenticatedToken(userId, jwtSecret)}`,
+      prefer: "return=representation",
+    },
+  });
+}
+
 const migrationSource = fs.readFileSync(
   path.join(
     process.cwd(),
@@ -248,9 +270,28 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
 
   test.beforeAll(() => {
     localApiEnvironment();
-    cleanupFixture();
+    const invoiceIds = fixtureInvoiceIds.map((id) => `'${id}'`).join(", ");
+    const dirtyFixtureCount = psql(`
+      select
+        (select count(*) from auth.users where id in ('${ids.admin}', '${ids.office}', '${ids.agent}', '${ids.inactive}'))
+        + (select count(*) from public.app_users where id in ('${ids.admin}', '${ids.office}', '${ids.inactive}'))
+        + (select count(*) from public.clients where id = '${ids.client}')
+        + (select count(*) from public.company_bank_accounts where id = '${ids.account}')
+        + (select count(*) from public.invoices where id in (${invoiceIds}))
+        + (select count(*) from public.payments
+           where invoice_id in (${invoiceIds})
+              or notes = '${RT005_MARKER}'
+              or reference_number = '${RT005_MARKER}');
+    `);
+    if (dirtyFixtureCount !== "0") {
+      throw new Error(
+        `RT-005 disposable database is dirty: found ${dirtyFixtureCount} reserved fixture rows. Recreate the local database before running this suite.`
+      );
+    }
+
+    nonFixtureBaseline = nonFixtureFingerprint();
+
     psql(`
-      grant select, insert, update on public.payments to authenticated;
 
       insert into auth.users(id) values
         ('${ids.admin}'), ('${ids.office}'),
@@ -280,22 +321,14 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
           'issued', 'invoice', 10000, 10000, '${ids.admin}', 0, 0,
           '${ids.client}'
         ),
-        (
-          '${ids.invoiceB}', 'RT005-LOCAL-B', current_date + 14,
-          'issued', 'invoice', 10000, 10000, '${ids.admin}', 0, 0,
-          '${ids.client}'
-        );
-    `);
-  });
-
-  test.beforeEach(() => {
-    cleanupPayments();
-  });
-
-  test.afterAll(() => {
-    cleanupFixture();
-    psql(`
-      revoke select, insert, update on public.payments from authenticated;
+        ('${ids.invoiceB}', 'RT005-LOCAL-B', current_date + 14,
+         'issued', 'invoice', 10000, 10000, '${ids.admin}', 0, 0, '${ids.client}'),
+        ('${ids.invoiceReplay}', 'RT005-LOCAL-REPLAY', current_date + 14,
+         'issued', 'invoice', 10000, 10000, '${ids.admin}', 0, 0, '${ids.client}'),
+        ('${ids.invoiceStatus}', 'RT005-LOCAL-STATUS', current_date + 14,
+         'issued', 'invoice', 10000, 10000, '${ids.admin}', 0, 0, '${ids.client}'),
+        ('${ids.invoiceAcceptance}', 'RT005-LOCAL-ACCEPTANCE', current_date + 14,
+         'issued', 'invoice', 10000, 10000, '${ids.admin}', 0, 0, '${ids.client}');
     `);
   });
 
@@ -396,7 +429,7 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
       set idempotency_key = gen_random_uuid()
       where id = '${payment.id}';
     `);
-    expect(failure).toContain("idempotency_key is immutable.");
+    expect(failure).toContain("Payments are immutable and cannot be update");
   });
 
   test("RT005-T07 two distinct keys allow two legitimate payments", () => {
@@ -451,15 +484,6 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
         where version = '${RT005_MIGRATION_VERSION}';
       `)
     ).toBe("1");
-  });
-
-  test("RT005-T11 synthetic data cleanup succeeds", () => {
-    const payment = paymentInsert();
-    psql(payment.sql);
-    psql(`delete from public.payments where id = '${payment.id}';`);
-    expect(
-      psql(`select count(*) from public.payments where id = '${payment.id}';`)
-    ).toBe("0");
   });
 
   test("RT005-T12 first valid payment succeeds and key reaches the action", () => {
@@ -551,19 +575,22 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
   });
 
   test("RT005-T18 valid replay completes invoice reconciliation", () => {
-    const payment = paymentInsert({ amountCents: 10000 });
+    const payment = paymentInsert({
+      amountCents: 10000,
+      invoiceId: ids.invoiceReplay,
+    });
     psql(payment.sql);
     psql(`
       update public.invoices
       set status = 'paid'
-      where id = '${ids.invoiceA}' and status = 'issued'
+      where id = '${ids.invoiceReplay}' and status = 'issued'
         and (
           select coalesce(sum(amount_cents), 0)
-          from public.payments where invoice_id = '${ids.invoiceA}'
+          from public.payments where invoice_id = '${ids.invoiceReplay}'
         ) >= total_cents;
     `);
     expect(
-      psql(`select status from public.invoices where id = '${ids.invoiceA}';`)
+      psql(`select status from public.invoices where id = '${ids.invoiceReplay}';`)
     ).toBe("paid");
     expect(billingSource).toMatch(
       /await reconcileInvoicePaymentState\(supabase, invoiceId\)/
@@ -571,21 +598,23 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
   });
 
   test("RT005-T19 invoice status changes only once", () => {
-    psql(paymentInsert({ amountCents: 10000 }).sql);
+    psql(
+      paymentInsert({ amountCents: 10000, invoiceId: ids.invoiceStatus }).sql
+    );
     const reconcile = `
       update public.invoices
       set status = 'paid'
-      where id = '${ids.invoiceA}' and status = 'issued'
+      where id = '${ids.invoiceStatus}' and status = 'issued'
         and (
           select coalesce(sum(amount_cents), 0)
-          from public.payments where invoice_id = '${ids.invoiceA}'
+          from public.payments where invoice_id = '${ids.invoiceStatus}'
         ) >= total_cents;
     `;
     psql(reconcile);
     psql(reconcile);
     expect(
       psql(
-        `select status || '|' || total_cents from public.invoices where id = '${ids.invoiceA}';`
+        `select status || '|' || total_cents from public.invoices where id = '${ids.invoiceStatus}';`
       )
     ).toBe("paid|10000");
     expect(billingSource).toMatch(
@@ -621,7 +650,7 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
     ).toBeNull();
     expect(
       psql(
-        `select count(*) from public.payments where invoice_id = '${ids.invoiceB}';`
+        `select count(*) from public.payments where invoice_id = '${ids.invoiceAcceptance}';`
       )
     ).toBe("0");
   });
@@ -689,6 +718,7 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
 
   test("RT005-T27 direct PostgREST duplicate is blocked", async () => {
     const key = randomUUID();
+    protectedReplayKey = key;
     const payload = {
       idempotency_key: key,
       amount_cents: 1000,
@@ -719,12 +749,62 @@ test.describe("RT-005 local payment idempotency and replay protection", () => {
       notes: RT005_MARKER,
     });
     expect(create.status).toBe(201);
+    const beforeUpdateHash = psql(
+      `select encode(digest(row_to_json(payment_row)::text, 'sha256'), 'hex') from public.payments as payment_row where idempotency_key = '${key}';`
+    );
     const update = await directPaymentKeyUpdate(
       ids.admin,
       key,
       randomUUID()
     );
-    expect(update.status).toBe(400);
-    expect(await update.text()).toContain("idempotency_key is immutable.");
+    expect(update.status).toBe(403);
+    expect(JSON.parse(await update.text()).code).toBe("42501");
+    expect(
+      psql(
+        `select encode(digest(row_to_json(payment_row)::text, 'sha256'), 'hex') from public.payments as payment_row where idempotency_key = '${key}';`
+      )
+    ).toBe(beforeUpdateHash);
+
+    const paymentId = psql(
+      `select id from public.payments where idempotency_key = '${key}';`
+    );
+    const beforeDeleteHash = psql(
+      `select encode(digest(row_to_json(payment_row)::text, 'sha256'), 'hex') from public.payments as payment_row where id = '${paymentId}';`
+    );
+    const remove = await directPaymentDelete(ids.admin, paymentId);
+    expect(remove.status).toBe(403);
+    expect(JSON.parse(await remove.text()).code).toBe("42501");
+    expect(
+      psql(
+        `select encode(digest(row_to_json(payment_row)::text, 'sha256'), 'hex') from public.payments as payment_row where id = '${paymentId}';`
+      )
+    ).toBe(beforeDeleteHash);
+  });
+
+  test("RT005-T11 fixture graph is complete and teardown-ready", () => {
+    expect(protectedReplayKey).toMatch(RT005_UUID);
+    const invoiceIds = fixtureInvoiceIds.map((id) => `'${id}'`).join(", ");
+    const graph = psql(`
+      select
+        (select count(*) from public.payments
+         where invoice_id in (${invoiceIds})
+            or notes = '${RT005_MARKER}'
+            or reference_number = '${RT005_MARKER}') || '|' ||
+        (select count(*) from public.invoices where id in (${invoiceIds})) || '|' ||
+        (select count(distinct idempotency_key) from public.payments
+         where invoice_id in (${invoiceIds})
+            or notes = '${RT005_MARKER}'
+            or reference_number = '${RT005_MARKER}') || '|' ||
+        (select count(*) from public.payments where idempotency_key = '${protectedReplayKey}') || '|' ||
+        (select count(*) from public.payments
+         where (notes = '${RT005_MARKER}' or reference_number = '${RT005_MARKER}')
+           and invoice_id not in (${invoiceIds})) || '|' ||
+        (select count(*) from auth.users where id in ('${ids.admin}', '${ids.office}', '${ids.agent}', '${ids.inactive}')) || '|' ||
+        (select count(*) from public.app_users where id in ('${ids.admin}', '${ids.office}', '${ids.inactive}')) || '|' ||
+        (select count(*) from public.clients where id = '${ids.client}') || '|' ||
+        (select count(*) from public.company_bank_accounts where id = '${ids.account}');
+    `);
+    expect(graph).toBe("16|5|16|1|0|4|3|1|1");
+    expect(nonFixtureFingerprint()).toBe(nonFixtureBaseline);
   });
 });
