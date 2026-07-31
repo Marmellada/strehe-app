@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -156,6 +157,8 @@ export default async function PaymentPage({
     );
   }
 
+  const idempotencyKey = randomUUID();
+
   return (
     <div className="space-y-6 max-w-2xl">
       <PageHeader
@@ -195,6 +198,7 @@ export default async function PaymentPage({
         <CardContent>
           <PaymentForm
             invoiceId={invoice.id}
+            idempotencyKey={idempotencyKey}
             balanceDueCents={settlement.remainingCents}
             banks={((accounts || []) as Array<{
               id: string;

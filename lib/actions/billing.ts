@@ -22,6 +22,70 @@ import { validatePromotionCode } from "@/lib/promotions/validation";
 export type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 export type DocumentType = "invoice" | "credit_note";
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type CanonicalPaymentPayload = {
+  idempotency_key: string;
+  invoice_id: string;
+  amount_cents: number;
+  payment_method: "bank_transfer" | "cash";
+  company_account_id: string;
+  bank_id: string | null;
+  reference_number: string | null;
+  notes: string | null;
+};
+
+type ExistingPaymentPayload = {
+  invoice_id: string;
+  amount_cents: number;
+  payment_method: string;
+  company_account_id: string | null;
+  bank_id: string | null;
+  reference_number: string | null;
+  notes: string | null;
+};
+
+function normalizeUuid(value: FormDataEntryValue | null, label: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  if (!normalized) {
+    throw new Error(`Missing ${label}`);
+  }
+
+  if (!UUID_PATTERN.test(normalized)) {
+    throw new Error(`Invalid ${label}`);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalText(value: FormDataEntryValue | null) {
+  const normalized = String(value || "").trim();
+  return normalized || null;
+}
+
+function normalizeStoredUuid(value: string | null) {
+  return value?.trim().toLowerCase() || null;
+}
+
+function paymentPayloadMatches(
+  existing: ExistingPaymentPayload,
+  payload: CanonicalPaymentPayload
+) {
+  return (
+    existing.invoice_id.toLowerCase() === payload.invoice_id &&
+    existing.amount_cents === payload.amount_cents &&
+    existing.payment_method.trim().toLowerCase() === payload.payment_method &&
+    normalizeStoredUuid(existing.company_account_id) ===
+      payload.company_account_id &&
+    normalizeStoredUuid(existing.bank_id) === payload.bank_id &&
+    normalizeOptionalText(existing.reference_number) ===
+      payload.reference_number &&
+    normalizeOptionalText(existing.notes) === payload.notes
+  );
+}
+
 function getStoredVatRate(items: CreateInvoiceInput["items"]) {
   if (!items.length) return 0;
 
@@ -109,6 +173,74 @@ async function getIssuedCreditNotesTotal(
       0
     ) || 0
   );
+}
+
+async function reconcileInvoicePaymentState(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  invoiceId: string
+) {
+  const { data: payments, error: paymentsError } = await supabase
+    .from("payments")
+    .select("amount_cents")
+    .eq("invoice_id", invoiceId);
+
+  if (paymentsError) {
+    throw new Error("Failed to reconcile invoice payments");
+  }
+
+  const paymentTotal =
+    payments?.reduce(
+      (sum: number, payment: { amount_cents: number | null }) =>
+        sum + (payment.amount_cents || 0),
+      0
+    ) || 0;
+
+  const issuedCreditTotal = await getIssuedCreditNotesTotal(
+    supabase,
+    invoiceId
+  );
+
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices")
+    .select("total_cents, status")
+    .eq("id", invoiceId)
+    .single();
+
+  if (invoiceError || !invoice) {
+    throw new Error("Failed to reconcile invoice status");
+  }
+
+  if (invoice.status !== "issued") {
+    return;
+  }
+
+  if (paymentTotal + issuedCreditTotal < (invoice.total_cents || 0)) {
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from("invoices")
+    .update({ status: "paid" })
+    .eq("id", invoiceId)
+    .eq("status", "issued");
+
+  if (updateError) {
+    throw new Error("Failed to reconcile invoice status");
+  }
+}
+
+function revalidatePaymentPages(invoiceId: string) {
+  revalidatePath("/billing");
+  revalidatePath(`/billing/${invoiceId}`);
+}
+
+async function completePaymentReplay(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  invoiceId: string
+) {
+  await reconcileInvoicePaymentState(supabase, invoiceId);
+  revalidatePaymentPages(invoiceId);
+  redirect(`/billing/${invoiceId}`);
 }
 
 export async function createInvoice(data: CreateInvoiceInput) {
@@ -565,28 +697,36 @@ export async function recordPayment(formData: FormData) {
   await requireRole(["admin", "office"]);
   const supabase = await createClient();
 
-  const invoice_id = String(formData.get("invoice_id") || "").trim();
+  const idempotency_key = normalizeUuid(
+    formData.get("idempotency_key"),
+    "idempotency key"
+  );
+  const invoice_id = normalizeUuid(formData.get("invoice_id"), "invoice id");
   const amount = Number(formData.get("amount") || 0);
-  const payment_method = String(formData.get("payment_method") || "").trim();
-  const company_account_id = String(formData.get("company_account_id") || "").trim();
-  const reference_number = String(formData.get("reference_number") || "").trim();
-  const notes = String(formData.get("notes") || "").trim();
-
-  if (!invoice_id) {
-    throw new Error("Missing invoice id");
-  }
+  const payment_method = String(formData.get("payment_method") || "")
+    .trim()
+    .toLowerCase();
+  const company_account_id = normalizeUuid(
+    formData.get("company_account_id"),
+    "receiving account id"
+  );
+  const reference_number = normalizeOptionalText(
+    formData.get("reference_number")
+  );
+  const notes = normalizeOptionalText(formData.get("notes"));
 
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("Amount must be greater than zero");
   }
 
-  if (!payment_method) {
+  if (
+    payment_method !== "cash" &&
+    payment_method !== "bank_transfer"
+  ) {
     throw new Error("Payment method is required");
   }
 
-  if (!company_account_id) {
-    throw new Error("Receiving account is required");
-  }
+  const amount_cents = Math.round(amount * 100);
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
@@ -602,47 +742,12 @@ export async function recordPayment(formData: FormData) {
     throw new Error("Payments can only be recorded for invoices");
   }
 
-  if (invoice.status !== "issued") {
+  if (invoice.status !== "issued" && invoice.status !== "paid") {
     throw new Error("Payments can only be recorded for issued invoices");
   }
 
   if (!invoice.invoice_number) {
     throw new Error("Issued invoice is missing invoice number");
-  }
-
-  const { data: existingPayments, error: paymentsError } = await supabase
-    .from("payments")
-    .select("amount_cents")
-    .eq("invoice_id", invoice_id);
-
-  if (paymentsError) {
-    throw new Error("Failed to validate existing payments");
-  }
-
-  const alreadyPaid =
-    existingPayments?.reduce(
-      (sum: number, payment: { amount_cents: number | null }) =>
-        sum + (payment.amount_cents || 0),
-      0
-    ) || 0;
-
-  const creditedTotal = await getIssuedCreditNotesTotal(supabase, invoice_id);
-  const amount_cents = Math.round(amount * 100);
-  const remainingBalance = Math.max(
-    0,
-    (invoice.total_cents || 0) - alreadyPaid - creditedTotal
-  );
-
-  if (remainingBalance <= 0) {
-    throw new Error("Invoice has no remaining balance after payments and credit notes");
-  }
-
-  if (amount_cents > remainingBalance) {
-    throw new Error(
-      `Payment exceeds remaining balance. Remaining balance is €${(
-        remainingBalance / 100
-      ).toFixed(2)}`
-    );
   }
 
   const { data: companyAccount, error: companyAccountError } = await supabase
@@ -667,40 +772,131 @@ export async function recordPayment(formData: FormData) {
     throw new Error("Bank transfers must be recorded into a bank account");
   }
 
-  const payload = {
+  const payload: CanonicalPaymentPayload = {
+    idempotency_key,
     invoice_id,
     amount_cents,
     payment_method,
-    payment_date: new Date().toISOString().slice(0, 10),
     company_account_id,
-    bank_id: payment_method === "bank_transfer" ? companyAccount.bank_id : null,
-    reference_number: reference_number || null,
-    notes: notes || null,
+    bank_id:
+      payment_method === "bank_transfer"
+        ? normalizeStoredUuid(companyAccount.bank_id)
+        : null,
+    reference_number,
+    notes,
   };
 
-  const { error: insertError } = await supabase.from("payments").insert(payload);
+  const existingPaymentFields =
+    "invoice_id, amount_cents, payment_method, company_account_id, bank_id, reference_number, notes";
+  const { data: knownReplay, error: knownReplayError } = await supabase
+    .from("payments")
+    .select(existingPaymentFields)
+    .eq("idempotency_key", idempotency_key)
+    .maybeSingle();
+
+  if (knownReplayError) {
+    throw new Error("Failed to verify payment replay");
+  }
+
+  if (knownReplay) {
+    if (
+      !paymentPayloadMatches(
+        knownReplay as ExistingPaymentPayload,
+        payload
+      )
+    ) {
+      throw new Error(
+        "A payment with this idempotency key already exists with different details."
+      );
+    }
+
+    await completePaymentReplay(supabase, invoice_id);
+  }
+
+  if (invoice.status !== "issued") {
+    throw new Error("Payments can only be recorded for issued invoices");
+  }
+
+  const { data: existingPayments, error: paymentsError } = await supabase
+    .from("payments")
+    .select("amount_cents")
+    .eq("invoice_id", invoice_id);
+
+  if (paymentsError) {
+    throw new Error("Failed to validate existing payments");
+  }
+
+  const alreadyPaid =
+    existingPayments?.reduce(
+      (sum: number, payment: { amount_cents: number | null }) =>
+        sum + (payment.amount_cents || 0),
+      0
+    ) || 0;
+
+  const creditedTotal = await getIssuedCreditNotesTotal(supabase, invoice_id);
+  const remainingBalance = Math.max(
+    0,
+    (invoice.total_cents || 0) - alreadyPaid - creditedTotal
+  );
+
+  if (remainingBalance <= 0) {
+    throw new Error(
+      "Invoice has no remaining balance after payments and credit notes"
+    );
+  }
+
+  if (amount_cents > remainingBalance) {
+    throw new Error(
+      `Payment exceeds remaining balance. Remaining balance is €${(
+        remainingBalance / 100
+      ).toFixed(2)}`
+    );
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("payments")
+    .insert(payload)
+    .select("id")
+    .maybeSingle();
 
   if (insertError) {
-    throw new Error(insertError.message || "Failed to create payment");
-  }
-
-  const newPaidTotal = alreadyPaid + amount_cents;
-
-  if (newPaidTotal + creditedTotal >= invoice.total_cents) {
-    const { error: updateError } = await supabase
-      .from("invoices")
-      .update({ status: "paid" })
-      .eq("id", invoice_id)
-      .eq("status", "issued")
-      .eq("invoice_number", invoice.invoice_number)
-      .eq("document_type", "invoice");
-
-    if (updateError) {
-      throw new Error("Payment saved but failed to update invoice status");
+    if (insertError.code !== "23505") {
+      throw new Error("Failed to create payment");
     }
+
+    const { data: existing, error: replayError } = await supabase
+      .from("payments")
+      .select(existingPaymentFields)
+      .eq("idempotency_key", idempotency_key)
+      .maybeSingle();
+
+    if (replayError) {
+      throw new Error("Failed to verify payment replay");
+    }
+
+    if (!existing) {
+      throw insertError;
+    }
+
+    if (
+      !paymentPayloadMatches(
+        existing as ExistingPaymentPayload,
+        payload
+      )
+    ) {
+      throw new Error(
+        "A payment with this idempotency key already exists with different details."
+      );
+    }
+
+    await completePaymentReplay(supabase, invoice_id);
   }
 
-  revalidatePath("/billing");
-  revalidatePath(`/billing/${invoice_id}`);
+  if (!inserted) {
+    throw new Error("Failed to create payment");
+  }
+
+  await reconcileInvoicePaymentState(supabase, invoice_id);
+  revalidatePaymentPages(invoice_id);
   redirect(`/billing/${invoice_id}`);
 }

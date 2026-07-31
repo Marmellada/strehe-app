@@ -14,6 +14,7 @@ type BankOption = {
 
 type PaymentFormProps = {
   invoiceId: string;
+  idempotencyKey: string;
   balanceDueCents: number;
   banks: BankOption[];
   action: (formData: FormData) => void;
@@ -25,6 +26,7 @@ function centsToEur(cents: number) {
 
 export function PaymentForm({
   invoiceId,
+  idempotencyKey,
   balanceDueCents,
   banks,
   action,
@@ -49,6 +51,11 @@ export function PaymentForm({
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="invoice_id" value={invoiceId} />
+      <input
+        type="hidden"
+        name="idempotency_key"
+        value={idempotencyKey}
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <FormField id="payment-amount" label="Amount (€)" required>
