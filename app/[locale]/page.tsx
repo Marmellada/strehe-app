@@ -59,7 +59,7 @@ const homeUi: Record<
       "Listë e shkurtër e gjendjes",
       "Çështje që kërkojnë vendim ose ndjekje",
     ],
-    serviceEyebrow: "Kujdes praktik",
+    serviceEyebrow: "Kujdes për apartamentin",
     processEyebrow: "Fillim i thjeshtë",
     trustEyebrow: "Besim me proces",
     faqEyebrow: "Pyetje të zakonshme",
@@ -165,7 +165,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
                   variant="outline"
                   className="border-slate-300 bg-transparent text-slate-900 hover:bg-white"
                 >
-                  <Link href={`/${locale}/how-it-works`}>
+                  <Link href={`/${locale}/services`}>
                     {content.hero.secondaryCta}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
@@ -209,50 +209,92 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:py-20">
-        <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/90 lg:grid-cols-[1.04fr_0.96fr]">
-          <div className="relative min-h-[420px]">
-            <Image
-              src="/marketing/apartment-check-v2.webp"
-              alt={ui.inspectionAlt}
-              fill
-              sizes="(min-width: 1024px) 52vw, 100vw"
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgba(2,6,23,0.78))]" />
-            <div className="absolute bottom-6 left-6 rounded-full border border-white/20 bg-slate-950/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200 backdrop-blur sm:bottom-8 sm:left-8">
-              {ui.visitProof}
+      {locale === "sq" ? (
+        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:py-20">
+          <div className="grid gap-10 rounded-[2rem] border border-white/10 bg-slate-950/90 p-6 shadow-2xl shadow-black/20 sm:p-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:p-12">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
+                Pas çdo vizite
+              </p>
+              <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
+                Ju e dini çfarë është kontrolluar — dhe çfarë duhet bërë më pas.
+              </h2>
+              <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">
+                Raporti ju jep një pamje të dokumentuar të apartamentit, edhe kur jeni larg.
+              </p>
             </div>
-          </div>
 
-          <div className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-12">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
-              {ui.visitProof}
-            </p>
-            <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
-              {ui.proofTitle}
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
-              {ui.proofIntro}
-            </p>
-            <div className="mt-8 grid gap-4">
-              {ui.proofItems.map((item, index) => {
-                const Icon = [Camera, ClipboardCheck, Wrench][index];
-                return (
-                  <div key={item} className="flex items-start gap-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-300 text-slate-950">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <p className="pt-2 text-sm font-medium leading-6 text-slate-100">
-                      {item}
+            <article className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[#f7f4ed] text-slate-950 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-5 sm:px-8">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">
+                    Raport vizite
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Shembull ilustrues i raportit</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-slate-500">Data</p>
+                  <span className="mt-1 inline-block rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900">
+                    18 korrik 2026
+                  </span>
+                </div>
+              </div>
+              <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-2">
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Gjendja</p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
+                      Në rregull, me një çështje për ndjekje
                     </p>
                   </div>
-                );
-              })}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">U kontrolluan</p>
+                    <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                      {["Hyrja dhe dritaret", "Shenjat e lagështisë", "Uji dhe energjia", "Gjendja e dukshme e dhomave"].map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Fotografi</p>
+                    <p className="mt-1 text-3xl font-semibold text-slate-950">8</p>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">Për ndjekje</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      Rrjedhje e lehtë nën lavaman. Pronari u njoftua dhe po pritet miratimi për hidraulikun.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : (
+        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:py-20">
+          <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/90 lg:grid-cols-[1.04fr_0.96fr]">
+            <div className="relative min-h-[420px]">
+              <Image src="/marketing/apartment-check-v2.webp" alt={ui.inspectionAlt} fill sizes="(min-width: 1024px) 52vw, 100vw" className="object-cover" />
+            </div>
+            <div className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-12">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">{ui.visitProof}</p>
+              <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-white sm:text-4xl">{ui.proofTitle}</h2>
+              <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">{ui.proofIntro}</p>
+              <div className="mt-8 grid gap-4">
+                {ui.proofItems.map((item, index) => {
+                  const Icon = [Camera, ClipboardCheck, Wrench][index];
+                  return <div key={item} className="flex items-start gap-4"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-300 text-slate-950"><Icon className="h-5 w-5" /></span><p className="pt-2 text-sm font-medium leading-6 text-slate-100">{item}</p></div>;
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="bg-[#f1eee7] text-slate-950">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
@@ -268,21 +310,22 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
             </p>
           </div>
 
-          <div className="mt-10 grid gap-px overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-12 grid gap-5 lg:grid-cols-2">
             {content.servicesPreview.items.map((item, index) => {
               const Icon = serviceIcons[index] || Home;
               return (
                 <article
                   key={item.title}
-                  className="group min-h-64 bg-white p-7 transition-colors hover:bg-amber-50"
+                  className={`group border-t border-slate-300 py-7 sm:p-8 ${index % 3 === 0 ? "lg:pr-16" : "lg:pl-16"}`}
                 >
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-amber-200">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-8 text-xl font-semibold">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {item.description}
-                  </p>
+                  <div className="flex items-start gap-5">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-950 text-amber-200"><Icon className="h-5 w-5" /></span>
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.18em] text-amber-800">0{index + 1}</p>
+                      <h3 className="mt-3 text-xl font-semibold sm:text-2xl">{item.title}</h3>
+                      <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600">{item.description}</p>
+                    </div>
+                  </div>
                 </article>
               );
             })}
@@ -295,7 +338,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
               className="border-slate-300 bg-transparent text-slate-950 hover:bg-white"
             >
               <Link href={`/${locale}/services`}>
-                {content.nav.services}
+                {locale === "sq" ? content.hero.secondaryCta : content.nav.services}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -312,9 +355,7 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
             <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">
               {content.process.title}
             </h2>
-            <p className="mt-4 max-w-md text-base leading-7 text-slate-300">
-              {content.process.intro}
-            </p>
+            {locale !== "sq" && <p className="mt-4 max-w-md text-base leading-7 text-slate-300">{content.process.intro}</p>}
           </div>
 
           <ol className="grid gap-4 sm:grid-cols-2">
@@ -424,12 +465,17 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
                 variant="outline"
                 className="border-slate-900/30 bg-transparent text-slate-950 hover:bg-white/50"
               >
-                <Link href={`/${locale}/contact`}>
+                <Link href={`/${locale}/services`}>
                   {content.cta.secondary}
                 </Link>
               </Button>
             </div>
           </div>
+          {locale === "sq" && (
+            <p className="mt-7 max-w-4xl border-t border-slate-900/15 pt-5 text-left text-[0.8125rem] leading-6 text-slate-700">
+              STREHË aktualisht po regjistron interesin e pronarëve që jetojnë jashtë Kosovës. Aktivizimi i shërbimit, pranimi i pagesave dhe marrja e çelësave bëhen vetëm pas përfundimit të regjistrimit të biznesit dhe marrëveshjes përkatëse.
+            </p>
+          )}
         </div>
       </section>
     </main>

@@ -424,7 +424,7 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       description:
         "STREHË bën vizita të planifikuara, dërgon raport me foto dhe ndjek çështjet praktike në Prishtinë dhe Fushë Kosovë.",
       primaryCta: "Na shkruani në WhatsApp",
-      secondaryCta: "Shihni si funksionon",
+      secondaryCta: "Shihni shërbimet",
       reassurance: "Zakonisht përgjigjemi brenda ditës.",
       statLabels: [
         "Raport me foto pas vizitës",
@@ -449,58 +449,67 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       ],
     },
     servicesPreview: {
-      title: "Çfarë bëjmë për apartamentin tuaj",
-      intro: "Kontrollojmë. Dokumentojmë. Ndjekim.",
+      title:
+        "Dikush kujdeset për apartamentin tuaj, edhe kur ju jeni jashtë Kosovës.",
+      intro:
+        "Vizita të planifikuara, fotografi dhe raport i qartë, plus ndjekje lokale kur diçka kërkon vëmendje.",
       items: [
         {
-          title: "Kontrolle të rregullta të apartamentit",
-          description: "Ne vizitojmë, kontrollojmë gjendjen dhe ju njoftojmë qartë.",
+          title: "Kontrollojmë apartamentin",
+          description:
+            "Vizitojmë apartamentin sipas ritmit të dakorduar dhe kontrollojmë gjendjen e dukshme, hyrjen dhe shenjat e problemeve.",
         },
         {
-          title: "Përgatitje para ardhjes",
-          description: "Ndihmojmë që apartamenti të jetë gati para kthimit tuaj.",
+          title: "Ju dërgojmë raport me fotografi",
+          description:
+            "Pas çdo vizite merrni një përmbledhje të qartë: çfarë u kontrollua, çfarë u pa dhe çfarë kërkon ndjekje.",
         },
         {
-          title: "Raportim i problemeve dhe ndjekje",
-          description: "Nëse ka diçka për t'u rregulluar, e zbulojmë herët dhe e ndjekim lokalisht.",
+          title: "Ndjekim problemet lokale",
+          description:
+            "Kur shfaqet një problem, ju njoftojmë herët dhe koordinojmë hapat e radhës me miratimin tuaj.",
         },
         {
-          title: "Koordinim praktik lokal",
-          description: "Merremi me detajet e vogla por të rëndësishme që është vështirë t'i menaxhoni nga jashtë.",
+          title: "E përgatisim para kthimit",
+          description:
+            "Ajrosje, kontroll para ardhjes dhe koordinim i detajeve praktike që apartamenti të jetë gati.",
         },
       ],
     },
     trust: {
-      title: "Besimi ndërtohet me prova, jo me premtime",
+      title: "Kujdes lokal me kufij të qartë",
       intro:
-        "Çdo vizitë ka një qëllim, një raport dhe një person përgjegjës për hapat e ardhshëm.",
+        "E dini si dokumentohet vizita, kush e ndjek çështjen dhe kur kërkohet miratimi juaj.",
       items: [
-        "Zonë e fokusuar shërbimi, jo premtime të paqarta në gjithë vendin",
-        "Vetëm apartamente në fillim që shërbimi të mbetet i disiplinuar",
-        "Vizita të rregullta me përditësime të qarta",
-        "Një pikë lokale kontakti për ndjekje",
-        "Shërbim i strukturuar, jo favor i improvizuar",
+        "Vizita të dokumentuara me datë dhe fotografi",
+        "Një person lokal përgjegjës për ndjekjen",
+        "Fillimisht në Prishtinë dhe Fushë Kosovë",
+        "Asnjë punë shtesë pa miratimin tuaj, përveç rasteve të përcaktuara emergjente",
       ],
     },
     process: {
-      title: "Si funksionon",
+      title: "Nga mesazhi i parë te raporti pas vizitës.",
       intro: "Nga mesazhi i parë te raporti pas vizitës.",
       steps: [
         {
-          title: "Na kontaktoni",
-          description: "Fillojmë me një bisedë të shkurtër për apartamentin dhe nevojat tuaja.",
+          title: "Na shkruani",
+          description:
+            "Na tregoni ku është apartamenti, sa shpesh qëndron bosh dhe çfarë ju shqetëson më shumë.",
         },
         {
-          title: "E kuptojmë situatën",
-          description: "Sqarojmë çfarë është më e rëndësishme, çfarë duhet kontrolluar dhe sa shpesh.",
+          title: "Bëjmë një bisedë të shkurtër",
+          description:
+            "Qartësojmë nevojat, zonën dhe ritmin e përshtatshëm të vizitave.",
         },
         {
-          title: "Dakordohemi për mbështetjen e duhur",
-          description: "Shërbimi mbetet praktik dhe i përshtatur për apartamentin tuaj.",
+          title: "Ju propozojmë një plan të qartë",
+          description:
+            "Merrni një propozim me shërbimet, çmimin, përfshirjet dhe kufijtë e përgjegjësisë.",
         },
         {
-          title: "Fillojmë vizitat dhe përditësimet",
-          description: "Pas vizitave, ju merrni njoftime të qarta në vend të pasigurisë.",
+          title: "Fillojnë vizitat dhe përditësimet",
+          description:
+            "Pas çdo vizite merrni raport të qartë dhe dini çfarë duhet bërë më pas.",
         },
       ],
     },
@@ -519,52 +528,60 @@ export const marketingContent: Record<MarketingLocale, MarketingContent> = {
       description:
         "Na tregoni ku ndodhet dhe çfarë ju shqetëson më shumë. Ne ju përgjigjemi me hapa të qartë.",
       primary: "Na shkruani në WhatsApp",
-      secondary: "Kërkoni informata",
+      secondary: "Shihni shërbimet",
     },
     servicesPage: {
-      introTitle: "Mbështetje praktike për apartamente që kanë nevojë për kujdes lokal ndërsa ju jeni jashtë",
+      introTitle:
+        "Kujdes i rregullt për apartamentin tuaj, edhe kur jetoni jashtë Kosovës.",
       introBody:
-        "Ne nuk paraqesim një listë të rastësishme punësh. Shërbimet organizohen sipas asaj që i duhet realisht një pronari për t'u ndier i informuar dhe i qetë.",
+        "STREHË ju ndihmon të dini çfarë po ndodh në apartament, të merrni prova pas çdo vizite dhe të ndiqni problemet pa u varur gjithmonë nga familjarët.",
       categories: [
         {
-          title: "Kontrolle të rregullta",
-          summary: "Vizita të rregullta që ju ndihmojnë të dini se apartamenti po mbahet nën kujdes.",
+          title: "Vizita të rregullta dhe raportim",
+          summary:
+            "Vizita sipas ritmit të dakorduar, kontroll i gjendjes së dukshme dhe raport me fotografi.",
           actions: [
-            "Vizitë sipas ritmit të dakorduar",
-            "Kontroll i gjendjes së dukshme, qasjes dhe gatishmërisë",
-            "Shenjim i hershëm i shqetësimeve",
+            "Kontroll i hyrjes, dritareve dhe gjendjes së dukshme",
+            "Kontroll për shenja lagështie ose dëmtimi",
+            "Fotografitë dhe përmbledhja pas vizitës",
+            "Evidentimi i çështjeve që kërkojnë ndjekje",
           ],
-          outcome: "Ju merrni përditësim të qartë pas vizitave.",
+          outcome: "Ju e dini çfarë është parë dhe çfarë duhet bërë më pas.",
         },
         {
           title: "Përgatitje para ardhjes",
-          summary: "Ndihmë para kthimit tuaj ose të familjes.",
+          summary: "Ndihmë praktike para kthimit tuaj ose ardhjes së familjes.",
           actions: [
             "Kontroll para kthimit",
-            "Ajrosje dhe përgatitje kur nevojitet",
-            "Koordinim i detajeve praktike",
+            "Ajrosje dhe përgatitje bazë",
+            "Verifikim i ujit, energjisë dhe hyrjes",
+            "Koordinim i detajeve të dakorduara",
           ],
-          outcome: "Ktheheni në një hapësirë që ndihet e mbajtur, jo e lënë pas dore.",
+          outcome: "Ktheheni në një apartament të kontrolluar dhe të përgatitur.",
         },
         {
-          title: "Ndjekje e problemeve dhe koordinim i riparimeve të vogla",
-          summary: "Ndjekje lokale kur diçka kërkon vëmendje.",
+          title: "Ndjekje e problemeve dhe riparimeve të vogla",
+          summary:
+            "Kur diçka kërkon vëmendje, ju njoftojmë dhe e ndjekim lokalisht me miratimin tuaj.",
           actions: [
-            "Raportim i qartë i problemit",
-            "Kontaktim i ofruesit të duhur lokal",
-            "Ndjekje deri në zgjidhje",
+            "Dokumentim i problemit",
+            "Kontakt me profesionistë lokalë",
+            "Koordinim i orarit dhe hyrjes",
+            "Përditësim pas ndërhyrjes",
           ],
-          outcome: "Nuk keni nevojë të ndiqni detajet lokale nga jashtë.",
+          outcome: "Tarifat e kontraktorëve, pjesët dhe materialet paguhen veçmas.",
         },
         {
           title: "Mbështetje praktike për pronarin",
-          summary: "Detajet lokale që është vështirë t'i menaxhoni nga një shtet tjetër.",
+          summary: "Detaje lokale që janë të vështira për t’u menaxhuar nga jashtë.",
           actions: [
-            "Koordinim i çështjeve praktike kur është e arsyeshme",
-            "Ndjekje e utility-ve ose çështjeve të apartamentit",
-            "Komunikim i organizuar",
+            "Pranim ose dorëzim i dakorduar",
+            "Kontroll pas punimeve",
+            "Koordinim me ndërtesën ose profesionistët",
+            "Detyra të tjera të aprovuara paraprakisht",
           ],
-          outcome: "Ju fitoni një rregullim më të qetë dhe më të strukturuar lokal.",
+          outcome:
+            "Fusha e punës dhe përgjegjësia përcaktohen qartë para çdo veprimi.",
         },
       ],
       note:

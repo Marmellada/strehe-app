@@ -4,7 +4,7 @@ const locales = [
   {
     code: "sq",
     homeHeading: /Apartamenti juaj në Kosovë/i,
-    servicesHeading: /Mbështetje praktike për apartamente/i,
+    servicesHeading: /Kujdes i rregullt për apartamentin tuaj/i,
     howHeading: /Një proces i thjeshtë/i,
     aboutHeading: /Shërbim lokal për pronarët/i,
     contactHeading: /Filloni me një pyetje të thjeshtë/i,
@@ -102,5 +102,26 @@ test.describe("public website launch smoke", () => {
     await page.getByRole("link", { name: "DE", exact: true }).click();
     await page.waitForURL(/\/de\/services$/);
     await expect(page.getByRole("heading", { name: locales[2].servicesHeading })).toBeVisible();
+  });
+
+  test("Albanian conversion sections show concrete service and visit-report details", async ({
+    page,
+  }) => {
+    await page.goto("/sq");
+
+    await expect(
+      page.getByRole("heading", {
+        name: /Dikush kujdeset për apartamentin tuaj/i,
+      })
+    ).toBeVisible();
+    await expect(page.getByText("Shembull ilustrues i raportit")).toBeVisible();
+    await expect(page.getByText("18 korrik 2026")).toBeVisible();
+    await expect(page.getByText(/Rrjedhje e lehtë nën lavaman/i)).toBeVisible();
+    await expect(page.getByText(/aktualisht po regjistron interesin/i)).toBeVisible();
+
+    await page.goto("/sq/services");
+    await expect(page.getByRole("heading", { name: "Vizita të rregullta dhe raportim" })).toBeVisible();
+    await expect(page.getByText("Kontroll për shenja lagështie ose dëmtimi")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Na shkruani në WhatsApp" })).toBeVisible();
   });
 });

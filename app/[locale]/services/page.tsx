@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CheckCircle2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
   buildWhatsAppMessage,
   getCompanyProfile,
@@ -68,30 +68,40 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
         </div>
       </section>
 
-      <section className="mt-12 grid gap-6 xl:grid-cols-2">
-        {content.servicesPage.categories.map((category) => (
-          <Card
+      <section id="service-areas" className="mt-16 border-y border-white/10">
+        {content.servicesPage.categories.map((category, index) => (
+          <article
             key={category.title}
-            className="border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(12,18,31,0.92))] text-white"
+            className="grid gap-8 border-b border-white/10 py-10 last:border-b-0 md:grid-cols-[0.72fr_1.28fr] md:gap-12 md:py-14"
           >
-            <CardHeader>
-              <CardTitle>{category.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5 text-slate-300">
-              <p className="leading-7">{category.summary}</p>
-              <div className="grid gap-3">
+            <div className={index % 2 === 1 ? "md:order-2" : undefined}>
+              <p className="text-xs font-semibold tracking-[0.2em] text-amber-200">
+                0{index + 1}
+              </p>
+              <h2 className="mt-4 text-2xl font-semibold leading-tight text-white sm:text-3xl">
+                {category.title}
+              </h2>
+              <p className="mt-4 max-w-lg leading-7 text-slate-300">
+                {category.summary}
+              </p>
+            </div>
+            <div className={`rounded-2xl border border-white/10 bg-slate-950/75 p-6 sm:p-8 ${index % 2 === 1 ? "md:order-1" : ""}`}>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                {locale === "sq" ? "Përfshihet" : content.nav.services}
+              </p>
+              <ul className="mt-5 grid gap-4 sm:grid-cols-2">
                 {category.actions.map((action) => (
-                  <div
-                    key={action}
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6"
-                  >
+                  <li key={action} className="flex items-start gap-3 text-sm leading-6 text-slate-200">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
                     {action}
-                  </div>
+                  </li>
                 ))}
-              </div>
-              <p className="text-sm font-medium text-slate-100">{category.outcome}</p>
-            </CardContent>
-          </Card>
+              </ul>
+              <p className="mt-7 border-t border-white/10 pt-5 text-sm font-medium leading-6 text-white">
+                {category.outcome}
+              </p>
+            </div>
+          </article>
         ))}
       </section>
 
@@ -99,15 +109,29 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
         <p className="text-sm leading-7 text-slate-300">{content.servicesPage.note}</p>
       </section>
 
-      <section className="mt-12 flex flex-wrap gap-3">
-        <Button asChild size="lg">
-          <Link href={whatsappHref} target="_blank" rel="noreferrer">
-            {content.cta.primary}
-          </Link>
-        </Button>
-        <Button asChild size="lg" variant="outline">
-          <Link href={`/${locale}/contact`}>{content.cta.secondary}</Link>
-        </Button>
+      <section className="mt-12 rounded-[2rem] bg-amber-300 p-7 text-slate-950 sm:p-10">
+        <div className="flex flex-col justify-between gap-7 lg:flex-row lg:items-center">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">{content.cta.title}</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-slate-700">{content.cta.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild size="lg" className="bg-slate-950 text-white hover:bg-slate-800">
+              <Link href={whatsappHref} target="_blank" rel="noreferrer">
+                <MessageCircle className="h-4 w-4" />
+                {content.cta.primary}
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="border-slate-900/30 bg-transparent text-slate-950 hover:bg-white/50">
+              <Link href="#service-areas">{content.cta.secondary}</Link>
+            </Button>
+          </div>
+        </div>
+        {locale === "sq" && (
+          <p className="mt-7 max-w-4xl border-t border-slate-900/15 pt-5 text-[0.8125rem] leading-6 text-slate-700">
+            STREHË aktualisht po regjistron interesin e pronarëve që jetojnë jashtë Kosovës. Aktivizimi i shërbimit, pranimi i pagesave dhe marrja e çelësave bëhen vetëm pas përfundimit të regjistrimit të biznesit dhe marrëveshjes përkatëse.
+          </p>
+        )}
       </section>
     </main>
   );
