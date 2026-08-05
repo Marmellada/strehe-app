@@ -33,13 +33,44 @@ type RecentLeadQuery = {
 };
 
 type LeadInsert = RecentLead & {
+  id: string;
   source: "website";
   status: "new";
   priority: "normal";
   preferred_contact_method: "email" | "whatsapp";
   service_interest: "not_sure";
+  created_at: string;
   updated_at: string;
   first_touch_at: string;
+};
+
+export type PublicInquiryNotification = {
+  inquiryId: string;
+  customerName: string;
+  email: string | null;
+  phone: string | null;
+  message: string | null;
+  locale: "en" | "sq" | "de";
+  source: "website";
+  sourceDetail: string | null;
+  campaignName: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  utmTerm: string | null;
+  clickId: string | null;
+  submittedAt: string;
+};
+
+export type PublicInquiryNotificationResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+type PublicInquiryNotificationFailure = {
+  event: "public_contact_notification_failed";
+  inquiryId: string;
+  reason: string;
 };
 
 export type PublicContactAdminClient = {
@@ -51,8 +82,15 @@ export type PublicContactAdminClient = {
 
 type PublicContactDependencies = {
   getAdminClient: () => PublicContactAdminClient;
+  createInquiryId: () => string;
   now: () => Date;
   revalidateLeads: () => void;
+  sendInquiryNotification: (
+    inquiry: PublicInquiryNotification
+  ) => Promise<PublicInquiryNotificationResult>;
+  logNotificationFailure: (
+    failure: PublicInquiryNotificationFailure
+  ) => void;
 };
 
 const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
@@ -154,6 +192,21 @@ function equivalentLead(row: RecentLead, candidate: RecentLead) {
 export function createPublicContactLeadHandler(
   dependencies: PublicContactDependencies
 ) {
+  function recordNotificationFailure(
+    inquiryId: string,
+    reason: string
+  ) {
+    try {
+      dependencies.logNotificationFailure({
+        event: "public_contact_notification_failed",
+        inquiryId,
+        reason,
+      });
+    } catch {
+      // Logging must never change the persisted inquiry's customer response.
+    }
+  }
+
   return async function handlePublicContactLead(
     _state: PublicContactLeadState,
     formData: FormData
@@ -240,21 +293,53 @@ export function createPublicContactLeadHandler(
         return { status: "success", message: copy.success, mailtoHref };
       }
 
+      const inquiryId = dependencies.createInquiryId();
+      const submittedAt = dependencies.now().toISOString();
+
       const insertResult = await supabase.from("leads").insert([
         {
           ...candidate,
+          id: inquiryId,
           source: "website",
           status: "new",
           priority: "normal",
           preferred_contact_method: contactIsEmail ? "email" : "whatsapp",
           service_interest: "not_sure",
-          first_touch_at: dependencies.now().toISOString(),
-          updated_at: dependencies.now().toISOString(),
+          created_at: submittedAt,
+          first_touch_at: submittedAt,
+          updated_at: submittedAt,
         },
       ]);
 
       if (insertResult.error) {
         return { status: "error", message: copy.error, mailtoHref };
+      }
+
+      try {
+        const notificationResult = await dependencies.sendInquiryNotification({
+          inquiryId,
+          customerName: input.name,
+          email: candidate.email,
+          phone: candidate.phone,
+          message: input.message || null,
+          locale: input.locale,
+          source: "website",
+          sourceDetail: attribution.source_detail,
+          campaignName: attribution.campaign_name,
+          utmSource: attribution.utm_source,
+          utmMedium: attribution.utm_medium,
+          utmCampaign: attribution.utm_campaign,
+          utmContent: attribution.utm_content,
+          utmTerm: attribution.utm_term,
+          clickId: attribution.click_id,
+          submittedAt,
+        });
+
+        if (!notificationResult.ok) {
+          recordNotificationFailure(inquiryId, notificationResult.reason);
+        }
+      } catch {
+        recordNotificationFailure(inquiryId, "unexpected_error");
       }
 
       try {

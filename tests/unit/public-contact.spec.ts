@@ -2,11 +2,13 @@ import { expect, test } from "@playwright/test";
 import {
   createPublicContactLeadHandler,
   type PublicContactAdminClient,
+  type PublicInquiryNotification,
   type PublicContactLeadState,
 } from "@/lib/security/public-contact";
 
 const idleState: PublicContactLeadState = { status: "idle", message: "" };
 const fixedNow = new Date("2026-07-23T12:00:00.000Z");
+const fixedInquiryId = "b1d6984f-00d9-4d2d-9580-0dc20f734191";
 
 function validForm(overrides: Record<string, string> = {}) {
   const values = {
@@ -43,10 +45,20 @@ function createHarness(options: {
   queryError?: unknown;
   insertError?: unknown;
   revalidateError?: unknown;
+  notificationResult?: { ok: true } | { ok: false; reason: string };
+  notificationError?: unknown;
+  notificationLogError?: unknown;
 } = {}) {
   let adminCalls = 0;
   let revalidateCalls = 0;
+  let notificationCalls = 0;
   const insertedRows: unknown[] = [];
+  const notifications: PublicInquiryNotification[] = [];
+  const notificationFailures: Array<{
+    event: string;
+    inquiryId: string;
+    reason: string;
+  }> = [];
 
   const query = {
     eq() {
@@ -82,27 +94,43 @@ function createHarness(options: {
       adminCalls += 1;
       return client;
     },
+    createInquiryId: () => fixedInquiryId,
     now: () => fixedNow,
     revalidateLeads: () => {
       revalidateCalls += 1;
       if (options.revalidateError) throw options.revalidateError;
+    },
+    sendInquiryNotification: async (notification) => {
+      notificationCalls += 1;
+      notifications.push(notification);
+      if (options.notificationError) throw options.notificationError;
+      return options.notificationResult || { ok: true };
+    },
+    logNotificationFailure: (failure) => {
+      notificationFailures.push(failure);
+      if (options.notificationLogError) throw options.notificationLogError;
     },
   });
 
   return {
     handler,
     insertedRows,
+    notifications,
+    notificationFailures,
     get adminCalls() {
       return adminCalls;
     },
     get revalidateCalls() {
       return revalidateCalls;
     },
+    get notificationCalls() {
+      return notificationCalls;
+    },
   };
 }
 
 test.describe("public contact action containment", () => {
-  test("normalizes and inserts a valid submission once", async () => {
+  test("persists a valid inquiry and sends one operational notification", async () => {
     const harness = createHarness();
     const result = await harness.handler(
       idleState,
@@ -122,11 +150,56 @@ test.describe("public contact action containment", () => {
       phone: null,
       country: "Germany",
       city: "Dardania",
+      id: fixedInquiryId,
       source: "website",
       status: "new",
       utm_source: "meta",
+      created_at: fixedNow.toISOString(),
       first_touch_at: fixedNow.toISOString(),
     });
+    expect(harness.notificationCalls).toBe(1);
+    expect(harness.notifications[0]).toEqual({
+      inquiryId: fixedInquiryId,
+      customerName: "Ada Example",
+      email: "ada@example.com",
+      phone: null,
+      message: "Please inspect the apartment.",
+      locale: "en",
+      source: "website",
+      sourceDetail: null,
+      campaignName: null,
+      utmSource: "meta",
+      utmMedium: "paid_social",
+      utmCampaign: "strehe_meta_diaspora_founders_202608",
+      utmContent: null,
+      utmTerm: null,
+      clickId: null,
+      submittedAt: fixedNow.toISOString(),
+    });
+    expect(harness.notificationFailures).toEqual([]);
+    expect(harness.revalidateCalls).toBe(1);
+  });
+
+  test("reports customer success and logs only metadata when notification fails", async () => {
+    const harness = createHarness({
+      notificationResult: { ok: false, reason: "provider_rejected" },
+    });
+
+    const result = await harness.handler(idleState, validForm());
+
+    expect(result.status).toBe("success");
+    expect(harness.insertedRows).toHaveLength(1);
+    expect(harness.notificationCalls).toBe(1);
+    expect(harness.notificationFailures).toEqual([
+      {
+        event: "public_contact_notification_failed",
+        inquiryId: fixedInquiryId,
+        reason: "provider_rejected",
+      },
+    ]);
+    expect(JSON.stringify(harness.notificationFailures)).not.toContain(
+      "ada@example.com"
+    );
     expect(harness.revalidateCalls).toBe(1);
   });
 
@@ -154,6 +227,7 @@ test.describe("public contact action containment", () => {
       expect(result.status).toBe("error");
       expect(harness.adminCalls).toBe(0);
       expect(harness.insertedRows).toHaveLength(0);
+      expect(harness.notificationCalls).toBe(0);
       expect(harness.revalidateCalls).toBe(0);
     });
   }
@@ -168,6 +242,7 @@ test.describe("public contact action containment", () => {
     expect(result.status).toBe("success");
     expect(harness.adminCalls).toBe(0);
     expect(harness.insertedRows).toHaveLength(0);
+    expect(harness.notificationCalls).toBe(0);
     expect(harness.revalidateCalls).toBe(0);
   });
 
@@ -196,6 +271,7 @@ test.describe("public contact action containment", () => {
     expect(result.status).toBe("success");
     expect(harness.adminCalls).toBe(1);
     expect(harness.insertedRows).toHaveLength(0);
+    expect(harness.notificationCalls).toBe(0);
     expect(harness.revalidateCalls).toBe(0);
   });
 
@@ -206,6 +282,7 @@ test.describe("public contact action containment", () => {
     expect(result.status).toBe("error");
     expect(result.message).not.toContain("private database detail");
     expect(harness.insertedRows).toHaveLength(0);
+    expect(harness.notificationCalls).toBe(0);
   });
 
   test("returns a generic error when insertion fails", async () => {
@@ -215,6 +292,7 @@ test.describe("public contact action containment", () => {
     expect(result.status).toBe("error");
     expect(result.message).not.toContain("private database detail");
     expect(harness.insertedRows).toHaveLength(1);
+    expect(harness.notificationCalls).toBe(0);
     expect(harness.revalidateCalls).toBe(0);
   });
 
@@ -224,6 +302,38 @@ test.describe("public contact action containment", () => {
 
     expect(result.status).toBe("success");
     expect(harness.insertedRows).toHaveLength(1);
+    expect(harness.notificationCalls).toBe(1);
     expect(harness.revalidateCalls).toBe(1);
+  });
+
+  test("reports customer success when the notification sender throws", async () => {
+    const harness = createHarness({
+      notificationError: new Error("provider unavailable"),
+    });
+
+    const result = await harness.handler(idleState, validForm());
+
+    expect(result.status).toBe("success");
+    expect(harness.insertedRows).toHaveLength(1);
+    expect(harness.notificationFailures).toEqual([
+      {
+        event: "public_contact_notification_failed",
+        inquiryId: fixedInquiryId,
+        reason: "unexpected_error",
+      },
+    ]);
+  });
+
+  test("reports customer success even if notification failure logging throws", async () => {
+    const harness = createHarness({
+      notificationResult: { ok: false, reason: "provider_unavailable" },
+      notificationLogError: new Error("logger unavailable"),
+    });
+
+    const result = await harness.handler(idleState, validForm());
+
+    expect(result.status).toBe("success");
+    expect(harness.insertedRows).toHaveLength(1);
+    expect(harness.notificationFailures).toHaveLength(1);
   });
 });
