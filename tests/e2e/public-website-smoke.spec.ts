@@ -1,4 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+const contactAttributionFields = [
+  "source_detail",
+  "campaign_name",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "click_id",
+  "landing_locale",
+  "landing_page",
+] as const;
+
+async function submittedContactAttribution(page: Page) {
+  return page.locator("form").evaluate((form, fields) => {
+    const formData = new FormData(form as HTMLFormElement);
+    return Object.fromEntries(
+      fields.map((field) => [field, formData.get(field)])
+    );
+  }, contactAttributionFields);
+}
 
 const locales = [
   {
@@ -102,6 +124,111 @@ test.describe("public website launch smoke", () => {
     await page.getByRole("link", { name: "DE", exact: true }).click();
     await page.waitForURL(/\/de\/services$/);
     await expect(page.getByRole("heading", { name: locales[2].servicesHeading })).toBeVisible();
+  });
+
+  test("contact attribution survives controlled rerenders and validation feedback", async ({
+    page,
+  }) => {
+    const landingPage =
+      "/sq/contact?utm_source=production-smoke-test&utm_medium=controlled-deployment&utm_campaign=b1-notification";
+    const expectedAttribution = {
+      source_detail: "https://partner.example/campaign",
+      campaign_name: "b1-notification",
+      utm_source: "production-smoke-test",
+      utm_medium: "controlled-deployment",
+      utm_campaign: "b1-notification",
+      utm_content: "",
+      utm_term: "",
+      click_id: "",
+      landing_locale: "sq",
+      landing_page: landingPage,
+    };
+
+    await page.goto(landingPage, {
+      referer: expectedAttribution.source_detail,
+    });
+    await expect(page.locator('input[name="landing_page"]')).toHaveValue(
+      landingPage
+    );
+
+    await page.getByLabel("Emri", { exact: true }).fill("STREHE Attribution Test");
+    await page
+      .getByLabel("Email ose telefon", { exact: true })
+      .fill("attribution-test@example.com");
+    await page.getByLabel("A jetoni jashtë?", { exact: true }).selectOption("yes");
+    await page
+      .getByLabel("Shteti ku jetoni", { exact: true })
+      .fill("Regression test");
+    await page
+      .getByLabel("Zona e apartamentit", { exact: true })
+      .fill("First controlled edit");
+    await page
+      .getByLabel("Mesazhi", { exact: true })
+      .fill("Attribution must survive every rerender.");
+
+    expect(await submittedContactAttribution(page)).toEqual(
+      expectedAttribution
+    );
+
+    await page
+      .getByLabel("Zona e apartamentit", { exact: true })
+      .fill("Second controlled edit");
+    await page
+      .getByLabel("Mesazhi", { exact: true })
+      .fill("Attribution still survives multiple edits.");
+
+    expect(await submittedContactAttribution(page)).toEqual(
+      expectedAttribution
+    );
+
+    await page.getByLabel("Emri", { exact: true }).fill("---");
+    await page.getByRole("button", { name: "Dërgo kërkesën" }).click();
+    await expect(
+      page.getByText(
+        "Ju lutemi shkruani një emër dhe email ose telefon të vlefshëm."
+      )
+    ).toBeVisible();
+
+    expect(await submittedContactAttribution(page)).toEqual(
+      expectedAttribution
+    );
+  });
+
+  test("contact form without UTM parameters retains locale and landing page", async ({
+    page,
+  }) => {
+    await page.goto("/sq/contact");
+    await expect(page.locator('input[name="landing_page"]')).toHaveValue(
+      "/sq/contact"
+    );
+
+    await page.getByLabel("Emri", { exact: true }).fill("STREHE No UTM Test");
+    await page
+      .getByLabel("Email ose telefon", { exact: true })
+      .fill("no-utm-test@example.com");
+    await page.getByLabel("A jetoni jashtë?", { exact: true }).selectOption("no");
+    await page
+      .getByLabel("Shteti ku jetoni", { exact: true })
+      .fill("No campaign");
+    await page
+      .getByLabel("Zona e apartamentit", { exact: true })
+      .fill("No UTM landing");
+    await page
+      .getByLabel("Mesazhi", { exact: true })
+      .fill("No attribution parameters are expected.");
+
+    expect(await submittedContactAttribution(page)).toEqual({
+      source_detail: "",
+      campaign_name: "",
+      utm_source: "",
+      utm_medium: "",
+      utm_campaign: "",
+      utm_content: "",
+      utm_term: "",
+      click_id: "",
+      landing_locale: "sq",
+      landing_page: "/sq/contact",
+    });
   });
 
   test("Albanian conversion sections show concrete service and visit-report details", async ({

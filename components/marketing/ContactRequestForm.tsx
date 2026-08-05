@@ -10,6 +10,22 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 
+const attributionFieldNames = [
+  "source_detail",
+  "campaign_name",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "click_id",
+  "landing_locale",
+  "landing_page",
+] as const;
+
+type AttributionFieldName = (typeof attributionFieldNames)[number];
+type ContactAttribution = Record<AttributionFieldName, string>;
+
 type ContactRequestFormProps = {
   email: string;
   title: string;
@@ -59,11 +75,26 @@ export function ContactRequestForm({
   const [country, setCountry] = useState("");
   const [area, setArea] = useState("");
   const [message, setMessage] = useState("");
-  const formRef = useRef<HTMLFormElement>(null);
+  const attributionCapturedRef = useRef(false);
+  const [attribution, setAttribution] = useState<ContactAttribution>({
+    source_detail: "",
+    campaign_name: "",
+    utm_source: "",
+    utm_medium: "",
+    utm_campaign: "",
+    utm_content: "",
+    utm_term: "",
+    click_id: "",
+    landing_locale: locale,
+    landing_page: "",
+  });
 
   useEffect(() => {
+    if (attributionCapturedRef.current) return;
+
+    let cancelled = false;
     const params = new URLSearchParams(window.location.search);
-    const attribution = {
+    const capturedAttribution: ContactAttribution = {
       source_detail: document.referrer || "",
       campaign_name: params.get("campaign") || params.get("utm_campaign") || "",
       utm_source: params.get("utm_source") || "",
@@ -79,11 +110,20 @@ export function ContactRequestForm({
       landing_locale: locale,
       landing_page: `${window.location.pathname}${window.location.search}`,
     };
-    for (const [name, value] of Object.entries(attribution)) {
-      const field = formRef.current?.elements.namedItem(name);
+    for (const name of attributionFieldNames) {
+      const value = capturedAttribution[name];
       const max = name === "landing_page" ? 500 : name === "click_id" ? 200 : name === "landing_locale" ? 10 : name === "utm_source" || name === "utm_medium" ? 100 : 160;
-      if (field instanceof HTMLInputElement) field.value = value.slice(0, max);
+      capturedAttribution[name] = value.slice(0, max);
     }
+    queueMicrotask(() => {
+      if (cancelled) return;
+      attributionCapturedRef.current = true;
+      setAttribution(capturedAttribution);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [locale]);
 
   const mailtoHref = useMemo(() => {
@@ -113,11 +153,11 @@ export function ContactRequestForm({
         </p>
       </div>
 
-      <form ref={formRef} action={formAction} className="mt-6 grid gap-4 sm:grid-cols-2">
+      <form action={formAction} className="mt-6 grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="company_email" value={email} />
         <input type="hidden" name="locale" value={locale} />
-        {["source_detail", "campaign_name", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "click_id", "landing_locale", "landing_page"].map((name) => (
-          <input key={name} type="hidden" name={name} defaultValue={name === "landing_locale" ? locale : ""} />
+        {attributionFieldNames.map((name) => (
+          <input key={name} type="hidden" name={name} value={attribution[name]} readOnly />
         ))}
         <input
           type="text"
