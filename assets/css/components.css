@@ -48,6 +48,9 @@ h1, h2, h3 {
   top: 0;
   align-self: start;
   height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .sidebar .brand {
@@ -425,6 +428,9 @@ select:-webkit-autofill:focus {
   .sidebar {
     position: relative;
     height: auto;
+    overflow-y: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
   }
 
   .grid-2 {
