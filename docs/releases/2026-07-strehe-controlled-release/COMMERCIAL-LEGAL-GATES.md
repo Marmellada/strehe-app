@@ -13,7 +13,8 @@ resolve the legal or service-operation gates below.
 | --- | --- | --- |
 | Privacy and data-use approval | BLOCKED | Approve localized notice, lawful basis, retention, rights, processors, click-ID/UTM handling |
 | Customer-service agreement review | BLOCKED | Legal review and approved executable agreement |
-| Customer-facing proposal approval | BLOCKED | Approve Albanian wording, exclusions, price lock, renewal, limits |
+| Customer-facing proposal approval | PARTIALLY APPROVED | Approve Albanian wording, exclusions, price lock, renewal, limits |
+| Painting & Wall Refresh pricing | FOUNDER-APPROVED 2026-08-10 | "From approximately €2.50/m² labour + materials." Starting labour rate, not guaranteed final project price. Final quotation depends on: actual paintable wall/ceiling surface (not floor area), wall condition, preparation/filling/sanding, number of coats, furniture/floor protection, and selected paint/materials. See commit d12ffff. |
 | Key-custody readiness | BLOCKED | Approved custody, logging, loss, access, and return procedures |
 | Emergency-authority readiness | BLOCKED | Approved escalation, contact attempts, €100/€300 limits, exclusions |
 | Facebook ownership/recovery | UNVERIFIED | Named owners, MFA, recovery and access inventory |
