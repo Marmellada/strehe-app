@@ -69,11 +69,12 @@ test("campaign funnel metrics handle zero denominators and payment-backed CAC", 
   expect(safeCost(10000, 0)).toBeNull();
 });
 
-test("generates an Albanian proposal PDF with proposal boundaries", async () => {
+test("generates an Albanian proposal PDF with term-aware pricing and Home Refresh", async () => {
   const pkg = FOUNDING_PACKAGES.essential_check;
   const result = await generateOfferPdf({
     offer_number: "STH-OFR-2026-0001", version: 1, selected_package: "essential_check",
-    monthly_price_cents: pkg.monthlyPriceCents, founding_customer_eligible: true,
+    selected_term_months: 6, term_total_cents: pkg.termPrices[6],
+    founding_customer_eligible: true,
     price_lock_statement: "Çmimi fiksohet për 12 muaj.", property_service_area_summary: "Apartament në Prishtinë",
     visit_frequency: pkg.visits, included_services: pkg.included, exclusions: "Kontraktorët dhe materialet veç.",
     normal_approval_limit_cents: 10000, emergency_limit_cents: 30000,
@@ -90,6 +91,30 @@ test("generates an Albanian proposal PDF with proposal boundaries", async () => 
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, result.bytes);
     console.log(`FUNNEL_PDF_SHA256=${hash}`);
+  }
+});
+
+test("generates Arrival Ready 12-month PDF with Home Refresh count", async () => {
+  const pkg = FOUNDING_PACKAGES.arrival_ready;
+  const result = await generateOfferPdf({
+    offer_number: "STH-OFR-2026-0005", version: 1, selected_package: "arrival_ready",
+    selected_term_months: 12, term_total_cents: pkg.termPrices[12],
+    founding_customer_eligible: false, price_lock_statement: null,
+    property_service_area_summary: "Apartament në Fushë Kosovë",
+    visit_frequency: pkg.visits, included_services: pkg.included, exclusions: "Kontraktorët veç.",
+    normal_approval_limit_cents: 10000, emergency_limit_cents: 30000,
+    proposed_start_date: "2026-09-01", valid_until: "2026-08-25",
+    consultation_summary: null, additional_agreed_items: null,
+    lead: { full_name: "Besnik Test", email: null, phone: "+38344111222" },
+  });
+  expect(result.bytes.byteLength).toBeGreaterThan(1000);
+  const hash = createHash("sha256").update(result.bytes).digest("hex");
+  expect(hash).toMatch(/^[a-f0-9]{64}$/);
+  if (process.env.FUNNEL_PDF_OUTPUT) {
+    const outputPath = path.resolve(process.env.FUNNEL_PDF_OUTPUT, "arrival-ready-12.pdf");
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, result.bytes);
+    console.log(`ARRIVAL_READY_12_PDF_SHA256=${hash}`);
   }
 });
 
@@ -230,10 +255,13 @@ function rt003InsertDraft(options?: {
   founding?: boolean;
   validUntil?: string | null;
   monthlyPriceCents?: number;
+  termMonths?: number;
 }) {
   const offerId = randomUUID();
   const leadId = options?.leadId || rt003CreateLead();
   const founding = options?.founding === true;
+  const termMonths = options?.termMonths ?? 12;
+  const priceCents = options?.monthlyPriceCents ?? (founding ? 7500 : 45000);
   const validUntil =
     options?.validUntil === undefined
       ? "current_date + 14"
@@ -242,13 +270,13 @@ function rt003InsertDraft(options?: {
         : `'${options.validUntil}'::date`;
   rt003Psql(`
     insert into public.lead_offers(
-      id, lead_id, version, status, selected_package, monthly_price_cents,
+      id, lead_id, version, status, selected_package, selected_term_months, monthly_price_cents,
       founding_customer_eligible, price_lock_months, price_lock_statement,
       property_service_area_summary, visit_frequency, included_services,
       exclusions, valid_until, consultation_summary
     ) values (
       '${offerId}', '${leadId}', 1, 'draft', 'essential_check',
-      ${options?.monthlyPriceCents || 7500}, ${founding},
+      ${termMonths}, ${priceCents}, ${founding},
       ${founding ? "12" : "null"},
       ${founding ? "'Çmimi fiksohet për 12 muaj.'" : "null"},
       'RT-003 local area', 'Monthly', 'Synthetic services',

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge, Button, Input, Label, SectionCard, Textarea } from "@/components/ui";
 import { createOfferAction, qualifyLeadAction, saveConsultationAction, transitionOfferAction } from "@/lib/actions/funnel";
-import { FOUNDING_PACKAGES, getCommercialStage } from "@/lib/funnel/definitions";
+import { FOUNDING_PACKAGES, getCommercialStage, VALID_TERMS, termMonthlyEquivalentCents, termTotalCents } from "@/lib/funnel/definitions";
 
 type Consultation = {
   id: string;
@@ -19,6 +19,7 @@ type Offer = {
   version: number;
   status: string;
   selected_package: string;
+  selected_term_months: number;
   monthly_price_cents: number;
   valid_until: string | null;
   sent_at: string | null;
@@ -142,8 +143,8 @@ export function FunnelPanel({
       <SectionCard title="Written Offers">
         <form action={createOffer} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <input type="hidden" name="consultation_id" value={latestConsultation?.id || ""} />
-          <div className="space-y-2"><Label htmlFor="selected_package">Package</Label><select id="selected_package" name="selected_package" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">{Object.entries(FOUNDING_PACKAGES).map(([key, pkg]) => <option key={key} value={key}>{pkg.label} — €{(pkg.monthlyPriceCents / 100).toFixed(0)}</option>)}</select></div>
-          <div className="space-y-2"><Label htmlFor="monthly_price">Monthly price (€)</Label><Input id="monthly_price" name="monthly_price" type="number" min="1" step="0.01" placeholder="Defaults to package price" /></div>
+          <div className="space-y-2"><Label htmlFor="selected_package">Package</Label><select id="selected_package" name="selected_package" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">{Object.entries(FOUNDING_PACKAGES).map(([key, pkg]) => <option key={key} value={key}>{pkg.label}</option>)}</select></div>
+          <div className="space-y-2"><Label htmlFor="selected_term_months">Term</Label><select id="selected_term_months" name="selected_term_months" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" defaultValue="12">{VALID_TERMS.map((m) => <option key={m} value={m}>{m} months</option>)}</select></div>
           <div className="space-y-2"><Label htmlFor="founding_customer_eligible">Founding customer</Label><select id="founding_customer_eligible" name="founding_customer_eligible" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="no">No</option><option value="yes">Yes — 12-month price lock</option></select></div>
           <div className="space-y-2"><Label htmlFor="property_service_area_summary">Property/service area</Label><Input id="property_service_area_summary" name="property_service_area_summary" defaultValue={`Apartment — ${lead.city || "location to confirm"}`} required /></div>
           <div className="space-y-2"><Label htmlFor="normal_offer_limit">Normal approval limit (€)</Label><Input id="normal_offer_limit" name="normal_approval_limit" type="number" min="0" defaultValue="100" /></div>
@@ -161,7 +162,7 @@ export function FunnelPanel({
             return (
               <div key={offer.id} className="rounded-xl border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><span className="font-medium">{offer.offer_number}</span> <span className="text-sm text-muted-foreground">v{offer.version} · {offer.selected_package} · €{(offer.monthly_price_cents / 100).toFixed(2)}</span></div>
+                  <div><span className="font-medium">{offer.offer_number}</span> <span className="text-sm text-muted-foreground">v{offer.version} · {offer.selected_package} · {offer.selected_term_months || 12} muaj · €{(offer.monthly_price_cents / 100).toFixed(2)} total</span></div>
                   <Badge variant={offer.status === "accepted" ? "success" : "neutral"}>{offer.status}</Badge>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">

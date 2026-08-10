@@ -1,12 +1,21 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { PAGE, splitText } from "@/components/billing/pdf/shared";
-import { FOUNDING_PACKAGES, STANDARD_EXCLUSIONS, type FoundingPackageKey } from "./definitions";
+import {
+  FOUNDING_PACKAGES,
+  STANDARD_EXCLUSIONS,
+  homeRefreshCount,
+  termMonthlyEquivalentCents,
+  termTotalCents,
+  type FoundingPackageKey,
+  type TermMonths,
+} from "./definitions";
 
 export type OfferPdfData = {
   offer_number: string;
   version: number;
   selected_package: FoundingPackageKey;
-  monthly_price_cents: number;
+  selected_term_months: TermMonths;
+  term_total_cents: number;
   founding_customer_eligible: boolean;
   price_lock_statement: string | null;
   property_service_area_summary: string;
@@ -61,12 +70,28 @@ export async function generateOfferPdf(offer: OfferPdfData) {
   heading("Njoftim i rëndësishëm");
   paragraph("Ky dokument është propozim shërbimi dhe nuk është marrëveshje aktive. Shërbimet fillojnë vetëm pasi të përfundojnë marrëveshja e kërkuar, miratimet dhe hapat e hyrjes në shërbim.");
 
-  heading("Paketa dhe çmimi");
+  heading("Paketa, afati dhe çmimi");
   const pkg = FOUNDING_PACKAGES[offer.selected_package];
-  paragraph(`${pkg?.label || offer.selected_package}: €${(offer.monthly_price_cents / 100).toFixed(2)} në muaj.`);
-  paragraph(offer.founding_customer_eligible
-    ? `${offer.price_lock_statement || "Çmimi fiksohet për 12 muajt e parë."} Statusi themelues nuk krijon mbështetje të pakufizuar. Pas 12 muajve, rinovimi ndjek çmimin e atëhershëm, përveç nëse bihet dakord ndryshe me shkrim.`
-    : "Nuk aplikohet statusi i klientit themelues ose fiksimi 12-mujor i çmimit.");
+  const termMonths = offer.selected_term_months;
+  const monthlyEq = termMonthlyEquivalentCents(offer.selected_package, termMonths);
+  const totalEuros = (offer.term_total_cents / 100).toFixed(2);
+  const monthlyEuros = (monthlyEq / 100).toFixed(2);
+
+  paragraph(`${pkg.label}: ${termMonths} muaj · €${totalEuros} total (rreth €${monthlyEuros}/muaj)`);
+  paragraph(pkg.visits);
+
+  if (offer.founding_customer_eligible) {
+    paragraph(`${offer.price_lock_statement || "Çmimi fiksohet për 12 muajt e parë."} Statusi themelues nuk krijon mbështetje të pakufizuar. Pas 12 muajve, rinovimi ndjek çmimin e atëhershëm, përveç nëse bihet dakord ndryshe me shkrim.`);
+  } else {
+    paragraph("Nuk aplikohet statusi i klientit themelues ose fiksimi 12-mujor i çmimit.");
+  }
+
+  if (offer.selected_package === "arrival_ready") {
+    heading("Home Refresh i përfshirë");
+    const count = homeRefreshCount(termMonths);
+    paragraph(`Ky afat ${termMonths}-mujor përfshin ${count} Home Refresh${count > 1 ? "e" : ""} gjatë periudhës. Home Refresh është vizitë fizike shtesë dhe nuk zëvendëson vizitat normale të planifikuara.`);
+    paragraph("Home Refresh përfshin: fshesë me korrent, heqje pluhuri normale, fshirje të sipërfaqeve bazë, rregullim bazë të kuzhinës dhe banjës, ajrosje, kontroll të gjendjes së dukshme dhe përditësim gatishmërie. Nuk është pastrim i thellë.");
+  }
 
   heading("Prona, zona dhe shpeshtësia");
   paragraph(offer.property_service_area_summary);
@@ -104,4 +129,3 @@ export async function generateOfferPdf(offer: OfferPdfData) {
     filename: `${offer.offer_number.replace(/[^A-Za-z0-9_-]/g, "_")}_sq.pdf`,
   };
 }
-

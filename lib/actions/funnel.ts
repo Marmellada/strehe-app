@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
-import { assertFoundingCapacity, FOUNDING_PACKAGES, STANDARD_EXCLUSIONS, type FoundingPackageKey } from "@/lib/funnel/definitions";
+import { assertFoundingCapacity, FOUNDING_PACKAGES, STANDARD_EXCLUSIONS, VALID_TERMS, homeRefreshCount, termMonthlyEquivalentCents, termTotalCents, type FoundingPackageKey, type TermMonths } from "@/lib/funnel/definitions";
 import { assertOfferCanBeSent, assertOfferTransition, type OfferStatus } from "@/lib/funnel/transitions";
 
 function text(formData: FormData, key: string, max = 2000) {
@@ -150,6 +150,10 @@ export async function createOfferAction(leadId: string, formData: FormData) {
   const packageKey = text(formData, "selected_package", 40) as FoundingPackageKey | null;
   if (!packageKey || !FOUNDING_PACKAGES[packageKey]) throw new Error("Choose a valid package.");
   const pkg = FOUNDING_PACKAGES[packageKey];
+  const termRaw = positiveInt(formData, "selected_term_months", 12);
+  const termMonths = termRaw as TermMonths;
+  if (!VALID_TERMS.includes(termMonths)) throw new Error("Term must be 6 or 12 months.");
+  const totalCents = termTotalCents(packageKey, termMonths);
   const { data: versions, error: versionError } = await supabase.from("lead_offers").select("id,version,status,offer_number").eq("lead_id", leadId).order("version", { ascending: false }).limit(1);
   if (versionError) throw new Error(versionError.message);
   const version = ((versions?.[0]?.version as number | undefined) || 0) + 1;
@@ -182,7 +186,8 @@ export async function createOfferAction(leadId: string, formData: FormData) {
     consultation_id: text(formData, "consultation_id", 40),
     version,
     selected_package: packageKey,
-    monthly_price_cents: money(formData, "monthly_price", pkg.monthlyPriceCents),
+    selected_term_months: termMonths,
+    monthly_price_cents: totalCents,
     founding_customer_eligible: founding,
     price_lock_months: founding ? 12 : null,
     price_lock_statement: founding ? "Çmimi i paketës fiksohet për 12 muajt e parë." : null,
@@ -205,7 +210,7 @@ export async function createOfferAction(leadId: string, formData: FormData) {
     updated_at: new Date().toISOString(),
   }).eq("id", leadId);
   if (leadUpdateError) throw new Error(leadUpdateError.message);
-  await event(supabase, leadId, "offer_created", `Offer ${data.offer_number} drafted`, userId, { offer_id: data.id, version });
+  await event(supabase, leadId, "offer_created", `Offer ${data.offer_number} drafted`, userId, { offer_id: data.id, version, term_months: termMonths });
   refresh(leadId);
 }
 

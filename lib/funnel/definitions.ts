@@ -1,31 +1,63 @@
-export const FOUNDING_PACKAGES = {
-  essential_check: {
-    label: "Essential Check",
-    monthlyPriceCents: 7500,
-    visits: "Një vizitë e planifikuar në muaj",
-    included:
-      "Kontroll bazë i gjendjes së dukshme; kontroll bazë i qasjes dhe gatishmërisë; përditësim i shkurtër; fotografi kur janë të dobishme; raportim i çështjeve të dukshme.",
-  },
-  care_plus: {
-    label: "Care Plus",
-    monthlyPriceCents: 11000,
-    visits: "Dy vizita të planifikuara në muaj",
-    included:
-      "Kontrolle të gjendjes së dukshme dhe gatishmërisë; përditësim pas çdo vizite; fotografi kur janë të dobishme; sinjalizim çështjesh; ndjekje lokale e kufizuar; vetëdije bazë për ardhjen dhe gatishmërinë.",
-  },
-  arrival_ready: {
-    label: "Arrival Ready",
-    monthlyPriceCents: 16000,
-    visits: "Dy vizita të planifikuara në muaj",
-    included:
-      "Mbështetje për përgatitje para ardhjes; kontroll gatishmërie para kthimit; ajrosje dhe përgatitje e lehtë kur është e përshtatshme; raportim çështjesh; koordinim i kufizuar i detyrave të vogla të gatishmërisë.",
-  },
-} as const;
+export type TermMonths = 6 | 12;
+
+export const VALID_TERMS: TermMonths[] = [6, 12];
+
+export type FoundingPackage = {
+  label: string;
+  visits: string;
+  included: string;
+  termPrices: Record<TermMonths, number>;
+};
 
 export type FoundingPackageKey = keyof typeof FOUNDING_PACKAGES;
 
+export const FOUNDING_PACKAGES = {
+  essential_check: {
+    label: "Essential Check",
+    visits: "Një vizitë e planifikuar në muaj",
+    included:
+      "Kontroll bazë i gjendjes së dukshme; kontroll bazë i qasjes dhe gatishmërisë; përditësim i shkurtër; fotografi kur janë të dobishme; raportim i çështjeve të dukshme.",
+    termPrices: {
+      6: 45000,
+      12: 84000,
+    },
+  },
+  care_plus: {
+    label: "Care Plus",
+    visits: "Dy vizita të planifikuara në muaj",
+    included:
+      "Kontrolle të gjendjes së dukshme dhe gatishmërisë; përditësim pas çdo vizite; fotografi kur janë të dobishme; sinjalizim çështjesh; ndjekje lokale e kufizuar; vetëdije bazë për ardhjen dhe gatishmërinë.",
+    termPrices: {
+      6: 72000,
+      12: 132000,
+    },
+  },
+  arrival_ready: {
+    label: "Arrival Ready",
+    visits: "Dy vizita normale të planifikuara në muaj + Home Refresh shtesë",
+    included:
+      "Mbështetje për përgatitje para ardhjes; kontroll gatishmërie para kthimit; ajrosje dhe përgatitje e lehtë kur është e përshtatshme; raportim çështjesh; koordinim i kufizuar i detyrave të vogla të gatishmërisë.",
+    termPrices: {
+      6: 99000,
+      12: 189000,
+    },
+  },
+} as const satisfies Record<string, FoundingPackage>;
+
 export const STANDARD_EXCLUSIONS =
   "Tarifat e kontraktorëve; pjesët ose materialet zëvendësuese; pastrimi i thellë pa marrëveshje të veçantë; riparimet e mëdha; porositë e pakufizuara; koordinimi i pakufizuar i kontraktorëve; menaxhimi i qirasë; përgjigjja emergjente 24/7 e garantuar.";
+
+export function termTotalCents(key: FoundingPackageKey, months: TermMonths): number {
+  return FOUNDING_PACKAGES[key].termPrices[months];
+}
+
+export function termMonthlyEquivalentCents(key: FoundingPackageKey, months: TermMonths): number {
+  return Math.round(termTotalCents(key, months) / months);
+}
+
+export function homeRefreshCount(months: TermMonths): number {
+  return months === 6 ? 1 : 2;
+}
 
 export type FunnelEvidence = {
   created_at: string;
