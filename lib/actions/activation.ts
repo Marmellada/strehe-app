@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -15,8 +14,8 @@ import { COMMERCIAL_PACKAGE_MAP } from "@/lib/funnel/package-map";
 
 // ── Date convention ───────────────────────────────────────────
 // Service period: [start_date, start_date + term_months)
-// A 12-month term starting 2026-09-01 runs through 2027-08-31.
-// end_date is stored as the LAST day of service (inclusive).
+// end_date is the LAST day of service (inclusive).
+// 12mo starting 2026-09-01 → end_date 2027-08-31.
 
 function computeEndDate(startDate: string, termMonths: number): string {
   const d = new Date(startDate + "T00:00:00");
@@ -62,7 +61,7 @@ export async function createInvoiceFromOfferAction(
   const { count: existingCount, error: dupError } = await supabase
     .from("invoices")
     .select("id", { count: "exact", head: true })
-    .eq("subscription_id", offerId) // we use subscription_id as the offer link
+    .eq("source_offer_id", offerId)
     .eq("document_type", "invoice")
     .neq("status", "cancelled");
 
@@ -94,7 +93,8 @@ export async function createInvoiceFromOfferAction(
       document_type: "invoice",
       client_id: offer.converted_client_id,
       property_id: offer.converted_property_id ?? null,
-      subscription_id: offerId, // link back to the offer
+      source_offer_id: offerId,
+      subscription_id: null,
       issue_date: new Date().toISOString().slice(0, 10),
       due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
       notes: `Commercial offer ${offer.offer_number} v${offer.version}`,
@@ -127,7 +127,7 @@ export async function createInvoiceFromOfferAction(
   }
 
   revalidatePath("/billing");
-  revalidatePath(`/leads`);
+  revalidatePath("/leads");
   return { success: true, invoiceId: invoice.id };
 }
 
@@ -147,7 +147,8 @@ export type ActivateCustomerResult =
 export async function activateCustomerAction(
   offerId: string,
   propertyId: string,
-  serviceStartDate: string
+  serviceStartDate: string,
+  agreementConfirmed: boolean
 ): Promise<ActivateCustomerResult> {
   const { authUser } = await requireRole(["admin", "office"]);
   const supabase = await createClient();
@@ -223,11 +224,19 @@ export async function activateCustomerAction(
 
   const endDate = computeEndDate(serviceStartDate, termMonths);
 
-  // ── Gate 7: invoice must exist and be paid ───────────────────
+  // ── Gate 7: agreement / contract confirmation ────────────────
+  if (!agreementConfirmed)
+    return {
+      success: false,
+      error:
+        "Customer service agreement must be confirmed before activation. The physical contract, key-custody, and onboarding procedures must be completed.",
+    };
+
+  // ── Gate 8: invoice must exist and be paid ───────────────────
   const { data: invoices, error: invError } = await supabase
     .from("invoices")
-    .select("id, total_cents, status, invoice_number, document_type")
-    .eq("subscription_id", offerId)
+    .select("id, total_cents, status, document_type")
+    .eq("source_offer_id", offerId)
     .eq("document_type", "invoice")
     .neq("status", "cancelled")
     .order("created_at", { ascending: false });
@@ -235,7 +244,11 @@ export async function activateCustomerAction(
   if (invError)
     return { success: false, error: "Failed to verify invoice state." };
   if (!invoices || invoices.length === 0)
-    return { success: false, error: "No invoice found for this offer. Create and issue an invoice first." };
+    return {
+      success: false,
+      error:
+        "No invoice found for this offer. Create and issue an invoice first.",
+    };
 
   const invoice = invoices[0];
 
@@ -243,9 +256,12 @@ export async function activateCustomerAction(
     return { success: false, error: "Billing document is not an invoice." };
 
   if (invoice.status !== "issued" && invoice.status !== "paid")
-    return { success: false, error: `Invoice is ${invoice.status}. It must be issued or paid.` };
+    return {
+      success: false,
+      error: `Invoice is ${invoice.status}. It must be issued or paid.`,
+    };
 
-  // ── Gate 8: full payment confirmed ───────────────────────────
+  // ── Gate 9: full payment confirmed ───────────────────────────
   const { data: payments, error: payError } = await supabase
     .from("payments")
     .select("amount_cents")
@@ -265,7 +281,7 @@ export async function activateCustomerAction(
       error: `Payment incomplete. Paid €${(totalPaid / 100).toFixed(2)} of €${(offer.monthly_price_cents / 100).toFixed(2)}.`,
     };
 
-  // ── Gate 9: no conflicting active subscription ───────────────
+  // ── Gate 10: no conflicting active subscription ──────────────
   const { count: conflictCount, error: conflictError } = await supabase
     .from("subscriptions")
     .select("id", { count: "exact", head: true })
@@ -282,7 +298,7 @@ export async function activateCustomerAction(
         "An active or paused subscription already exists for this client and property.",
     };
 
-  // ── Gate 10: duplicate activation prevention ─────────────────
+  // ── Gate 11: duplicate activation prevention ─────────────────
   const { count: alreadyCount, error: alreadyError } = await supabase
     .from("subscriptions")
     .select("id", { count: "exact", head: true })
@@ -301,6 +317,7 @@ export async function activateCustomerAction(
 
   // ── Create subscription ──────────────────────────────────────
   const hrAllowance = homeRefreshCount(termMonths);
+  const now = new Date().toISOString();
 
   const { data: subscription, error: subError } = await supabase
     .from("subscriptions")
@@ -316,14 +333,21 @@ export async function activateCustomerAction(
       home_refresh_used: 0,
       notes: `Activated from offer ${offer.offer_number} v${offer.version}. ${termMonths}-month term.`,
       package_name_snapshot: opPackage.name,
+      physical_contract_confirmed_at: now,
+      physical_contract_confirmed_by_user_id: authUser.id,
     })
     .select("id")
     .single();
 
   if (subError || !subscription)
-    return { success: false, error: subError?.message || "Failed to create subscription." };
+    return {
+      success: false,
+      error: subError?.message || "Failed to create subscription.",
+    };
 
-  // ── Link invoice to subscription ─────────────────────────────
+  // ── Link invoice to subscription (permanent) ─────────────────
+  // subscription_id on invoices is nullable with FK → subscriptions(id).
+  // Setting it after activation is the correct semantic use of this column.
   await supabase
     .from("invoices")
     .update({ subscription_id: subscription.id })
