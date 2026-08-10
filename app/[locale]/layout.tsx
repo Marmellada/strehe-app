@@ -68,6 +68,7 @@ function MarketingNav({ locale }: { locale: MarketingLocale }) {
   return (
     <nav className="hidden items-center gap-6 text-sm lg:flex">
       <Link className={linkClassName} href={`/${locale}`}>{content.nav.home}</Link>
+      <Link className={linkClassName} href={`/${locale}/packages`}>{locale === "sq" ? "Paketat" : locale === "de" ? "Pakete" : "Packages"}</Link>
       <Link className={linkClassName} href={`/${locale}/services`}>{content.nav.services}</Link>
       <Link className={linkClassName} href={`/${locale}/how-it-works`}>{content.nav.howItWorks}</Link>
       <Link className={linkClassName} href={`/${locale}/about`}>{content.nav.about}</Link>
@@ -153,6 +154,9 @@ export default async function LocaleLayout({
                 <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}`}>
                   {content.nav.home}
                 </Link>
+                <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}/packages`}>
+                  {locale === "sq" ? "Paketat" : locale === "de" ? "Pakete" : "Packages"}
+                </Link>
                 <Link className="rounded-lg px-3 py-2 text-sm !text-slate-200 hover:bg-white/10 hover:!text-white" href={`/${locale}/services`}>
                   {content.nav.services}
                 </Link>
@@ -187,6 +191,7 @@ export default async function LocaleLayout({
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-sm">
+            <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/packages`}>{locale === "sq" ? "Paketat" : locale === "de" ? "Pakete" : "Packages"}</Link>
             <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/services`}>{content.nav.services}</Link>
             <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/contact`}>{content.nav.contact}</Link>
             <Link className="!text-slate-300 hover:!text-white" href={`${appUrl}/auth/login?next=/dashboard`}>

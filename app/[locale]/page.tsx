@@ -165,8 +165,8 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
                   variant="outline"
                   className="border-slate-300 bg-transparent text-slate-900 hover:bg-white"
                 >
-                  <Link href={`/${locale}/services`}>
-                    {content.hero.secondaryCta}
+                  <Link href={`/${locale}/packages`}>
+                    {locale === "sq" ? "Shihni Paketat" : locale === "de" ? "Pakete ansehen" : "View Packages"}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -337,8 +337,8 @@ export default async function LocalizedHomePage({ params }: HomePageProps) {
               variant="outline"
               className="border-slate-300 bg-transparent text-slate-950 hover:bg-white"
             >
-              <Link href={`/${locale}/services`}>
-                {locale === "sq" ? content.hero.secondaryCta : content.nav.services}
+              <Link href={`/${locale}/packages`}>
+                {locale === "sq" ? "Shihni Paketat" : locale === "de" ? "Pakete ansehen" : "View Packages"}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

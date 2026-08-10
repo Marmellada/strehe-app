@@ -26,35 +26,41 @@ const locales = [
   {
     code: "sq",
     homeHeading: /Apartamenti juaj në Kosovë/i,
-    servicesHeading: /Kujdes i rregullt për apartamentin tuaj/i,
+    packagesHeading: /Tri paketa të qarta/i,
+    servicesHeading: /Shërbime shtesë për apartamentin/i,
     howHeading: /Një proces i thjeshtë/i,
     aboutHeading: /Shërbim lokal për pronarët/i,
     contactHeading: /Filloni me një pyetje të thjeshtë/i,
     ctaName: "Na shkruani në WhatsApp",
     submitName: "Dërgo kërkesën",
     fallbackName: "Dërgo me email",
+    packagesLinkName: "Paketat",
   },
   {
     code: "en",
     homeHeading: /Trusted local care for your apartment/i,
-    servicesHeading: /Practical support for apartments/i,
+    packagesHeading: /Three clear packages/i,
+    servicesHeading: /Additional services for your apartment/i,
     howHeading: /A simple process/i,
     aboutHeading: /A local service for owners/i,
     contactHeading: /Start with a simple question/i,
     ctaName: "Ask us a quick question on WhatsApp",
     submitName: "Send request",
     fallbackName: "Send by email",
+    packagesLinkName: "Packages",
   },
   {
     code: "de",
     homeHeading: /Verlässliche lokale Betreuung/i,
-    servicesHeading: /Praktische Unterstützung für Wohnungen/i,
+    packagesHeading: /Drei klare Pakete/i,
+    servicesHeading: /Zusätzliche Leistungen/i,
     howHeading: /Ein einfacher Ablauf/i,
     aboutHeading: /Ein lokaler Service für Eigentümer/i,
     contactHeading: /Beginnen Sie mit einer einfachen Frage/i,
     ctaName: "Schreiben Sie uns kurz auf WhatsApp",
     submitName: "Anfrage senden",
     fallbackName: "Per E-Mail senden",
+    packagesLinkName: "Pakete",
   },
 ] as const;
 
@@ -92,6 +98,9 @@ test.describe("public website launch smoke", () => {
         "href",
         "https://app.streheprona.com/auth/login?next=/dashboard"
       );
+
+      await page.goto(`/${locale.code}/packages`);
+      await expect(page.getByRole("heading", { name: locale.packagesHeading })).toBeVisible();
 
       await page.goto(`/${locale.code}/services`);
       await expect(page.getByRole("heading", { name: locale.servicesHeading })).toBeVisible();
@@ -246,9 +255,14 @@ test.describe("public website launch smoke", () => {
     await expect(page.getByText(/Rrjedhje e lehtë nën lavaman/i)).toBeVisible();
     await expect(page.getByText(/aktualisht po regjistron interesin/i)).toBeVisible();
 
+    await page.goto("/sq/packages");
+    await expect(page.getByRole("heading", { name: "Essential Check" })).toBeVisible();
+    await expect(page.getByText("€450")).toBeVisible();
+    await expect(page.getByText("€840")).toBeVisible();
+
     await page.goto("/sq/services");
-    await expect(page.getByRole("heading", { name: "Vizita të rregullta dhe raportim" })).toBeVisible();
-    await expect(page.getByText("Kontroll për shenja lagështie ose dëmtimi")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Home Refresh" })).toBeVisible();
+    await expect(page.getByText(/Lyhje & Rifreskim Muresh/i)).toBeVisible();
     await expect(page.getByRole("link", { name: "Na shkruani në WhatsApp" })).toBeVisible();
   });
 });

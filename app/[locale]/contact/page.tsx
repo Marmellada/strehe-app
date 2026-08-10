@@ -26,6 +26,11 @@ export default async function ContactPage({ params }: ContactPageProps) {
 
   const content = marketingContent[locale];
   const company = await getCompanyProfile();
+  const pricingLine = locale === "sq"
+    ? "Paketat fillojnë nga €450 për 6 muaj (≈ €75/muaj) ose €840 për 12 muaj (≈ €70/muaj). Zgjedhja e duhur varet nga sa shpesh dëshironi të vizitohet apartamenti."
+    : locale === "de"
+    ? "Pakete ab €450 für 6 Monate (≈ €75/Monat) oder €840 für 12 Monate (≈ €70/Monat). Die richtige Wahl hängt von der gewünschten Besuchshäufigkeit ab."
+    : "Packages from €450 for 6 months (≈ €75/month) or €840 for 12 months (≈ €70/month). The right setup depends on the visit frequency and support your apartment needs.";
   const whatsappHref = toWhatsAppHref(
     company.phone,
     buildWhatsAppMessage({
@@ -119,6 +124,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
           email={company.email}
           title={content.contactPage.formTitle}
           description={content.contactPage.formBody}
+          pricingLine={pricingLine}
           labels={content.contactPage.formLabels}
           options={content.contactPage.formOptions}
           helper={content.contactPage.helper}

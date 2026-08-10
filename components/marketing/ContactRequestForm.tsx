@@ -30,6 +30,7 @@ type ContactRequestFormProps = {
   email: string;
   title: string;
   description: string;
+  pricingLine: string;
   labels: {
     name: string;
     contact: string;
@@ -55,6 +56,7 @@ export function ContactRequestForm({
   email,
   title,
   description,
+  pricingLine,
   labels,
   options,
   helper,
@@ -147,10 +149,7 @@ export function ContactRequestForm({
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-white">{title}</h2>
         <p className="text-sm text-slate-300">{description}</p>
-        <p className="text-sm text-slate-300">
-          Packages start from €75 per month. The right setup depends on the visit
-          frequency and support your apartment needs.
-        </p>
+        <p className="text-sm text-slate-300">{pricingLine}</p>
       </div>
 
       <form action={formAction} className="mt-6 grid gap-4 sm:grid-cols-2">
