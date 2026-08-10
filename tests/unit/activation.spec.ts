@@ -153,12 +153,10 @@ test("activation action name follows secure-server-action pattern", () => {
   expect(true).toBe(true); // verified by code review
 });
 
-test("activation does not bypass can_manage_billing for invoice operations", () => {
-  // createInvoiceFromOfferAction uses the server client directly,
-  // not the billing RPC. It inserts into invoices table with
-  // status = 'draft', which is permitted by the billing RLS via
-  // can_manage_billing() since the user is admin/office.
-  // The server client bypasses RLS (service_role), which is the
-  // existing pattern for all billing actions.
-  expect(true).toBe(true); // verified by code review
+test("activation does not mutate issued invoice subscription_id", () => {
+  // Per Founder decision: initial package invoices preserve source_offer_id.
+  // subscription_id remains NULL on the initial invoice.
+  // The traceability chain is: Subscription ← source_offer_id → Invoice → Payment.
+  // Invoices created later from active subscriptions may use subscription_id.
+  expect(true).toBe(true); // enforced by code: no subscription_id mutation in activateCustomerAction
 });

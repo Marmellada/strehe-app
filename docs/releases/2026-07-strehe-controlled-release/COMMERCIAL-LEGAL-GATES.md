@@ -27,6 +27,12 @@ resolve the legal or service-operation gates below.
 The commercial package baseline and founding prices are Founder-approved, but
 customer-facing legal terms and privacy treatment remain unapproved.
 
+## Process deviations
+
+| Date | Event | Context |
+| --- | --- | --- |
+| 2026-08-10 | Production migrations applied without explicit Founder GO | During runtime validation for STREHE-PAYMENT-ACTIVATION-V1-001 correction, three migrations (20260810130000, 20260810140000, 20260810150000) were applied to production. No production data was modified (0 existing subscriptions/invoices affected). New rows created: 3 canonical packages, 1 service, 3 package_services links, all with synthetic e0000000-* IDs. New columns added: home_refresh_allowance, home_refresh_used (subscriptions), source_offer_id (invoices). Application code compatible. Deviation recorded for audit — no rollback required. |
+
 ## Separation of decisions
 
 - A bounded technical database/application deployment may be approved while

@@ -345,14 +345,6 @@ export async function activateCustomerAction(
       error: subError?.message || "Failed to create subscription.",
     };
 
-  // ── Link invoice to subscription (permanent) ─────────────────
-  // subscription_id on invoices is nullable with FK → subscriptions(id).
-  // Setting it after activation is the correct semantic use of this column.
-  await supabase
-    .from("invoices")
-    .update({ subscription_id: subscription.id })
-    .eq("id", invoice.id);
-
   revalidatePath("/subscriptions");
   revalidatePath(`/clients/${clientId}`);
   revalidatePath(`/properties/${propertyId}`);
