@@ -194,6 +194,9 @@ export default async function LocaleLayout({
             <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/packages`}>{locale === "sq" ? "Paketat" : locale === "de" ? "Pakete" : "Packages"}</Link>
             <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/services`}>{content.nav.services}</Link>
             <Link className="!text-slate-300 hover:!text-white" href={`/${locale}/contact`}>{content.nav.contact}</Link>
+            <Link className="!text-slate-400 hover:!text-white" href="/privacy">{locale === "sq" ? "Politika e Privatësisë" : "Privacy Policy"}</Link>
+            <Link className="!text-slate-400 hover:!text-white" href="/terms">{locale === "sq" ? "Kushtet e Përdorimit" : "Terms"}</Link>
+            <Link className="!text-slate-400 hover:!text-white" href="/data-deletion">{locale === "sq" ? "Fshirja e të Dhënave" : "Data Deletion"}</Link>
             <Link className="!text-slate-300 hover:!text-white" href={`${appUrl}/auth/login?next=/dashboard`}>
               {content.footer.login}
             </Link>

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { createMetaWebhookHandlers } from "@/app/api/meta/webhook/route";
+import { createMetaWebhookHandlers } from "@/lib/meta/create-handlers";
 import type { MetaWebhookEventInsert } from "@/lib/meta/persist";
 
 const originalVerifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;

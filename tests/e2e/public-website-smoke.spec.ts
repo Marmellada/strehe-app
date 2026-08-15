@@ -265,4 +265,35 @@ test.describe("public website launch smoke", () => {
     await expect(page.getByText(/Lyhje & Rifreskim Muresh/i)).toBeVisible();
     await expect(page.getByRole("link", { name: "Na shkruani në WhatsApp" })).toBeVisible();
   });
+
+  test("public legal routes render bilingual legal content and app surfaces remain protected", async ({
+    page,
+  }) => {
+    const legalRoutes = [
+      { path: "/privacy", albanianHeading: "Politika e Privatësisë", englishHeading: "Privacy Policy" },
+      { path: "/terms", albanianHeading: "Kushtet e Përdorimit", englishHeading: "Terms of Use" },
+      { path: "/data-deletion", albanianHeading: "Fshirja e të Dhënave", englishHeading: "Data Deletion" },
+    ];
+
+    for (const legalRoute of legalRoutes) {
+      const response = await page.goto(legalRoute.path);
+      expect(response?.status()).toBe(200);
+
+      const main = page.locator("main");
+      await expect(main).toContainText("Data e hyrjes në fuqi / Effective date: 15 August 2026");
+      await expect(main).toContainText("Milot Berisha");
+
+      const languageSections = main.locator("article > section[aria-label]");
+      await expect(languageSections).toHaveCount(2);
+      await expect(languageSections.nth(0)).toHaveAttribute("aria-label", "Shqip");
+      await expect(languageSections.nth(1)).toHaveAttribute("aria-label", "English");
+      await expect(languageSections.nth(0)).toContainText(legalRoute.albanianHeading);
+      await expect(languageSections.nth(1)).toContainText(legalRoute.englishHeading);
+    }
+
+    for (const protectedPath of ["/dashboard", "/subscriptions", "/clients"]) {
+      await page.goto(protectedPath);
+      await expect(page).toHaveURL(new RegExp(`/auth/login\\?next=${encodeURIComponent(protectedPath)}`));
+    }
+  });
 });

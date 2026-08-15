@@ -11,11 +11,16 @@ const AUTH_PUBLIC_PATHS = [
 
 const MARKETING_LOCALES = new Set(["en", "sq", "de"]);
 const MARKETING_PAGES = new Set(["services", "how-it-works", "about", "contact"]);
+const LEGAL_PUBLIC_PATHS = new Set(["/privacy", "/terms", "/data-deletion"]);
 const PUBLIC_SITE_HOST = "www.streheprona.com";
 const APEX_SITE_HOST = "streheprona.com";
 const APP_HOST = "app.streheprona.com";
 
 function isMarketingPath(pathname: string) {
+  if (LEGAL_PUBLIC_PATHS.has(pathname)) {
+    return true;
+  }
+
   if (pathname === "/") {
     return true;
   }

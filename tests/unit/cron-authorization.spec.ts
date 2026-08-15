@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { NextRequest } from "next/server";
-import { createGenerateTasksHandler } from "@/app/api/cron/generate-tasks/route";
+import { createGenerateTasksHandler } from "@/lib/server/generate-tasks-handler";
 
 const originalCronSecret = process.env.CRON_SECRET;
 
