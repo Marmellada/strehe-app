@@ -241,6 +241,7 @@ test.describe("public website launch smoke", () => {
   });
 
   test("invalid public routes are real 404s and app-host responses are noindex", async ({
+    baseURL,
     page,
     request,
   }) => {
@@ -265,16 +266,25 @@ test.describe("public website launch smoke", () => {
       expect(page.url()).not.toContain("/auth/login");
     }
 
+    const appOrigin =
+      baseURL && new URL(baseURL).hostname === "www.streheprona.com"
+        ? "https://app.streheprona.com"
+        : "";
+
     for (const path of ["/auth/login", "/dashboard"]) {
-      const response = await request.get(path, {
-        headers: { "x-forwarded-host": "app.streheprona.com" },
+      const response = await request.get(`${appOrigin}${path}`, {
+        headers: appOrigin
+          ? undefined
+          : { "x-forwarded-host": "app.streheprona.com" },
         maxRedirects: 0,
       });
       expect(response.headers()["x-robots-tag"]).toBe("noindex, nofollow");
     }
 
-    const appRobotsResponse = await request.get("/robots.txt", {
-      headers: { "x-forwarded-host": "app.streheprona.com" },
+    const appRobotsResponse = await request.get(`${appOrigin}/robots.txt`, {
+      headers: appOrigin
+        ? undefined
+        : { "x-forwarded-host": "app.streheprona.com" },
     });
     expect(await appRobotsResponse.text()).toContain("Disallow: /");
   });
