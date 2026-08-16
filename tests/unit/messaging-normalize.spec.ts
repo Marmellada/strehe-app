@@ -4,12 +4,12 @@ import { decideWhatsAppResolution } from "@/lib/messaging/resolution";
 
 test.describe("phone normalization", () => {
   test("normalizes Kosovo and international WhatsApp forms to E.164", () => {
-    expect(normalizeE164("+383 44 800 047")).toBe("+38344800047");
-    expect(normalizeE164("383 44 800 047")).toBe("+38344800047");
-    expect(normalizeE164("044 800 047")).toBe("+38344800047");
-    expect(normalizeE164("044-800-047")).toBe("+38344800047");
-    expect(normalizeE164("(044) 800 047")).toBe("+38344800047");
-    expect(normalizeE164("+38344800047")).toBe("+38344800047");
+    expect(normalizeE164("+383 44 000 000")).toBe("+38344000000");
+    expect(normalizeE164("383 44 000 000")).toBe("+38344000000");
+    expect(normalizeE164("044 000 000")).toBe("+38344000000");
+    expect(normalizeE164("044-000-000")).toBe("+38344000000");
+    expect(normalizeE164("(044) 000 000")).toBe("+38344000000");
+    expect(normalizeE164("+38344000000")).toBe("+38344000000");
   });
 
   test("returns null for empty, unknown local, or invalid input", () => {
@@ -22,7 +22,7 @@ test.describe("phone normalization", () => {
   });
 
   test("strips the leading plus for raw-digit comparison", () => {
-    expect(phoneDigits("+38344800047")).toBe("38344800047");
+    expect(phoneDigits("+38344000000")).toBe("38344000000");
     expect(phoneDigits(null)).toBeNull();
   });
 });

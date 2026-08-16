@@ -45,6 +45,10 @@ declare
   lease interval := interval '5 minutes';
   claimed_ids uuid[];
 begin
+  -- Defensive bound: a worker must never claim more than 100 rows, and
+  -- null/negative/oversized limits must not bypass the cap.
+  limit_rows := greatest(least(coalesce(limit_rows, 0), 100), 0);
+
   with cte as (
     select q.id
     from public.meta_ingestion_queue q
@@ -386,6 +390,15 @@ grant select on table public.conversation_messages to authenticated;
 -- The queue has no operator or public read access; only the trusted SECURITY
 -- DEFINER trigger/claim/processing functions touch it.
 revoke all on table public.meta_ingestion_queue from authenticated;
+
+-- Trusted worker least-privilege: service_role reaches these tables only
+-- through the SECURITY DEFINER functions above (which execute as their owner,
+-- postgres). Direct table privileges are revoked so the RPCs remain the single
+-- read/write path for the worker.
+revoke all on table public.meta_ingestion_queue from service_role;
+revoke all on table public.contact_channel_identities from service_role;
+revoke all on table public.conversations from service_role;
+revoke all on table public.conversation_messages from service_role;
 
 -- Operator read model (V1): admin/office may read messaging records.
 create policy "Operators can read identities"

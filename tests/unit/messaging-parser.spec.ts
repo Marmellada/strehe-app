@@ -15,10 +15,10 @@ const whatsAppText = {
           value: {
             messaging_product: "whatsapp",
             metadata: { display_phone_number: "15550001234", phone_number_id: "900" },
-            contacts: [{ profile: { name: "Example" }, wa_id: "38344111222" }],
+            contacts: [{ profile: { name: "Example" }, wa_id: "38344000000" }],
             messages: [
               {
-                from: "38344111222",
+                from: "38344000000",
                 id: "wamid.example.aaa",
                 timestamp: "1784143899",
                 type: "text",
@@ -46,14 +46,14 @@ const whatsAppMultipleMessages = {
             contacts: [],
             messages: [
               {
-                from: "38344111222",
+                from: "38344000000",
                 id: "wamid.example.one",
                 timestamp: "1784143900",
                 type: "text",
                 text: { body: "first" },
               },
               {
-                from: "38344111222",
+                from: "38344000000",
                 id: "wamid.example.two",
                 timestamp: "1784143901",
                 type: "text",
@@ -103,7 +103,7 @@ const whatsAppImageOnly = {
             contacts: [],
             messages: [
               {
-                from: "38344111222",
+                from: "38344000000",
                 id: "wamid.example.img",
                 timestamp: "1784143900",
                 type: "image",
@@ -228,7 +228,7 @@ test.describe("Meta webhook parser", () => {
     expect(m.external_message_id).toBe("wamid.example.aaa");
     expect(m.direction).toBe("inbound");
     expect(m.text_content).toBe("hello there");
-    expect(m.sender_external_id).toBe("38344111222");
+    expect(m.sender_external_id).toBe("38344000000");
     expect(m.occurred_at).toContain("2026");
   });
 

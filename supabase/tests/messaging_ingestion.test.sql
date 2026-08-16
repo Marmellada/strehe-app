@@ -25,7 +25,7 @@ begin
     'whatsapp_business_account',
     'messages',
     repeat('a', 64),
-    '{"object":"whatsapp_business_account","entry":[{"id":"waba_1","changes":[{"field":"messages","value":{"messages":[{"from":"38344111222","id":"wamid.sql.1","type":"text","text":{"body":"hi"}}]}}]}]}'::jsonb
+    '{"object":"whatsapp_business_account","entry":[{"id":"waba_1","changes":[{"field":"messages","value":{"messages":[{"from":"38344000000","id":"wamid.sql.1","type":"text","text":{"body":"hi"}}]}}]}]}'::jsonb
   )
   returning id into raw_id;
 
@@ -65,7 +65,7 @@ begin
 
   -- 5. Identity upsert + ensure conversation.
   select id into identity_id
-  from public.upsert_contact_channel_identity('whatsapp', 'waba_1', '38344111222', null, '+38344111222');
+  from public.upsert_contact_channel_identity('whatsapp', 'waba_1', '38344000000', null, '+38344000000');
   if identity_id is null then raise exception 'identity upsert failed'; end if;
 
   select public.ensure_conversation(identity_id) into conversation_id;
@@ -74,7 +74,7 @@ begin
   -- 6. Idempotent message insert + single unread increment.
   result := public.ingest_conversation_message(
     conversation_id, 'whatsapp', 'waba_1', 'wamid.sql.1', 'inbound', 'text', 'hi', null,
-    '38344111222', null, raw_id, now()
+    '38344000000', null, raw_id, now()
   );
   if result <> 'message_created' then raise exception 'expected message_created, got %', result; end if;
 
@@ -83,7 +83,7 @@ begin
 
   result := public.ingest_conversation_message(
     conversation_id, 'whatsapp', 'waba_1', 'wamid.sql.1', 'inbound', 'text', 'hi', null,
-    '38344111222', null, raw_id, now()
+    '38344000000', null, raw_id, now()
   );
   if result <> 'duplicate' then raise exception 'expected duplicate, got %', result; end if;
 
@@ -91,8 +91,8 @@ begin
   if unread_after_duplicate <> 1 then raise exception 'duplicate re-incremented unread to %', unread_after_duplicate; end if;
 
   -- 7. WhatsApp resolution links a single unambiguous lead.
-  insert into public.leads (full_name, phone) values ('SQL Lead', '+38344111222') returning id into lead_id;
-  if public.resolve_contact_identity_whatsapp(identity_id, '+38344111222', '38344111222') <> 'resolved' then
+  insert into public.leads (full_name, phone) values ('SQL Lead', '+38344000000') returning id into lead_id;
+  if public.resolve_contact_identity_whatsapp(identity_id, '+38344000000', '38344000000') <> 'resolved' then
     raise exception 'expected resolved';
   end if;
   if not exists (
@@ -114,7 +114,7 @@ begin
   insert into public.clients (client_type, full_name) values ('individual', 'SQL Client') returning id into cid;
   begin
     update public.contact_channel_identities set lead_id = null, client_id = cid
-    where external_id = '38344111222' and channel = 'whatsapp';
+    where external_id = '38344000000' and channel = 'whatsapp';
   exception when check_violation then
     return; -- expected
   end;

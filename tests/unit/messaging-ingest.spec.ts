@@ -69,7 +69,7 @@ const whatsAppTextPayload = {
             contacts: [],
             messages: [
               {
-                from: "38344111222",
+                from: "38344000000",
                 id: "wamid.example.aaa",
                 timestamp: "1784143899",
                 type: "text",
