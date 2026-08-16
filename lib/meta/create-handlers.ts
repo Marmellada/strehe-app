@@ -2,6 +2,7 @@ import {
   type MetaWebhookEventInsert,
   persistMetaWebhookEvent,
 } from "@/lib/meta/persist";
+import { after } from "next/server";
 import { deriveMetaWebhookMetadata } from "@/lib/meta/schema";
 import {
   constantTimeTokenEqual,
@@ -17,7 +18,8 @@ type PersistMetaWebhookEvent = (
 ) => Promise<void>;
 
 export function createMetaWebhookHandlers(
-  persistEvent: PersistMetaWebhookEvent = persistMetaWebhookEvent
+  persistEvent: PersistMetaWebhookEvent = persistMetaWebhookEvent,
+  options?: { afterIngest?: () => void | Promise<void> }
 ) {
   async function GET(request: Request) {
     const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
@@ -98,6 +100,21 @@ export function createMetaWebhookHandlers(
       });
     } catch {
       return new Response("Persistence failed.", { status: 500 });
+    }
+
+    // Best-effort normalized ingestion AFTER the webhook response is prepared.
+    // Raw persistence is authoritative; normalization failures must never turn
+    // a valid webhook into a 500. The durable queue remains the retry source.
+    const afterIngest = options?.afterIngest;
+    if (afterIngest) {
+      try {
+        after(() => {
+          void afterIngest();
+        });
+      } catch {
+        // after() is unavailable outside a request scope (e.g. unit tests);
+        // skip best-effort ingestion.
+      }
     }
 
     return new Response("OK", { status: 200 });
