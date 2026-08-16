@@ -14,7 +14,7 @@ declare
   second_claim_count integer;
   identity_id uuid;
   conversation_id uuid;
-  lead_id uuid;
+  resolved_lead_id uuid;
   result text;
   unread_after_first integer;
   unread_after_duplicate integer;
@@ -91,13 +91,13 @@ begin
   if unread_after_duplicate <> 1 then raise exception 'duplicate re-incremented unread to %', unread_after_duplicate; end if;
 
   -- 7. WhatsApp resolution links a single unambiguous lead.
-  insert into public.leads (full_name, phone) values ('SQL Lead', '+38344000000') returning id into lead_id;
+  insert into public.leads (full_name, phone) values ('SQL Lead', '+38344000000') returning id into resolved_lead_id;
   if public.resolve_contact_identity_whatsapp(identity_id, '+38344000000', '38344000000') <> 'resolved' then
     raise exception 'expected resolved';
   end if;
   if not exists (
     select 1 from public.contact_channel_identities
-    where id = identity_id and lead_id = lead_id and resolution_status = 'resolved'
+    where id = identity_id and contact_channel_identities.lead_id = resolved_lead_id and resolution_status = 'resolved'
   ) then
     raise exception 'identity not linked to lead';
   end if;
@@ -126,10 +126,10 @@ $$;
 -- 9. Claim RPC is not executable by public/anon.
 do $$
 begin
-  if public.has_function_privilege('anon', 'public.claim_meta_ingestion_batch(integer)', 'EXECUTE') then
+  if has_function_privilege('anon', 'public.claim_meta_ingestion_batch(integer)', 'EXECUTE') then
     raise exception 'claim RPC is executable by anon';
   end if;
-  if public.has_function_privilege('public', 'public.claim_meta_ingestion_batch(integer)', 'EXECUTE') then
+  if has_function_privilege('public', 'public.claim_meta_ingestion_batch(integer)', 'EXECUTE') then
     raise exception 'claim RPC is executable by public';
   end if;
 end;
