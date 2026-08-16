@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -9,12 +10,22 @@ import {
   toWhatsAppHref,
 } from "@/lib/marketing/company-profile";
 import { isMarketingLocale, marketingContent } from "@/lib/marketing/content";
+import { buildMarketingMetadata } from "@/lib/marketing/seo";
 
 type PackagesPageProps = {
   params: Promise<{
     locale: string;
   }>;
 };
+
+export async function generateMetadata({
+  params,
+}: PackagesPageProps): Promise<Metadata> {
+  const { locale } = await params;
+  return isMarketingLocale(locale)
+    ? buildMarketingMetadata(locale, "packages")
+    : {};
+}
 
 const accentGradients = [
   "border-amber-200/30 bg-[linear-gradient(180deg,rgba(15,23,42,0.98),rgba(18,28,48,0.9))]",

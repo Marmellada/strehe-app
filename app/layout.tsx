@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
 import { AppearanceThemeClient } from "@/components/ui/AppearanceThemeClient";
 import { AppShell } from "@/components/layout/AppShell";
+import { isMarketingLocale } from "@/lib/marketing/content";
 import {
   normalizePreviewTheme,
   type PreviewTheme,
@@ -40,6 +41,10 @@ export default async function RootLayout({
 }>) {
   const headerStore = await headers();
   const surface = headerStore.get("x-strehe-surface") ?? "app";
+  const requestedLocale = headerStore.get("x-strehe-locale") ?? "";
+  const documentLanguage = isMarketingLocale(requestedLocale)
+    ? requestedLocale
+    : "en";
   const supabase = await createClient();
   const { data: companySettings } = await supabase
     .from("company_settings")
@@ -55,7 +60,7 @@ export default async function RootLayout({
 
   return (
     <html
-      lang="en"
+      lang={documentLanguage}
       className={cn(
         "theme-dark",
         "h-full",

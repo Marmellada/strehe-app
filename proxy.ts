@@ -10,8 +10,36 @@ const AUTH_PUBLIC_PATHS = [
 ];
 
 const MARKETING_LOCALES = new Set(["en", "sq", "de"]);
-const MARKETING_PAGES = new Set(["services", "how-it-works", "about", "contact"]);
+const MARKETING_PAGES = new Set([
+  "packages",
+  "services",
+  "how-it-works",
+  "about",
+  "contact",
+]);
 const LEGAL_PUBLIC_PATHS = new Set(["/privacy", "/terms", "/data-deletion"]);
+const APPLICATION_ROOTS = new Set([
+  "api",
+  "auth",
+  "billing",
+  "clients",
+  "dashboard",
+  "expenses",
+  "finance",
+  "inspection-lab",
+  "keys",
+  "leads",
+  "packages",
+  "properties",
+  "services",
+  "settings",
+  "subscriptions",
+  "tasks",
+  "ui-preview",
+  "unauthorized",
+  "users",
+  "workers",
+]);
 const PUBLIC_SITE_HOST = "www.streheprona.com";
 const APEX_SITE_HOST = "streheprona.com";
 const APP_HOST = "app.streheprona.com";
@@ -35,13 +63,41 @@ function isMarketingPath(pathname: string) {
     return false;
   }
 
-  return segments.length === 1 || (segments.length === 2 && MARKETING_PAGES.has(segments[1]));
+  return (
+    segments.length === 1 ||
+    (segments.length === 2 && MARKETING_PAGES.has(segments[1]))
+  );
 }
 
 function isAuthPublicPath(pathname: string) {
   return AUTH_PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );
+}
+
+export function isInvalidPublicPath(pathname: string) {
+  const segments = pathname.split("/").filter(Boolean);
+
+  if (segments.length === 0 || LEGAL_PUBLIC_PATHS.has(pathname)) {
+    return false;
+  }
+
+  if (MARKETING_LOCALES.has(segments[0])) {
+    return !isMarketingPath(pathname);
+  }
+
+  return !APPLICATION_ROOTS.has(segments[0]);
+}
+
+function withAppIndexProtection<T extends NextResponse>(
+  response: T,
+  hostname: string
+) {
+  if (hostname === APP_HOST) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+
+  return response;
 }
 
 function redirectToHost(
@@ -62,7 +118,7 @@ export async function proxy(request: NextRequest) {
   const hostname = (
     request.headers.get("x-forwarded-host") ||
     request.headers.get("host") ||
-    ""
+    request.nextUrl.hostname
   )
     .split(":")[0]
     .toLowerCase();
@@ -73,18 +129,19 @@ export async function proxy(request: NextRequest) {
     pathname === "/favicon.ico" ||
     pathname.match(/\.(.*)$/)
   ) {
-    return NextResponse.next({ request });
+    return withAppIndexProtection(NextResponse.next({ request }), hostname);
   }
 
   const isMarketing = isMarketingPath(pathname);
   const isAuthPublic = isAuthPublicPath(pathname);
-  const isPublic = isMarketing || isAuthPublic;
+  const isPublicNotFound = hostname !== APP_HOST && isInvalidPublicPath(pathname);
+  const isPublic = isMarketing || isAuthPublic || isPublicNotFound;
 
   if (hostname === APEX_SITE_HOST) {
     return redirectToHost(request, PUBLIC_SITE_HOST);
   }
 
-  if (hostname === PUBLIC_SITE_HOST && !isMarketing) {
+  if (hostname === PUBLIC_SITE_HOST && !isMarketing && !isPublicNotFound) {
     return redirectToHost(request, APP_HOST);
   }
 
@@ -93,18 +150,36 @@ export async function proxy(request: NextRequest) {
       const dashboardUrl = request.nextUrl.clone();
       dashboardUrl.pathname = "/dashboard";
       dashboardUrl.search = "";
-      return NextResponse.redirect(dashboardUrl, 307);
+      return withAppIndexProtection(
+        NextResponse.redirect(dashboardUrl, 307),
+        hostname
+      );
     }
 
-    return redirectToHost(request, PUBLIC_SITE_HOST);
+    return withAppIndexProtection(
+      redirectToHost(request, PUBLIC_SITE_HOST),
+      hostname
+    );
   }
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-strehe-surface", isMarketing ? "public" : "app");
+  requestHeaders.delete("x-strehe-locale");
+  requestHeaders.set(
+    "x-strehe-surface",
+    isMarketing || isPublicNotFound ? "public" : "app"
+  );
+  const routeLocale = pathname.split("/").filter(Boolean)[0];
+  if (MARKETING_LOCALES.has(routeLocale)) {
+    requestHeaders.set("x-strehe-locale", routeLocale);
+  }
 
   let response = NextResponse.next({
     request: { headers: requestHeaders },
   });
+
+  if (isPublic) {
+    return withAppIndexProtection(response, hostname);
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -131,10 +206,6 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  if (isPublic) {
-    return response;
-  }
-
   const claimsResult = await supabase.auth.getClaims();
   const rawClaims =
     (claimsResult.data as { claims?: { sub?: string }; sub?: string } | null);
@@ -152,7 +223,7 @@ export async function proxy(request: NextRequest) {
       redirectResponse.cookies.set(cookie);
     });
 
-    return redirectResponse;
+    return withAppIndexProtection(redirectResponse, hostname);
   }
 
   const { data: appUser } = await supabase
@@ -170,7 +241,7 @@ export async function proxy(request: NextRequest) {
       unauthorizedResponse.cookies.set(cookie);
     });
 
-    return unauthorizedResponse;
+    return withAppIndexProtection(unauthorizedResponse, hostname);
   }
 
   if (pathname === "/keys" || pathname.startsWith("/keys/")) {
@@ -183,11 +254,11 @@ export async function proxy(request: NextRequest) {
         unauthorizedResponse.cookies.set(cookie);
       });
 
-      return unauthorizedResponse;
+      return withAppIndexProtection(unauthorizedResponse, hostname);
     }
   }
 
-  return response;
+  return withAppIndexProtection(response, hostname);
 }
 
 export const config = {

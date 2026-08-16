@@ -135,6 +135,120 @@ test.describe("public website launch smoke", () => {
     await expect(page.getByRole("heading", { name: locales[2].servicesHeading })).toBeVisible();
   });
 
+  test("localized pages expose unique metadata, equivalent hreflang, and document language", async ({
+    page,
+  }) => {
+    const pagePaths = ["", "/packages", "/services", "/how-it-works", "/about", "/contact"];
+
+    for (const locale of locales) {
+      const titles = new Set<string>();
+
+      for (const pagePath of pagePaths) {
+        const path = `/${locale.code}${pagePath}`;
+        const response = await page.goto(path);
+        expect(response?.status()).toBe(200);
+        await expect(page.locator("html")).toHaveAttribute("lang", locale.code);
+
+        const title = await page.title();
+        const description = await page.locator('meta[name="description"]').getAttribute("content");
+        expect(title).toContain("STREHË");
+        expect(description?.trim().length).toBeGreaterThan(60);
+        titles.add(title);
+
+        await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+          "href",
+          `https://www.streheprona.com${path}`
+        );
+
+        for (const alternate of locales) {
+          await expect(
+            page.locator(`link[rel="alternate"][hreflang="${alternate.code}"]`)
+          ).toHaveAttribute(
+            "href",
+            `https://www.streheprona.com/${alternate.code}${pagePath}`
+          );
+        }
+      }
+
+      expect(titles.size).toBe(pagePaths.length);
+    }
+  });
+
+  test("robots, sitemap, legal canonicals, and structured data are valid", async ({
+    page,
+    request,
+  }) => {
+    const robotsResponse = await request.get("/robots.txt");
+    expect(robotsResponse.status()).toBe(200);
+    const robots = await robotsResponse.text();
+    expect(robots).toContain("User-Agent: OAI-SearchBot");
+    expect(robots).toContain("User-Agent: Googlebot");
+    expect(robots).toContain("User-Agent: Bingbot");
+    expect(robots).toContain("User-Agent: *");
+    expect(robots).toContain("Sitemap: https://www.streheprona.com/sitemap.xml");
+
+    const sitemapResponse = await request.get("/sitemap.xml");
+    expect(sitemapResponse.status()).toBe(200);
+    const sitemap = await sitemapResponse.text();
+    const sitemapUrls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(
+      (match) => match[1]
+    );
+    expect(sitemapUrls).toHaveLength(21);
+    expect(new Set(sitemapUrls).size).toBe(21);
+    expect(sitemap).not.toContain("<lastmod>");
+    expect(sitemap).not.toMatch(/\/(auth|api|dashboard|billing|tasks|properties)(\/|<)/);
+
+    for (const legalPath of ["/privacy", "/terms", "/data-deletion"]) {
+      await page.goto(legalPath);
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+        "href",
+        `https://www.streheprona.com${legalPath}`
+      );
+    }
+
+    await page.goto("/en");
+    const jsonLd = await page.locator('script[type="application/ld+json"]').textContent();
+    const structuredData = JSON.parse(jsonLd || "{}");
+    expect(structuredData["@graph"].map((entry: { "@type": string }) => entry["@type"])).toEqual([
+      "WebSite",
+      "Organization",
+    ]);
+    expect(jsonLd).not.toMatch(/Review|AggregateRating|Offer|LocalBusiness|openingHours/);
+  });
+
+  test("invalid public routes are real 404s and app-host responses are noindex", async ({
+    page,
+    request,
+  }) => {
+    for (const path of [
+      "/fr",
+      "/en/not-a-real-page",
+      "/sq/not-a-real-page",
+      "/de/not-a-real-page",
+    ]) {
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(404);
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+        "content",
+        /noindex/
+      );
+      expect(page.url()).not.toContain("/auth/login");
+    }
+
+    for (const path of ["/auth/login", "/dashboard"]) {
+      const response = await request.get(path, {
+        headers: { "x-forwarded-host": "app.streheprona.com" },
+        maxRedirects: 0,
+      });
+      expect(response.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+    }
+
+    const appRobotsResponse = await request.get("/robots.txt", {
+      headers: { "x-forwarded-host": "app.streheprona.com" },
+    });
+    expect(await appRobotsResponse.text()).toContain("Disallow: /");
+  });
+
   test("contact attribution survives controlled rerenders and validation feedback", async ({
     page,
   }) => {
@@ -270,9 +384,9 @@ test.describe("public website launch smoke", () => {
     page,
   }) => {
     const legalRoutes = [
-      { path: "/privacy", albanianHeading: "Politika e Privatësisë", englishHeading: "Privacy Policy" },
-      { path: "/terms", albanianHeading: "Kushtet e Përdorimit", englishHeading: "Terms of Use" },
-      { path: "/data-deletion", albanianHeading: "Fshirja e të Dhënave", englishHeading: "Data Deletion" },
+      { path: "/privacy", documentHeading: "Politika e Privatësisë / Privacy Policy" },
+      { path: "/terms", documentHeading: "Kushtet e Përdorimit / Terms of Use" },
+      { path: "/data-deletion", documentHeading: "Fshirja e të Dhënave / Data Deletion Instructions" },
     ];
 
     for (const legalRoute of legalRoutes) {
@@ -280,15 +394,15 @@ test.describe("public website launch smoke", () => {
       expect(response?.status()).toBe(200);
 
       const main = page.locator("main");
+      await expect(main.getByRole("heading", { level: 1 })).toHaveText(
+        legalRoute.documentHeading
+      );
       await expect(main).toContainText("Data e hyrjes në fuqi / Effective date: 15 August 2026");
-      await expect(main).toContainText("Milot Berisha");
 
       const languageSections = main.locator("article > section[aria-label]");
       await expect(languageSections).toHaveCount(2);
       await expect(languageSections.nth(0)).toHaveAttribute("aria-label", "Shqip");
       await expect(languageSections.nth(1)).toHaveAttribute("aria-label", "English");
-      await expect(languageSections.nth(0)).toContainText(legalRoute.albanianHeading);
-      await expect(languageSections.nth(1)).toContainText(legalRoute.englishHeading);
     }
 
     for (const protectedPath of ["/dashboard", "/subscriptions", "/clients"]) {

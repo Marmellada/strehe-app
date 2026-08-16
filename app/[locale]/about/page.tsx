@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -9,12 +10,22 @@ import {
   toWhatsAppHref,
 } from "@/lib/marketing/company-profile";
 import { isMarketingLocale, marketingContent } from "@/lib/marketing/content";
+import { buildMarketingMetadata } from "@/lib/marketing/seo";
 
 type AboutPageProps = {
   params: Promise<{
     locale: string;
   }>;
 };
+
+export async function generateMetadata({
+  params,
+}: AboutPageProps): Promise<Metadata> {
+  const { locale } = await params;
+  return isMarketingLocale(locale)
+    ? buildMarketingMetadata(locale, "about")
+    : {};
+}
 
 export default async function AboutPage({ params }: AboutPageProps) {
   const { locale } = await params;

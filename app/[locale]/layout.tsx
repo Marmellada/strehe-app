@@ -11,6 +11,10 @@ import {
   marketingLocales,
   type MarketingLocale,
 } from "@/lib/marketing/content";
+import {
+  buildMarketingMetadata,
+  buildStructuredData,
+} from "@/lib/marketing/seo";
 
 type LocaleLayoutProps = {
   children: React.ReactNode;
@@ -34,31 +38,7 @@ export async function generateMetadata({
     return {};
   }
 
-  const content = marketingContent[locale];
-  const publicSiteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.streheprona.com";
-
-  return {
-    metadataBase: new URL(publicSiteUrl),
-    title: content.metaTitle,
-    description: content.metaDescription,
-    alternates: {
-      canonical: `/${locale}`,
-      languages: {
-        en: "/en",
-        sq: "/sq",
-        de: "/de",
-      },
-    },
-    openGraph: {
-      type: "website",
-      url: `/${locale}`,
-      title: content.metaTitle,
-      description: content.metaDescription,
-      siteName: "STREHË",
-      images: ["/marketing/home-hero-v2.webp"],
-    },
-  };
+  return buildMarketingMetadata(locale, "");
 }
 
 function MarketingNav({ locale }: { locale: MarketingLocale }) {
@@ -89,6 +69,7 @@ export default async function LocaleLayout({
 
   const content = marketingContent[locale];
   const company = await getCompanyProfile();
+  const structuredData = buildStructuredData(company);
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL || "https://app.streheprona.com";
 
@@ -97,6 +78,12 @@ export default async function LocaleLayout({
       lang={locale}
       className="relative min-h-screen overflow-hidden bg-slate-950 text-white"
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
+      />
       <div
         aria-hidden="true"
         className="fixed inset-0 bg-[url('/marketing/smart-property-network.jpg')] bg-cover bg-center bg-no-repeat opacity-70"
