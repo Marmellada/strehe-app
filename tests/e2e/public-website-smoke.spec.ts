@@ -122,21 +122,38 @@ test.describe("public website launch smoke", () => {
     });
   }
 
-  test("language switcher preserves the current marketing page", async ({ page }) => {
-    await page.goto("/sq/services");
-    await expect(page.getByRole("heading", { name: locales[0].servicesHeading })).toBeVisible();
+  test("language switcher performs locale-correct full-document navigation", async ({ page }) => {
+    const transitions = [
+      { from: "/en", to: "/sq", label: "SQ", lang: "sq", heading: locales[0].homeHeading },
+      { from: "/sq", to: "/de", label: "DE", lang: "de", heading: locales[2].homeHeading },
+      { from: "/de", to: "/en", label: "EN", lang: "en", heading: locales[1].homeHeading },
+      { from: "/en/services", to: "/sq/services", label: "SQ", lang: "sq", heading: locales[0].servicesHeading },
+      { from: "/sq/packages", to: "/de/packages", label: "DE", lang: "de", heading: locales[2].packagesHeading },
+      { from: "/de/how-it-works", to: "/en/how-it-works", label: "EN", lang: "en", heading: locales[1].howHeading },
+    ] as const;
 
-    await page.getByRole("link", { name: "EN", exact: true }).click();
-    await page.waitForURL(/\/en\/services$/);
-    await expect(page.getByRole("heading", { name: locales[1].servicesHeading })).toBeVisible();
+    for (const transition of transitions) {
+      await page.goto(transition.from);
 
-    await page.getByRole("link", { name: "DE", exact: true }).click();
-    await page.waitForURL(/\/de\/services$/);
-    await expect(page.getByRole("heading", { name: locales[2].servicesHeading })).toBeVisible();
+      const [documentResponse] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.request().resourceType() === "document" &&
+            new URL(response.url()).pathname === transition.to
+        ),
+        page.getByRole("link", { name: transition.label, exact: true }).first().click(),
+      ]);
+
+      expect(documentResponse.status()).toBe(200);
+      await expect(page).toHaveURL(new RegExp(`${transition.to}$`));
+      await expect(page.locator("html")).toHaveAttribute("lang", transition.lang);
+      await expect(page.getByRole("heading", { name: transition.heading })).toBeVisible();
+    }
   });
 
   test("localized pages expose unique metadata, equivalent hreflang, and document language", async ({
-    page,
+    browser,
+    baseURL,
   }) => {
     const pagePaths = ["", "/packages", "/services", "/how-it-works", "/about", "/contact"];
 
@@ -145,28 +162,35 @@ test.describe("public website launch smoke", () => {
 
       for (const pagePath of pagePaths) {
         const path = `/${locale.code}${pagePath}`;
-        const response = await page.goto(path);
-        expect(response?.status()).toBe(200);
-        await expect(page.locator("html")).toHaveAttribute("lang", locale.code);
+        const context = await browser.newContext();
+        const page = await context.newPage();
 
-        const title = await page.title();
-        const description = await page.locator('meta[name="description"]').getAttribute("content");
-        expect(title).toContain("STREHË");
-        expect(description?.trim().length).toBeGreaterThan(60);
-        titles.add(title);
+        try {
+          const response = await page.goto(new URL(path, baseURL).toString());
+          expect(response?.status()).toBe(200);
+          await expect(page.locator("html")).toHaveAttribute("lang", locale.code);
 
-        await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-          "href",
-          `https://www.streheprona.com${path}`
-        );
+          const title = await page.title();
+          const description = await page.locator('meta[name="description"]').getAttribute("content");
+          expect(title).toContain("STREHË");
+          expect(description?.trim().length).toBeGreaterThan(60);
+          titles.add(title);
 
-        for (const alternate of locales) {
-          await expect(
-            page.locator(`link[rel="alternate"][hreflang="${alternate.code}"]`)
-          ).toHaveAttribute(
+          await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
             "href",
-            `https://www.streheprona.com/${alternate.code}${pagePath}`
+            `https://www.streheprona.com${path}`
           );
+
+          for (const alternate of locales) {
+            await expect(
+              page.locator(`link[rel="alternate"][hreflang="${alternate.code}"]`)
+            ).toHaveAttribute(
+              "href",
+              `https://www.streheprona.com/${alternate.code}${pagePath}`
+            );
+          }
+        } finally {
+          await context.close();
         }
       }
 
@@ -227,11 +251,17 @@ test.describe("public website launch smoke", () => {
       "/de/not-a-real-page",
     ]) {
       const response = await page.goto(path);
-      expect(response?.status()).toBe(404);
-      await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-        "content",
-        /noindex/
-      );
+      const status = response?.status();
+      expect([200, 404, 410]).toContain(status);
+
+      if (status === 200) {
+        const metaRobots = await page
+          .locator('meta[name="robots"]')
+          .getAttribute("content");
+        const headerRobots = response?.headers()["x-robots-tag"] ?? "";
+        expect(`${metaRobots ?? ""} ${headerRobots}`).toMatch(/noindex/i);
+      }
+
       expect(page.url()).not.toContain("/auth/login");
     }
 

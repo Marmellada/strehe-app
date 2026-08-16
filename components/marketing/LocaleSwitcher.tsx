@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { marketingContent, marketingLocales, type MarketingLocale } from "@/lib/marketing/content";
 
@@ -19,7 +18,7 @@ export function LocaleSwitcher({ locale }: LocaleSwitcherProps) {
         const active = candidate === locale;
 
         return (
-          <Link
+          <a
             key={candidate}
             href={`/${candidate}${path}`}
             className={[
@@ -30,7 +29,7 @@ export function LocaleSwitcher({ locale }: LocaleSwitcherProps) {
             ].join(" ")}
           >
             {marketingContent[candidate].localeLabel}
-          </Link>
+          </a>
         );
       })}
     </div>
