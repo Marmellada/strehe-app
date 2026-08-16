@@ -135,4 +135,124 @@ begin
 end;
 $$;
 
+-- 10. Worker/internal RPCs are service_role-only (explicit least privilege).
+do $$
+declare
+  sig text;
+  anon_can boolean;
+  auth_can boolean;
+  sr_can boolean;
+begin
+  foreach sig in array array[
+    'claim_meta_ingestion_batch(integer)',
+    'meta_ingestion_mark_completed(uuid, text)',
+    'meta_ingestion_mark_failure(uuid, text, text)',
+    'upsert_contact_channel_identity(text, text, text, text, text)',
+    'resolve_contact_identity_whatsapp(uuid, text, text)',
+    'ensure_conversation(uuid)',
+    'ingest_conversation_message(uuid, text, text, text, text, text, text, jsonb, text, text, uuid, timestamp with time zone)',
+    'meta_webhook_events_enqueue()'
+  ]
+  loop
+    anon_can := has_function_privilege('anon', 'public.' || sig, 'EXECUTE');
+    auth_can := has_function_privilege('authenticated', 'public.' || sig, 'EXECUTE');
+    sr_can := has_function_privilege('service_role', 'public.' || sig, 'EXECUTE');
+    if anon_can then
+      raise exception 'anon can EXECUTE worker RPC %', sig;
+    end if;
+    if auth_can then
+      raise exception 'authenticated can EXECUTE worker RPC %', sig;
+    end if;
+    if not sr_can then
+      raise exception 'service_role cannot EXECUTE worker RPC %', sig;
+    end if;
+  end loop;
+end;
+$$;
+
+-- 11. can_manage_messaging: authenticated only (operator RLS helper).
+do $$
+begin
+  if has_function_privilege('anon', 'public.can_manage_messaging()', 'EXECUTE') then
+    raise exception 'anon can EXECUTE can_manage_messaging';
+  end if;
+  if not has_function_privilege('authenticated', 'public.can_manage_messaging()', 'EXECUTE') then
+    raise exception 'authenticated cannot EXECUTE can_manage_messaging';
+  end if;
+end;
+$$;
+
+-- 12. Operator read models: authenticated SELECT-only; anon none.
+do $$
+declare
+  tbl text;
+begin
+  foreach tbl in array array['contact_channel_identities', 'conversations', 'conversation_messages']
+  loop
+    if not has_table_privilege('authenticated', 'public.' || tbl, 'SELECT') then
+      raise exception 'authenticated lacks SELECT on %', tbl;
+    end if;
+    if has_table_privilege('authenticated', 'public.' || tbl, 'INSERT') then
+      raise exception 'authenticated has INSERT on %', tbl;
+    end if;
+    if has_table_privilege('authenticated', 'public.' || tbl, 'UPDATE') then
+      raise exception 'authenticated has UPDATE on %', tbl;
+    end if;
+    if has_table_privilege('authenticated', 'public.' || tbl, 'DELETE') then
+      raise exception 'authenticated has DELETE on %', tbl;
+    end if;
+    if has_table_privilege('anon', 'public.' || tbl, 'SELECT') then
+      raise exception 'anon has SELECT on %', tbl;
+    end if;
+    if has_table_privilege('anon', 'public.' || tbl, 'INSERT') then
+      raise exception 'anon has INSERT on %', tbl;
+    end if;
+    if has_table_privilege('anon', 'public.' || tbl, 'UPDATE') then
+      raise exception 'anon has UPDATE on %', tbl;
+    end if;
+    if has_table_privilege('anon', 'public.' || tbl, 'DELETE') then
+      raise exception 'anon has DELETE on %', tbl;
+    end if;
+  end loop;
+end;
+$$;
+
+-- 13. Queue has no table access for any role; raw journal remains unchanged.
+do $$
+declare
+  r text;
+begin
+  foreach r in array array['anon', 'authenticated', 'service_role']
+  loop
+    if has_table_privilege(r, 'public.meta_ingestion_queue', 'SELECT')
+       or has_table_privilege(r, 'public.meta_ingestion_queue', 'INSERT')
+       or has_table_privilege(r, 'public.meta_ingestion_queue', 'UPDATE')
+       or has_table_privilege(r, 'public.meta_ingestion_queue', 'DELETE') then
+      raise exception 'role % has table access on meta_ingestion_queue', r;
+    end if;
+  end loop;
+
+  if not has_table_privilege('service_role', 'public.meta_webhook_events', 'INSERT') then
+    raise exception 'service_role lost INSERT on meta_webhook_events';
+  end if;
+  if has_table_privilege('service_role', 'public.meta_webhook_events', 'SELECT')
+     or has_table_privilege('service_role', 'public.meta_webhook_events', 'UPDATE')
+     or has_table_privilege('service_role', 'public.meta_webhook_events', 'DELETE') then
+    raise exception 'service_role has non-INSERT access on meta_webhook_events';
+  end if;
+  if has_table_privilege('anon', 'public.meta_webhook_events', 'SELECT')
+     or has_table_privilege('anon', 'public.meta_webhook_events', 'INSERT')
+     or has_table_privilege('anon', 'public.meta_webhook_events', 'UPDATE')
+     or has_table_privilege('anon', 'public.meta_webhook_events', 'DELETE') then
+    raise exception 'anon has access on meta_webhook_events';
+  end if;
+  if has_table_privilege('authenticated', 'public.meta_webhook_events', 'SELECT')
+     or has_table_privilege('authenticated', 'public.meta_webhook_events', 'INSERT')
+     or has_table_privilege('authenticated', 'public.meta_webhook_events', 'UPDATE')
+     or has_table_privilege('authenticated', 'public.meta_webhook_events', 'DELETE') then
+    raise exception 'authenticated has access on meta_webhook_events';
+  end if;
+end;
+$$;
+
 rollback;
