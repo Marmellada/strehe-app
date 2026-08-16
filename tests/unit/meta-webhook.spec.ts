@@ -5,8 +5,11 @@ import type { MetaWebhookEventInsert } from "@/lib/meta/persist";
 
 const originalVerifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
 const originalAppSecret = process.env.META_APP_SECRET;
+const originalInstagramAppSecret = process.env.META_INSTAGRAM_APP_SECRET;
 const verifyToken = "unit-test-verify-token";
 const appSecret = "unit-test-app-secret";
+const instagramAppSecret = "unit-test-instagram-app-secret";
+const unauthorizedAppSecret = "unit-test-unauthorized-app-secret";
 
 test.afterEach(() => {
   if (originalVerifyToken === undefined) {
@@ -20,10 +23,16 @@ test.afterEach(() => {
   } else {
     process.env.META_APP_SECRET = originalAppSecret;
   }
+
+  if (originalInstagramAppSecret === undefined) {
+    delete process.env.META_INSTAGRAM_APP_SECRET;
+  } else {
+    process.env.META_INSTAGRAM_APP_SECRET = originalInstagramAppSecret;
+  }
 });
 
-function signature(rawBody: Buffer) {
-  return `sha256=${createHmac("sha256", appSecret)
+function signature(rawBody: Buffer, secret = appSecret) {
+  return `sha256=${createHmac("sha256", secret)
     .update(rawBody)
     .digest("hex")}`;
 }
@@ -128,6 +137,7 @@ test.describe("Meta webhook verification handshake", () => {
 test.describe("Meta webhook authenticated ingestion", () => {
   test.beforeEach(() => {
     process.env.META_APP_SECRET = appSecret;
+    process.env.META_INSTAGRAM_APP_SECRET = instagramAppSecret;
   });
 
   for (const rejected of [
@@ -182,6 +192,75 @@ test.describe("Meta webhook authenticated ingestion", () => {
       expect(persisted[0].payloadSha256).toMatch(/^[0-9a-f]{64}$/);
     });
   }
+
+  test("accepts an Instagram payload signed with the Instagram app secret", async () => {
+    process.env.META_INSTAGRAM_APP_SECRET = instagramAppSecret;
+    const { handlers, persisted } = recordingHandlers();
+    const payload = { object: "instagram", entry: [{ messaging: [] }] };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+
+    const response = await handlers.POST(
+      postRequest(rawBody, signature(rawBody, instagramAppSecret))
+    );
+
+    expect(response.status).toBe(200);
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].channel).toBe("instagram");
+  });
+
+  test("accepts an Instagram payload when only the Instagram app secret is configured", async () => {
+    delete process.env.META_APP_SECRET;
+    process.env.META_INSTAGRAM_APP_SECRET = instagramAppSecret;
+    const { handlers, persisted } = recordingHandlers();
+    const payload = { object: "instagram", entry: [{ messaging: [] }] };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+
+    const response = await handlers.POST(
+      postRequest(rawBody, signature(rawBody, instagramAppSecret))
+    );
+
+    expect(response.status).toBe(200);
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].channel).toBe("instagram");
+  });
+
+  test("accepts a WhatsApp payload when only the existing app secret is configured", async () => {
+    delete process.env.META_INSTAGRAM_APP_SECRET;
+    const { handlers, persisted } = recordingHandlers();
+    const payload = { object: "whatsapp_business_account", entry: [] };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+
+    const response = await handlers.POST(postRequest(rawBody));
+
+    expect(response.status).toBe(200);
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].channel).toBe("whatsapp");
+  });
+
+  test("rejects a signature produced with an unauthorized secret", async () => {
+    process.env.META_INSTAGRAM_APP_SECRET = instagramAppSecret;
+    const { handlers, persisted } = recordingHandlers();
+    const rawBody = Buffer.from('{"object":"instagram","entry":[]}');
+
+    const response = await handlers.POST(
+      postRequest(rawBody, signature(rawBody, unauthorizedAppSecret))
+    );
+
+    expect(response.status).toBe(401);
+    expect(persisted).toHaveLength(0);
+  });
+
+  test("ignores an empty Instagram app secret", async () => {
+    process.env.META_INSTAGRAM_APP_SECRET = "";
+    const { handlers, persisted } = recordingHandlers();
+    const rawBody = Buffer.from('{"object":"whatsapp_business_account","entry":[]}');
+
+    const response = await handlers.POST(postRequest(rawBody));
+
+    expect(response.status).toBe(200);
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].channel).toBe("whatsapp");
+  });
 
   test("rejects correctly signed malformed JSON without persistence", async () => {
     const { handlers, persisted } = recordingHandlers();
@@ -248,8 +327,9 @@ test.describe("Meta webhook authenticated ingestion", () => {
     expect(response.status).toBe(500);
   });
 
-  test("returns 500 without persistence when the app secret is missing", async () => {
+  test("returns 500 without persistence when no app secrets are configured", async () => {
     delete process.env.META_APP_SECRET;
+    delete process.env.META_INSTAGRAM_APP_SECRET;
     const { handlers, persisted } = recordingHandlers();
     const rawBody = Buffer.from('{"object":"page"}');
     const response = await handlers.POST(postRequest(rawBody));

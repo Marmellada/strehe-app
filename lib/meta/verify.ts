@@ -63,6 +63,35 @@ export function verifyMetaSignature(
   );
 }
 
+export function verifyMetaSignatureAgainstSecrets(
+  rawBody: Buffer,
+  signatureHeader: string | null,
+  appSecrets: Iterable<string | undefined>
+) {
+  if (!signatureHeader) return false;
+
+  const match = SIGNATURE_PATTERN.exec(signatureHeader);
+  if (!match) return false;
+
+  const suppliedDigest = Buffer.from(match[1], "hex");
+  let isAuthenticated = false;
+
+  for (const appSecret of appSecrets) {
+    if (!appSecret) continue;
+
+    const expectedDigest = createHmac("sha256", appSecret)
+      .update(rawBody)
+      .digest();
+    const isMatch =
+      suppliedDigest.length === expectedDigest.length &&
+      timingSafeEqual(suppliedDigest, expectedDigest);
+
+    isAuthenticated = isAuthenticated || isMatch;
+  }
+
+  return isAuthenticated;
+}
+
 export function constantTimeTokenEqual(supplied: string, expected: string) {
   const suppliedDigest = createHash("sha256").update(supplied).digest();
   const expectedDigest = createHash("sha256").update(expected).digest();

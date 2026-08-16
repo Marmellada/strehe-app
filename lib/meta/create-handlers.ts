@@ -7,7 +7,7 @@ import {
   constantTimeTokenEqual,
   readBodyWithLimit,
   sha256Hex,
-  verifyMetaSignature,
+  verifyMetaSignatureAgainstSecrets,
 } from "@/lib/meta/verify";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -48,13 +48,6 @@ export function createMetaWebhookHandlers(
   }
 
   async function POST(request: Request) {
-    const appSecret = process.env.META_APP_SECRET;
-    if (!appSecret) {
-      return new Response("Webhook authentication is not configured.", {
-        status: 500,
-      });
-    }
-
     let bodyResult;
     try {
       bodyResult = await readBodyWithLimit(request.body, MAX_BODY_BYTES);
@@ -67,11 +60,22 @@ export function createMetaWebhookHandlers(
     }
     const rawBody = bodyResult.rawBody;
 
+    const authorizedSecrets = [
+      process.env.META_APP_SECRET,
+      process.env.META_INSTAGRAM_APP_SECRET,
+    ].filter((secret): secret is string => Boolean(secret));
+
+    if (authorizedSecrets.length === 0) {
+      return new Response("Webhook authentication is not configured.", {
+        status: 500,
+      });
+    }
+
     if (
-      !verifyMetaSignature(
+      !verifyMetaSignatureAgainstSecrets(
         rawBody,
         request.headers.get("x-hub-signature-256"),
-        appSecret
+        authorizedSecrets
       )
     ) {
       return new Response("Unauthorized", { status: 401 });
