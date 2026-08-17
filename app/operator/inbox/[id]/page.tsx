@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { ConversationActions } from "@/components/inbox/ConversationActions";
+import { AssignmentControl } from "@/components/inbox/AssignmentControl";
+import { IdentityPanel } from "@/components/inbox/IdentityPanel";
 import { requireRole } from "@/lib/auth/require-role";
 import type {
   MessageDirection,
@@ -17,16 +19,36 @@ import { formatStatusLabel } from "@/lib/ui/status";
 type RelatedRow<T> = T | T[] | null;
 
 type IdentityRow = {
+  id: string;
   channel: MessagingChannel;
   display_name: string | null;
   phone_e164: string | null;
   external_id: string;
   resolution_status: "unresolved" | "resolved" | "needs_review";
+  lead: RelatedRow<{
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    email: string | null;
+  }>;
+  client: RelatedRow<{
+    id: string;
+    full_name: string | null;
+    company_name: string | null;
+    contact_person: string | null;
+    phone: string | null;
+    email: string | null;
+  }>;
 };
 
 type AssignedUserRow = {
+  id: string;
   full_name: string | null;
   email: string | null;
+};
+
+type AssignmentCandidateRow = AssignedUserRow & {
+  role: "admin" | "office";
 };
 
 type ConversationRow = {
@@ -93,13 +115,23 @@ export default async function ConversationPage({ params }: ConversationPageProps
       attention_state,
       unread_count,
       identity:contact_channel_identities!conversations_contact_identity_id_fkey(
+        id,
         channel,
         display_name,
         phone_e164,
         external_id,
-        resolution_status
+        resolution_status,
+        lead:leads!contact_channel_identities_lead_id_fkey(id, full_name, phone, email),
+        client:clients!contact_channel_identities_client_id_fkey(
+          id,
+          full_name,
+          company_name,
+          contact_person,
+          phone,
+          email
+        )
       ),
-      assigned:app_users!conversations_assigned_user_id_fkey(full_name, email)
+      assigned:app_users!conversations_assigned_user_id_fkey(id, full_name, email)
     `
     )
     .eq("id", id)
@@ -112,17 +144,55 @@ export default async function ConversationPage({ params }: ConversationPageProps
   const conversation = conversationData as ConversationRow;
   const identity = getSingle(conversation.identity);
   const assigned = getSingle(conversation.assigned);
-  const { data: messagesData, error: messagesError } = await supabase
-    .from("conversation_messages")
-    .select("id,channel,direction,message_type,text_content,occurred_at")
-    .eq("conversation_id", id)
-    .order("occurred_at", { ascending: true, nullsFirst: false });
+  const lead = getSingle(identity?.lead || null);
+  const client = getSingle(identity?.client || null);
+  const [
+    { data: messagesData, error: messagesError },
+    { data: candidatesData, error: candidatesError },
+  ] = await Promise.all([
+    supabase
+      .from("conversation_messages")
+      .select("id,channel,direction,message_type,text_content,occurred_at")
+      .eq("conversation_id", id)
+      .order("occurred_at", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("app_users")
+      .select("id,full_name,email,role")
+      .eq("is_active", true)
+      .in("role", ["admin", "office"])
+      .order("full_name", { ascending: true }),
+  ]);
 
   if (messagesError) {
     throw new Error(`Unable to load conversation messages: ${messagesError.message}`);
   }
 
+  if (candidatesError) {
+    throw new Error(`Unable to load assignment candidates: ${candidatesError.message}`);
+  }
+
   const messages = (messagesData || []) as MessageRow[];
+  const candidateRows = (candidatesData || []) as AssignmentCandidateRow[];
+  const { data: agentPrincipalsData, error: agentPrincipalsError } =
+    candidateRows.length > 0
+      ? await supabase
+          .from("agent_principals")
+          .select("id")
+          .in("id", candidateRows.map((candidate) => candidate.id))
+      : { data: [], error: null };
+
+  if (agentPrincipalsError) {
+    throw new Error(
+      `Unable to validate assignment candidates: ${agentPrincipalsError.message}`
+    );
+  }
+
+  const agentPrincipalIds = new Set(
+    (agentPrincipalsData || []).map((principal) => principal.id)
+  );
+  const candidates = candidateRows.filter(
+    (candidate) => !agentPrincipalIds.has(candidate.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -137,15 +207,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
       />
 
       <SectionCard title="Conversation context">
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div>
-            <dt className="text-xs text-muted-foreground">Channel</dt>
-            <dd className="mt-1"><Badge>{formatStatusLabel(identity?.channel)}</Badge></dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Resolution</dt>
-            <dd className="mt-1"><Badge>{formatStatusLabel(identity?.resolution_status)}</Badge></dd>
-          </div>
+        <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-xs text-muted-foreground">Attention</dt>
             <dd className="mt-1"><Badge>{formatStatusLabel(conversation.attention_state)}</Badge></dd>
@@ -154,14 +216,48 @@ export default async function ConversationPage({ params }: ConversationPageProps
             <dt className="text-xs text-muted-foreground">Unread</dt>
             <dd className="mt-1 text-sm font-medium">{conversation.unread_count}</dd>
           </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Assigned</dt>
-            <dd className="mt-1 text-sm text-muted-foreground">
-              {assigned?.full_name || assigned?.email || "Unassigned"}
-            </dd>
-          </div>
         </dl>
       </SectionCard>
+
+      {identity ? (
+        <IdentityPanel
+          conversationId={conversation.id}
+          identityId={identity.id}
+          channel={identity.channel}
+          resolutionStatus={identity.resolution_status}
+          lead={
+            lead
+              ? {
+                  id: lead.id,
+                  displayName: lead.full_name || "Unnamed lead",
+                  phone: lead.phone,
+                  email: lead.email,
+                }
+              : null
+          }
+          client={
+            client
+              ? {
+                  id: client.id,
+                  displayName:
+                    client.full_name ||
+                    client.company_name ||
+                    client.contact_person ||
+                    "Unnamed client",
+                  phone: client.phone,
+                  email: client.email,
+                }
+              : null
+          }
+        />
+      ) : null}
+
+      <AssignmentControl
+        conversationId={conversation.id}
+        status={conversation.status}
+        assigned={assigned}
+        candidates={candidates}
+      />
 
       <ConversationActions
         conversationId={conversation.id}

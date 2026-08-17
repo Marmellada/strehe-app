@@ -204,7 +204,7 @@ export default async function InboxPage({ searchParams }: InboxPageProps) {
                   <TableHead>Contact</TableHead>
                   <TableHead>Latest message</TableHead>
                   <TableHead>Attention</TableHead>
-                  <TableHead>Resolution</TableHead>
+                  <TableHead>Identity status</TableHead>
                   <TableHead>Unread</TableHead>
                   <TableHead>Assigned</TableHead>
                   <TableHead className="text-right">Updated</TableHead>
