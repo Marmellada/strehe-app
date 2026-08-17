@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { ConversationActions } from "@/components/inbox/ConversationActions";
 import { requireRole } from "@/lib/auth/require-role";
 import type {
   MessageDirection,
@@ -30,6 +31,7 @@ type AssignedUserRow = {
 
 type ConversationRow = {
   id: string;
+  status: "open" | "resolved" | "archived";
   attention_state: "needs_reply" | "waiting_customer" | "none";
   unread_count: number;
   identity: RelatedRow<IdentityRow>;
@@ -87,6 +89,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
     .select(
       `
       id,
+      status,
       attention_state,
       unread_count,
       identity:contact_channel_identities!conversations_contact_identity_id_fkey(
@@ -159,6 +162,13 @@ export default async function ConversationPage({ params }: ConversationPageProps
           </div>
         </dl>
       </SectionCard>
+
+      <ConversationActions
+        conversationId={conversation.id}
+        status={conversation.status}
+        attentionState={conversation.attention_state}
+        unreadCount={conversation.unread_count}
+      />
 
       <SectionCard title="Messages" description="Oldest to newest">
         {messages.length === 0 ? (
