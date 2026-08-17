@@ -31,6 +31,7 @@ export function AppShell({ children, role, current }: AppShellProps) {
   const workLinks = canUseOfficeSurface
     ? [
         { href: "/tasks", label: "Tasks" },
+        { href: "/operator/inbox", label: "Inbox" },
         { href: "/properties", label: "Properties" },
         { href: "/clients", label: "Clients" },
         { href: "/leads", label: "Leads" },

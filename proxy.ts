@@ -29,6 +29,7 @@ const APPLICATION_ROOTS = new Set([
   "inspection-lab",
   "keys",
   "leads",
+  "operator",
   "packages",
   "properties",
   "services",
