@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { ConversationActions } from "@/components/inbox/ConversationActions";
 import { AssignmentControl } from "@/components/inbox/AssignmentControl";
 import { IdentityPanel } from "@/components/inbox/IdentityPanel";
+import { ReplyComposer } from "@/components/inbox/ReplyComposer";
 import { requireRole } from "@/lib/auth/require-role";
 import type {
   MessageDirection,
@@ -265,6 +266,10 @@ export default async function ConversationPage({ params }: ConversationPageProps
         attentionState={conversation.attention_state}
         unreadCount={conversation.unread_count}
       />
+
+      {conversation.status !== "archived" ? (
+        <ReplyComposer conversationId={conversation.id} />
+      ) : null}
 
       <SectionCard title="Messages" description="Oldest to newest">
         {messages.length === 0 ? (

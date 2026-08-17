@@ -257,7 +257,7 @@ function parsePage(entries: unknown[]): ParseResult {
           channel: "messenger",
           channel_account_id: channelAccountId,
           external_message_id: mid ?? "",
-          direction: "inbound",
+          direction: isEcho(message?.is_echo) ? "outbound" : "inbound",
           message_type: "text",
           text_content: text,
           content: null,

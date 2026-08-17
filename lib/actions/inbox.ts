@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
+import { sendMetaMessage } from "@/lib/messaging/send";
+import type { MessagingChannel } from "@/lib/messaging/types";
 
 export type InboxAction =
   | "mark_read"
@@ -39,6 +41,23 @@ export type ClientSearchItem = {
 export type SearchResult<T> =
   | { success: true; results: T[] }
   | { success: false; error: string };
+
+type ReplyConversationRow = {
+  id: string;
+  status: "open" | "resolved" | "archived";
+  identity:
+    | {
+        channel: MessagingChannel;
+        channel_account_id: string;
+        external_id: string;
+      }
+    | {
+        channel: MessagingChannel;
+        channel_account_id: string;
+        external_id: string;
+      }[]
+    | null;
+};
 
 const INBOX_ACTIONS: readonly InboxAction[] = [
   "mark_read",
@@ -232,4 +251,84 @@ export async function searchClients(
   }));
 
   return { success: true, results };
+}
+
+export async function sendReply(
+  conversationId: string,
+  text: string
+): Promise<InboxActionResult> {
+  await requireRole(["admin", "office"]);
+
+  const trimmedText = typeof text === "string" ? text.trim() : "";
+  if (typeof conversationId !== "string" || !UUID_PATTERN.test(conversationId)) {
+    return { success: false, error: "Invalid conversation" };
+  }
+  if (trimmedText.length < 1 || trimmedText.length > 1000) {
+    return { success: false, error: "Reply must be between 1 and 1000 characters" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("conversations")
+    .select(
+      `
+      id,
+      status,
+      identity:contact_channel_identities!conversations_contact_identity_id_fkey(
+        channel,
+        channel_account_id,
+        external_id
+      )
+    `
+    )
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { success: false, error: "Conversation is unavailable" };
+  }
+
+  const conversation = data as ReplyConversationRow;
+  const identity = Array.isArray(conversation.identity)
+    ? conversation.identity[0] || null
+    : conversation.identity;
+
+  if (conversation.status === "archived") {
+    return { success: false, error: "Archived conversations cannot receive replies" };
+  }
+  if (
+    !identity ||
+    !["whatsapp", "instagram", "messenger"].includes(identity.channel) ||
+    !identity.channel_account_id.trim() ||
+    !identity.external_id.trim()
+  ) {
+    return { success: false, error: "Conversation messaging identity is unavailable" };
+  }
+
+  const sendResult = await sendMetaMessage({
+    channel: identity.channel,
+    channelAccountId: identity.channel_account_id,
+    recipientExternalId: identity.external_id,
+    text: trimmedText,
+  });
+
+  if (!sendResult.ok) {
+    return { success: false, error: sendResult.message };
+  }
+
+  const { error: settleError } = await supabase.rpc("settle_outbound_message", {
+    p_conversation_id: conversationId,
+    p_external_message_id: sendResult.externalMessageId,
+    p_text_content: trimmedText,
+  });
+
+  if (settleError) {
+    return {
+      success: false,
+      error: "Message was sent but could not be saved. Contact an administrator before retrying.",
+    };
+  }
+
+  revalidateInbox(conversationId);
+  return { success: true };
 }
