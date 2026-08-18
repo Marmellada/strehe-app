@@ -58,6 +58,16 @@ export default async function RootLayout({
   const current = surface === "app" ? await getCurrentUser() : null;
   const role = current?.appUser.role ?? null;
 
+  let inboxNeedsReplyCount = 0;
+  if (role === "admin" || role === "office") {
+    const { count } = await supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("attention_state", "needs_reply")
+      .neq("status", "archived");
+    inboxNeedsReplyCount = count ?? 0;
+  }
+
   return (
     <html
       lang={documentLanguage}
@@ -75,7 +85,11 @@ export default async function RootLayout({
         <ToastProvider>
           <AppearanceThemeClient initialTheme={initialTheme} />
           {surface === "app" ? (
-            <AppShell role={role} current={current}>
+            <AppShell
+              role={role}
+              current={current}
+              inboxNeedsReplyCount={inboxNeedsReplyCount}
+            >
               {children}
             </AppShell>
           ) : (

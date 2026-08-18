@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { runMetaIngest, type IngestSummary } from "@/lib/messaging/ingest";
+import { drainInboxNotifications } from "@/lib/messaging/notify";
 
 type RunMetaIngestFn = () => Promise<IngestSummary>;
 
@@ -22,10 +23,18 @@ export function createMetaIngestHandler(run: RunMetaIngestFn = runMetaIngest) {
 
     const result = await run();
 
+    let notifications = { claimed: 0, sent: 0, failed: 0 };
+    try {
+      notifications = await drainInboxNotifications();
+    } catch {
+      // Best-effort: a notification-drain failure must not fail the ingest run.
+    }
+
     return Response.json({
       ok: true,
       mode: "cron",
       result,
+      notifications,
     });
   };
 }

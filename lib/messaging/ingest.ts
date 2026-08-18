@@ -6,6 +6,10 @@
 import { getAdminClient } from "@/lib/supabase/admin";
 import { parseMetaWebhookEvent } from "./parser";
 import { normalizeE164, phoneDigits } from "./normalize";
+import {
+  enqueueInboxNotification,
+  type NotifyEnqueueClient,
+} from "./notify";
 import type { NormalizedMessage, QueueOutcome } from "./types";
 
 type ClaimedItem = {
@@ -233,5 +237,27 @@ async function ingestMessage(
   });
   if (messageResult.error) throw new Error("message_ingest_failed");
 
-  return messageResult.data === "message_created" ? "message_created" : "duplicate";
+  const created = messageResult.data === "message_created";
+
+  if (created && message.direction === "inbound") {
+    try {
+      const enqueueOutcome = await enqueueInboxNotification(
+        supabase as unknown as NotifyEnqueueClient,
+        {
+          conversationId: conversationResult.data,
+          channel: message.channel,
+          messageType: message.message_type,
+          textContent: message.text_content,
+          occurredAt: message.occurred_at,
+        }
+      );
+      if (enqueueOutcome === "failed") {
+        console.error("[INBOX_NOTIFICATION_ENQUEUE_FAILED]");
+      }
+    } catch {
+      console.error("[INBOX_NOTIFICATION_ENQUEUE_FAILED]");
+    }
+  }
+
+  return created ? "message_created" : "duplicate";
 }

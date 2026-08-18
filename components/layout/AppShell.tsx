@@ -7,6 +7,7 @@ import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
 type AppShellProps = {
   children: React.ReactNode;
   role: string | null;
+  inboxNeedsReplyCount?: number;
   current:
     | {
         authUser: {
@@ -19,7 +20,12 @@ type AppShellProps = {
     | null;
 };
 
-export function AppShell({ children, role, current }: AppShellProps) {
+export function AppShell({
+  children,
+  role,
+  current,
+  inboxNeedsReplyCount = 0,
+}: AppShellProps) {
   const pathname = usePathname();
   const isAuthRoute = pathname?.startsWith("/auth");
   const isAdmin = role === "admin";
@@ -89,8 +95,29 @@ export function AppShell({ children, role, current }: AppShellProps) {
               <p className="shell-nav-label">Work</p>
 
               {workLinks.map((link) => (
-                <Link key={link.href} href={link.href}>
-                  {link.label}
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  style={{ display: "flex", alignItems: "center" }}
+                >
+                  <span>{link.label}</span>
+                  {link.href === "/operator/inbox" &&
+                  inboxNeedsReplyCount > 0 ? (
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        backgroundColor: "#dc2626",
+                        color: "#ffffff",
+                        borderRadius: "9999px",
+                        padding: "1px 7px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {inboxNeedsReplyCount}
+                    </span>
+                  ) : null}
                 </Link>
               ))}
             </div>
