@@ -24,9 +24,14 @@ This document records findings only. **It does not design or implement anything.
 
 A complete review-gated job-queue substrate with agent identity, capability gating,
 lease-based claiming, retries, and human approval. Every function is implemented in
-SQL. **No application code calls any of it** — a repository-wide search for the RPC
-names (`claim_agent_job`, `heartbeat_agent`, `complete_agent_job`, `review_agent_job`,
-`fail_agent_job`, `agent_jobs`, etc.) across `.ts`/`.tsx`/`.mjs` returns zero hits.
+SQL. On the production branch, **no application code calls any of it** — a
+repository-wide search for the RPC names (`claim_agent_job`, `heartbeat_agent`,
+`complete_agent_job`, `review_agent_job`, `fail_agent_job`, etc.) across
+`.ts`/`.tsx`/`.mjs` returns zero hits. **One production file references the
+`agent_principals` table** (not an RPC): `app/operator/inbox/[id]/page.tsx` filters
+agent principals out of inbox-assignment candidates. The full agent
+workspace/provisioning/local-worker module exists only on an unmerged branch — see
+§7 Reconciliation.
 
 **Tables**
 - `agent_principals` — one row per agent identity (`id` = `auth.users.id`), `agent_key`,
@@ -246,7 +251,58 @@ recorded here as direction only — **no design or implementation has begun.**
 
 ---
 
-## 6. Non-goals of this audit
+## 6. Reconciliation — agent login/runtime (post-audit finding, 2026-08-20)
+
+A follow-up inspection (git history across all branches) found a full agent
+workspace / provisioning / local-worker module that §1 did not cover, because it is
+**not on the production branch**.
+
+**Location (unmerged):** branch `codex/household-agent-foundations`, mirrored on
+`qwen-inspection-lab-drafts` (checked out in the `strehe-app` worktree). Neither agent
+commit (`a52fbe0`, `1166c7a`) is an ancestor of production HEAD, and `git ls-tree`
+shows no `app/agents` on `release/strehe-meta-gateway-production`. This module must
+NOT be treated as production functionality.
+
+**What it contains:**
+- `app/agents/page.tsx` — admin-facing "Agent Workspace" (`requireRole(["admin"])`):
+  agent registry, capabilities, recent jobs, workforce map.
+- `app/auth/login/page.tsx` + `app/auth/callback/route.ts` + `lib/auth/default-path.ts`
+  — login is human (username/email → `app_users`), redirect by `app_users.role`; there
+  is NO agent-facing web login route.
+- `scripts/provision-inspection-agent.mjs`, `scripts/provision-finance-agent.mjs` —
+  agent provisioning (flow below).
+- `scripts/local-inspection-agent.mjs` — a 638-line LOCAL worker: polls `claim_agent_job`,
+  runs a local Ollama model (`qwen3.5:2b`), writes `agent_artifacts`, then
+  `complete_agent_job`/`fail_agent_job`. An existing local-agent worker pattern.
+- `scripts/verify-inspection-agent-flow.mjs`, `scripts/verify-finance-agent-flow.mjs`.
+
+**Proven provisioning flow** (from the provision scripts): service_role creates an
+`auth.users` identity with `user_metadata { identity_type: "agent", agent_key }` → delete
+the auto-created `app_users` row (agents must not be app users) → upsert
+`agent_principals` + `agent_capabilities` → write `SUPABASE_AGENT_EMAIL` /
+`SUPABASE_AGENT_PASSWORD` to a local `.env`.
+
+**Proven worker authentication:** `signInWithPassword` (agent email + password) → a
+user-scoped JWT → `claim_agent_job` / `complete_agent_job` / `fail_agent_job`.
+
+**Agent identities found (provision scripts):**
+- `agent_photo-comp@streheprona.com` → `agent_key = inspection.local`, capability
+  `inspection.photo.compare`.
+- `agent.finance@streheprona.com` → `agent_key = finance.local`, capabilities
+  `finance.receipt.ingest`, `finance.report.generate`, `finance.plan.propose`.
+
+**Spacemail / aliases:** no `spacemail` reference exists anywhere in the repo or branch;
+agent emails are `@streheprona.com`. Alias/mailbox infrastructure is external and is not
+represented in the codebase (the agents page states "Mailbox access is not required").
+
+**Impact on the §4 "missing" list:** "no agent runtime/loop" and "no provisioning path"
+are true *for production* but are already solved on the unmerged branch — a local agent
+loop and provisioning scripts exist there and can be reused or re-implemented. The
+branch/merge decision remains open.
+
+---
+
+## 7. Non-goals of this audit
 
 - No new design, no implementation, no schema/migration changes.
 - No production code, config, or database modifications.
