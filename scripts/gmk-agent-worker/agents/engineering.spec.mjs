@@ -3,6 +3,7 @@ import { openDatabase, setState } from "../lib/sqlite.mjs";
 import { ollamaChat } from "../lib/ollama.mjs";
 import { parseJsonLoose } from "../lib/json.mjs";
 import { MODULES, FLOWS, DEPENDENCIES } from "./strehe-map.mjs";
+import { mapModuleImpact, selectChecksForFiles } from "../lib/impact.mjs";
 
 // Engineering Agent V1 — Coordinator + Worker.
 // Coordinator owns durable continuity (SQLite); Worker executes one bounded task.
@@ -61,10 +62,18 @@ async function runWorkerTask(ctx, task) {
     }
 
     case "git.ls_files": {
-      const r = await tools.runTool("git.ls_files");
+      const scope = params.path || params.scope || "";
+      const r = await tools.runTool("git.ls_files", { path: scope });
       if (!r.ok) throw new Error(`git.ls_files failed: ${r.error}`);
       const files = (r.stdout || "").split("\n").filter(Boolean);
-      return { ok: true, summary: `${files.length} tracked files`, evidence: [{ kind: "git.ls_files", count: files.length, files }] };
+      return { ok: true, summary: `${files.length} tracked files${scope ? ` under ${scope}` : ""}`, evidence: [{ kind: "git.ls_files", scope, count: files.length, files }] };
+    }
+
+    case "git.diff_names": {
+      const r = await tools.runTool("git.diff_names", { base: params.base, current: params.current });
+      if (!r.ok) throw new Error(`git.diff_names failed: ${r.error}`);
+      const changes = Array.isArray(r.changes) ? r.changes : [];
+      return { ok: true, summary: `${changes.length} changed paths (${params.base}..${params.current})`, evidence: [{ kind: "git.diff_names", base: params.base, current: params.current, changes }] };
     }
 
     case "search": {
@@ -301,7 +310,8 @@ async function runSession(ctx, { sessionId, jobId, baseCommit, currentCommit, sc
 
 // ---- Result builder (SPEC §17 standard review output) ----
 
-function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, findings = [], summary }) {
+function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, changedFiles = [], impact = null, checksSelected = [], findings = [], summary }) {
+  const checks = completed.map((c) => ({ kind: c.kind, description: c.description, summary: c.summary }));
   return {
     schema_version: 1,
     agent: "engineering",
@@ -310,10 +320,19 @@ function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, fi
     git_commit: currentCommit,
     git_tree: tree,
     scope,
-    checks_performed: completed.map((c) => ({ kind: c.kind, description: c.description, summary: c.summary })),
-    carried_forward: [],
-    validated_modules: [],
-    stale_modules: [],
+    changed_files: changedFiles,
+    checks_performed: checks,
+    checks_selected: checksSelected,
+    carried_forward: impact ? impact.carried_forward : [],
+    validated_modules: impact ? impact.validated : [],
+    stale_modules: impact ? impact.stale : [],
+    impact: impact
+      ? {
+          directly_affected: impact.directly_affected,
+          dependency_affected: impact.dependency_affected,
+          deferred: impact.deferred,
+        }
+      : null,
     findings,
     severity: "info",
     confidence: "medium",
@@ -325,7 +344,7 @@ function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, fi
       model: ctx.config.ollamaModel,
       attempts: 1,
       duration_ms: 0,
-      tool_calls: completed.length,
+      tool_calls: checks.length,
     },
   };
 }
@@ -374,6 +393,9 @@ export default {
 
     let completed;
     let summary;
+    let changedFiles = [];
+    let impact = null;
+    let checksSelected = [];
     const findings = [];
 
     if (kind === "synthetic") {
@@ -398,20 +420,24 @@ export default {
       const map = await writeBaselineMap(ctx, sessionId, commit);
       summary = `baseline: ${map.modules} modules, ${map.flows} flows, ${map.deps} deps, ${map.tests} tests at ${commit}`;
     } else {
-      // review: change-aware incremental review (Phase 1 read-only proof uses a
-      // narrow scope; full change-aware diffing is exercised during baseline+).
-      completed = await runSession(ctx, {
+      // review: true change-aware incremental review — diff base..current, map
+      // changed files to modules, follow dependency edges, select checks, and
+      // persist STALE / VALIDATED / carried-forward outcomes.
+      const review = await runChangeAwareReview(ctx, {
         sessionId,
         jobId: job.id,
         baseCommit: payload.base_commit || commit,
-        currentCommit: commit,
-        scope,
-        taskPlan: reviewPlan(ctx, payload),
+        commit,
       });
-      summary = `review ${sessionId}: ${completed.length} checks at ${commit}`;
+      completed = review.completed;
+      changedFiles = review.changedFiles;
+      impact = review.impact;
+      checksSelected = review.checksSelected;
+      findings.push(...review.findings);
+      summary = review.summary;
     }
 
-    const result = buildResult(ctx, { sessionId, currentCommit: commit, tree, scope, completed, findings, summary });
+    const result = buildResult(ctx, { sessionId, currentCommit: commit, tree, scope, completed, changedFiles, impact, checksSelected, findings, summary });
     result.runtime.duration_ms = Date.now() - started;
     logger.log("session_done", { session_id: sessionId, commit, tasks: completed.length });
     return result;
@@ -420,25 +446,104 @@ export default {
 
 // ---- Task plans ----
 
-function reviewPlan(ctx, payload) {
-  const scope = typeof payload.scope === "string" && payload.scope ? payload.scope : null;
-  const plan = [
-    { taskKind: "git.rev", description: "record exact commit and tree", params: {} },
-    { taskKind: "git.status", description: "assert worktree clean", params: {} },
-    {
-      taskKind: "git.ls_files",
-      description: scope ? `list tracked files under ${scope}` : "enumerate tracked files",
-      params: scope ? { path: scope } : {},
-    },
-  ];
-  if (typeof payload.check_file === "string" && payload.check_file) {
-    plan.push({
-      taskKind: "node.check",
-      description: `deterministic syntax check: ${payload.check_file}`,
-      params: { path: payload.check_file },
-    });
+// ---- Change-aware review (diff → module impact → checks → memory) ----
+
+function computeValidationOutcome(impact, checksRun, unavailable) {
+  const anyFailed = checksRun.some((c) => c.ok === false);
+  const anyUnavailable = unavailable.length > 0;
+  const validated = !anyFailed && !anyUnavailable ? [...impact.directly_affected] : [];
+  const validatedSet = new Set(validated);
+  const stale = [...impact.directly_affected, ...impact.dependency_affected].filter((n) => !validatedSet.has(n));
+  return { validated, stale };
+}
+
+function updateValidationMemory(db, impact, commit, sessionId, changedCount) {
+  const { directly_affected, dependency_affected, validated } = impact;
+  const affected = [...directly_affected, ...dependency_affected];
+  for (const name of affected) {
+    db.prepare("UPDATE modules SET validation_state = 'STALE', updated_at = datetime('now') WHERE name = ?").run(name);
   }
-  return plan;
+  for (const name of validated) {
+    db.prepare("UPDATE modules SET validation_state = 'VALIDATED', last_validated_commit = ? WHERE name = ?").run(commit, name);
+  }
+  recordValidation(db, sessionId, "repository", `change-aware diff (${changedCount} changed files): ${directly_affected.length} direct + ${dependency_affected.length} dependency affected`, commit, "VALIDATED");
+  for (const name of validated) {
+    recordValidation(db, sessionId, name, "re-validated after checks passed", commit, "VALIDATED");
+  }
+  for (const name of affected.filter((n) => !validated.includes(n))) {
+    recordValidation(db, sessionId, name, "STALE — affected by change; required checks not (fully) passed", commit, "STALE");
+  }
+}
+
+async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, commit }) {
+  const { db, tools } = ctx;
+
+  // Structural baseline tasks via the resumable session (git.rev, git.status).
+  const completed = await runSession(ctx, {
+    sessionId,
+    jobId,
+    baseCommit,
+    currentCommit: commit,
+    scope: "review",
+    taskPlan: [
+      { taskKind: "git.rev", description: "record exact commit and tree", params: {} },
+      { taskKind: "git.status", description: "assert worktree clean", params: {} },
+    ],
+  });
+
+  // Deterministic diff via the allowlisted tool (no git command construction).
+  const diff = await tools.runTool("git.diff_names", { base: baseCommit, current: commit });
+  const changedFiles = diff.ok && Array.isArray(diff.changes) ? diff.changes : [];
+  if (!diff.ok) {
+    return {
+      completed,
+      changedFiles: [],
+      impact: null,
+      checksSelected: [],
+      findings: [{ severity: "warn", message: `diff failed: ${diff.error}` }],
+      summary: `review ${sessionId}: diff failed (${diff.error})`,
+    };
+  }
+
+  // Map changed files → modules (direct + transitive dependency affected).
+  const impact = mapModuleImpact(changedFiles, MODULES, DEPENDENCIES);
+
+  // Select + run checks for the directly affected modules.
+  const checksSelected = selectChecksForFiles(changedFiles);
+  const checksRun = [];
+  const findings = [];
+  for (const c of checksSelected) {
+    if (!c.runnable) {
+      findings.push({ severity: "info", message: `${c.kind} required for ${c.params.path} — not runnable in isolated worktree (no node_modules)` });
+      continue;
+    }
+    try {
+      const r = await runWorkerTask(ctx, { kind: c.kind, params: c.params });
+      checksRun.push({ kind: c.kind, description: c.description, summary: r.summary, ok: r.ok });
+    } catch (err) {
+      checksRun.push({ kind: c.kind, description: c.description, summary: `failed: ${err instanceof Error ? err.message : String(err)}`, ok: false });
+    }
+  }
+
+  const unavailable = checksSelected.filter((c) => !c.runnable);
+  const outcome = computeValidationOutcome(impact, checksRun, unavailable);
+  impact.validated = outcome.validated;
+  impact.stale = outcome.stale;
+
+  updateValidationMemory(db, impact, commit, sessionId, changedFiles.length);
+
+  for (const c of checksRun) completed.push({ kind: c.kind, description: c.description, summary: c.summary });
+
+  const summary = `change-aware review: ${changedFiles.length} changed files → ${impact.directly_affected.length} direct + ${impact.dependency_affected.length} dependency affected; ${impact.carried_forward.length} carried forward; ${impact.validated.length} re-validated`;
+
+  return {
+    completed,
+    changedFiles,
+    impact,
+    checksSelected: checksSelected.map((c) => ({ kind: c.kind, path: c.params?.path, runnable: c.runnable })),
+    findings,
+    summary,
+  };
 }
 
 function baselinePlan() {

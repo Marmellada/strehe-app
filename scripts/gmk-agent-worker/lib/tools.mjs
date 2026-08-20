@@ -34,6 +34,41 @@ function resolveWithin(base, target) {
   return resolved;
 }
 
+// Accept only a bare git commit ref (7-40 hex). Never a range/flag/glob.
+function validateRef(ref) {
+  if (typeof ref !== "string") return null;
+  const r = ref.trim();
+  return /^[0-9a-f]{7,40}$/i.test(r) ? r : null;
+}
+
+// Accept only a clean repository-relative scope path (no traversal/absolute).
+function validateScopePath(p) {
+  if (typeof p !== "string") return null;
+  const norm = p.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!norm || norm.startsWith("/") || norm.includes("..") || norm.includes("\0")) return null;
+  return norm;
+}
+
+// Parse `git diff --name-status` output into structured changes.
+function parseNameStatus(stdout) {
+  const changes = [];
+  for (const raw of String(stdout || "").split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const parts = line.split("\t");
+    const code = parts[0] || "";
+    const status = code[0];
+    if (!status) continue;
+    if ((status === "R" || status === "C") && parts.length >= 3) {
+      changes.push({ status, old_path: parts[1], path: parts[2] });
+    } else if (parts.length >= 2) {
+      changes.push({ status, path: parts[1] });
+    }
+  }
+  return changes;
+}
+
+
 function run(cmd, args, timeoutMs) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, {
@@ -105,6 +140,15 @@ export function createToolGateway({ worktreePath }) {
     "git.status": async () => git(["status", "--porcelain"]),
     "git.diff_stat": async () => git(["diff", "--stat"]),
     "git.diff": async () => git(["diff", "--", "."]),
+    "git.diff_names": async (p) => {
+      const base = validateRef(p?.base);
+      const current = validateRef(p?.current);
+      if (!base || !current) return { ok: false, error: "invalid commit ref (must be 7-40 hex)" };
+      if (base === current) return { ok: true, stdout: "", stderr: "", changes: [] };
+      const r = await git(["diff", "--name-status", `${base}..${current}`]);
+      if (!r.ok) return r;
+      return { ...r, changes: parseNameStatus(r.stdout) };
+    },
     "git.log": async (p) => git(["log", "--oneline", "-n", String(clampInt(p?.count, 50))]),
     "git.rev": async () => {
       const head = await git(["rev-parse", "HEAD"]);
@@ -113,7 +157,11 @@ export function createToolGateway({ worktreePath }) {
     },
     "git.ls_files": async (p) => {
       const args = ["ls-files"];
-      if (typeof p?.path === "string" && p.path) args.push("--", String(p.path));
+      if (p && typeof p.path === "string" && p.path) {
+        const scope = validateScopePath(p.path);
+        if (!scope) return { ok: false, error: `invalid scope path: ${p.path}` };
+        args.push("--", scope);
+      }
       return git(args);
     },
     "files": async (p) => {
