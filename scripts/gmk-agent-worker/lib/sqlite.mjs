@@ -121,6 +121,8 @@ CREATE TABLE IF NOT EXISTS runtime_state (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_test_catalog_file ON test_catalog(file);
 `;
 
 export function ensureRuntimeDirs(runtimeRoot) {

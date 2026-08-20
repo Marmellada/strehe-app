@@ -2,6 +2,7 @@ import { createToolGateway } from "../lib/tools.mjs";
 import { openDatabase, setState } from "../lib/sqlite.mjs";
 import { ollamaChat } from "../lib/ollama.mjs";
 import { parseJsonLoose } from "../lib/json.mjs";
+import { MODULES, FLOWS, DEPENDENCIES } from "./strehe-map.mjs";
 
 // Engineering Agent V1 — Coordinator + Worker.
 // Coordinator owns durable continuity (SQLite); Worker executes one bounded task.
@@ -97,6 +98,39 @@ async function runWorkerTask(ctx, task) {
       return { ok: true, summary: `read ${params.path}`, evidence: [{ kind: "file.read", path: params.path, bytes: r.bytes }] };
     }
 
+    case "parse.migrations": {
+      const tables = await tools.runTool("search", { pattern: "create table public\\.\\w+", glob: "supabase/migrations/*.sql" });
+      const funcs = await tools.runTool("search", { pattern: "create (or replace )?function public\\.\\w+", glob: "supabase/migrations/*.sql" });
+      const names = (s) => [...new Set(((s || "").match(/public\.([a-zA-Z0-9_]+)/g) || []).map((n) => n.replace("public.", "")))];
+      const tableNames = names(tables.stdout);
+      const funcNames = names(funcs.stdout);
+      return {
+        ok: true,
+        summary: `${tableNames.length} tables, ${funcNames.length} functions`,
+        evidence: [{ kind: "migrations", tables: tableNames, functions: funcNames }],
+      };
+    }
+
+    case "read.package": {
+      const r = await tools.runTool("file.read", { path: "package.json" });
+      if (!r.ok) throw new Error(`package.json read failed: ${r.error}`);
+      const pkg = JSON.parse(r.content);
+      return {
+        ok: true,
+        summary: `package.json (${Object.keys(pkg.scripts || {}).length} scripts)`,
+        evidence: [{ kind: "package", scripts: pkg.scripts || {}, dependencies: Object.keys(pkg.dependencies || {}), devDependencies: Object.keys(pkg.devDependencies || {}) }],
+      };
+    }
+
+    case "verify.paths": {
+      const ls = await tools.runTool("git.ls_files");
+      const files = (ls.stdout || "").split("\n");
+      const paths = Array.isArray(params.paths) ? params.paths : [];
+      const verified = paths.filter((p) => files.some((f) => f === p || f.startsWith(`${p}/`)));
+      const missing = paths.filter((p) => !verified.includes(p));
+      return { ok: true, summary: `${verified.length}/${paths.length} paths present`, evidence: [{ kind: "verify.paths", verified, missing }] };
+    }
+
     default:
       throw new Error(`unknown task kind: ${kind}`);
   }
@@ -163,6 +197,58 @@ function recordValidation(db, sessionId, module, check, commit, state) {
   db.prepare(
     "INSERT INTO validation_records (module, check_performed, commit_sha, state, run_id) VALUES (?, ?, ?, ?, ?)",
   ).run(module, check, commit, state, sessionId);
+}
+
+function upsertModule(db, m) {
+  db.prepare(
+    `INSERT INTO modules (name, purpose, source_paths, db_dependencies, rpc_dependencies, external_services, tests, criticality, mapping_state, validation_state, last_validated_commit, known_findings, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(name) DO UPDATE SET
+       purpose = excluded.purpose,
+       source_paths = excluded.source_paths,
+       db_dependencies = excluded.db_dependencies,
+       rpc_dependencies = excluded.rpc_dependencies,
+       external_services = excluded.external_services,
+       tests = excluded.tests,
+       criticality = excluded.criticality,
+       mapping_state = excluded.mapping_state,
+       validation_state = excluded.validation_state,
+       last_validated_commit = excluded.last_validated_commit,
+       known_findings = excluded.known_findings,
+       updated_at = datetime('now')`,
+  ).run(
+    m.name,
+    m.purpose ?? null,
+    JSON.stringify(m.source_paths ?? []),
+    JSON.stringify(m.db_deps ?? []),
+    JSON.stringify(m.rpc_deps ?? []),
+    JSON.stringify(m.external ?? []),
+    JSON.stringify(m.tests ?? []),
+    m.criticality ?? "low",
+    m.mapping_state ?? "MAPPED",
+    m.validation_state ?? "NEEDS_REVIEW",
+    m.last_validated_commit ?? null,
+    JSON.stringify(m.notes ? [m.notes] : []),
+  );
+}
+
+function upsertFlow(db, f) {
+  db.prepare(
+    `INSERT INTO critical_flows (name, steps, notes) VALUES (?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET steps = excluded.steps, notes = excluded.notes`,
+  ).run(f.name, JSON.stringify(f.steps), f.note ?? null);
+}
+
+function upsertDependency(db, from, to) {
+  db.prepare(
+    "INSERT INTO module_dependencies (module_from, module_to, kind) VALUES (?, ?, 'depends') ON CONFLICT(module_from, module_to, kind) DO NOTHING",
+  ).run(from, to);
+}
+
+function upsertTest(db, file, kind, target) {
+  db.prepare(
+    "INSERT INTO test_catalog (file, kind, target) VALUES (?, ?, ?) ON CONFLICT(file) DO UPDATE SET kind = excluded.kind, target = excluded.target",
+  ).run(file, kind, target);
 }
 
 // ---- Coordinator: run a session (resumable) ----
@@ -301,18 +387,16 @@ export default {
       });
       summary = "synthetic engineering flow: local ollama + validation + complete";
     } else if (kind === "baseline") {
-      // Bounded baseline mapping plan (Phase 2 runs this incrementally).
       completed = await runSession(ctx, {
         sessionId,
         jobId: job.id,
         baseCommit: commit,
         currentCommit: commit,
         scope,
-        taskPlan: baselinePlan(ctx, commit),
+        taskPlan: baselinePlan(),
       });
-      // Persist a coarse structural map from the evidence we collected.
-      persistBaselineMap(ctx, sessionId, commit, completed);
-      summary = `baseline mapping: ${completed.length} bounded tasks executed at ${commit}`;
+      const map = await writeBaselineMap(ctx, sessionId, commit);
+      summary = `baseline: ${map.modules} modules, ${map.flows} flows, ${map.deps} deps, ${map.tests} tests at ${commit}`;
     } else {
       // review: change-aware incremental review (Phase 1 read-only proof uses a
       // narrow scope; full change-aware diffing is exercised during baseline+).
@@ -368,18 +452,66 @@ function baselinePlan() {
     { taskKind: "files", description: "enumerate lib modules", params: { glob: "lib/**/*.ts" } },
     { taskKind: "files", description: "enumerate migrations", params: { glob: "supabase/migrations/*.sql" } },
     { taskKind: "search", description: "find server actions", params: { pattern: "use server", glob: "app/**/*.ts" } },
-    { taskKind: "search", description: "find cron routes", params: { pattern: "cron", glob: "app/api/cron/**" } },
+    { taskKind: "parse.migrations", description: "extract tables/functions from migrations", params: {} },
+    { taskKind: "read.package", description: "read package.json scripts/deps", params: {} },
   ];
 }
 
-function persistBaselineMap(ctx, sessionId, commit, completed) {
+async function writeBaselineMap(ctx, sessionId, commit) {
   const { db } = ctx;
-  for (const c of completed) {
-    if (c.kind === "git.ls_files") {
-      recordValidation(db, sessionId, "repository.files", "enumerated tracked files", commit, "VALIDATED");
-    } else if (c.kind === "search" || c.kind === "files") {
-      recordValidation(db, sessionId, c.description, "structured search", commit, "VALIDATED");
-    }
+  const counts = { modules: 0, flows: 0, deps: 0, tests: 0 };
+
+  // Curated module map (idempotent upsert). Post-V1 areas remain DEFERRED.
+  for (const m of MODULES) {
+    const deferred = m.category === "post-v1";
+    upsertModule(db, {
+      ...m,
+      mapping_state: "MAPPED",
+      validation_state: deferred ? "DEFERRED" : "NEEDS_REVIEW",
+      last_validated_commit: commit,
+    });
+    counts.modules += 1;
   }
+
+  // Behavioral / critical flows.
+  for (const f of FLOWS) {
+    upsertFlow(db, f);
+    counts.flows += 1;
+  }
+
+  // Module-level dependency edges (change-impact graph).
+  for (const [from, to] of DEPENDENCIES) {
+    upsertDependency(db, from, to);
+    counts.deps += 1;
+  }
+
+  // Test catalog: discover deterministic check files via the tool gateway.
+  const [unitTests, dbTests, scripts] = await Promise.all([
+    ctx.tools.runTool("files", { glob: "tests/**" }),
+    ctx.tools.runTool("files", { glob: "supabase/tests/**" }),
+    ctx.tools.runTool("files", { glob: "scripts/*.mjs" }),
+  ]);
+  const catalog = [
+    ...(unitTests.stdout || "").split("\n").filter(Boolean).map((f) => [f, "test"]),
+    ...(dbTests.stdout || "").split("\n").filter(Boolean).map((f) => [f, "db-test"]),
+    ...(scripts.stdout || "").split("\n").filter(Boolean).map((f) => [f, "verification"]),
+  ];
+  for (const [file, kind] of catalog) {
+    upsertTest(db, file, kind, null);
+    counts.tests += 1;
+  }
+
+  // Validation ledger (honest states; nothing fabricated).
+  recordValidation(db, sessionId, "repository", "baseline commit + tree + clean status", commit, "VALIDATED");
+  recordValidation(db, sessionId, "repository", "structural enumeration (routes/libs/migrations/scripts)", commit, "VALIDATED");
+  recordValidation(db, sessionId, "modules", `curated module map (${counts.modules} modules)`, commit, "NEEDS_REVIEW");
+  recordValidation(db, sessionId, "critical_flows", `behavioral flow map (${counts.flows} flows)`, commit, "NEEDS_REVIEW");
+  recordValidation(db, sessionId, "module_dependencies", "module-level dependency graph", commit, "NEEDS_REVIEW");
+  recordValidation(db, sessionId, "test_catalog", `${counts.tests} check files discovered (NOT individually executed)`, commit, "NEEDS_REVIEW");
+  recordValidation(db, sessionId, "build", "npm build/lint/typecheck NOT RUN (isolated worktree has no node_modules)", commit, "NEEDS_REVIEW");
+  recordValidation(db, sessionId, "inspection-lab", "post-V1", commit, "DEFERRED");
+  recordValidation(db, sessionId, "finance-agent", "post-V1", commit, "DEFERRED");
+
   setState(db, "last_mapped_commit", commit || "");
+  return counts;
 }
