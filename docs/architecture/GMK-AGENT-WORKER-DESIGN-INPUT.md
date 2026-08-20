@@ -3,6 +3,8 @@
 - **Type:** Design-input note (read-only inspection product; no implementation)
 - **Date:** 2026-08-20
 - **Predecessor:** `docs/architecture/STREHE-AGENTIC-ARCHITECTURE-AUDIT.md` (full inventory)
+- **Authoritative downstream SPEC:** `docs/architecture/GMK-AGENT-WORKER-V1-SPEC.md`
+  (this note is design INPUT only; the SPEC is the implementation contract).
 - **Source of truth:** `supabase/migrations/20260611120000_add_household_and_agent_foundations.sql`
   and `supabase/migrations/20260612110000_harden_agent_identity_boundary.sql`
 
