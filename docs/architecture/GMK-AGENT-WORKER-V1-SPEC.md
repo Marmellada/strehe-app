@@ -105,6 +105,9 @@ Component behaviors:
 - **One Supabase Auth identity per agent.** Each agent is a distinct `auth.users` row
   with a matching `agent_principals` row (`agent_principals.id = auth.users.id`). The
   DB trigger enforces mutual exclusivity between `agent_principals` and `app_users`.
+- **Suggested agent identities** (separate Supabase agent principals; mailbox access is
+  not assumed): `agent.engineering@streheprona.com`, `agent.inbox@streheprona.com`,
+  `agent.growth@streheprona.com`.
 - **`agent_capabilities`** grant exactly the capabilities an agent needs
   (e.g. `inbox.analyze`, `growth.recommend`, `engineering.local`). Capability is the
   routing/authorization key checked by both `claim_agent_job` and the eligible-jobs
@@ -240,30 +243,25 @@ queued ──discover──> claimed ──claim_agent_job──> running
 
 ## 8. Engineering Agent V1 contract
 
-- **Isolated worktree:** runs against a dedicated git clone/worktree under a
-  `GMK_ENGINEERING_ROOT` (e.g. `D:\Personal\Projects\Strehe-Prona\gmk-engineering-worktree`),
-  created by the operator, NEVER the production worktree. The worker refuses to run if
-  cwd equals a production worktree path.
-- **Initial tool categories (read/analyze/test):**
-  - repo read/search: `rg`/`grep`-style file search (read-only).
-  - `git status`, `git diff`, `git diff --stat`, `git log`, `git show` (read-only).
-  - tests: `npm test` / `npx playwright test <subset>` / `python -m pytest` (whitelisted).
-  - lint/build: `npm run lint`, `npm run build` (whitelisted, output captured).
-- **Allowlist/deny principles:** every command runs through `lib/tools.mjs` which
-  enforces (a) a fixed allowlist of command prefixes; (b) an explicit deny-list of any
-  `push|merge|rebase|tag|fetch|clone|remote|checkout|commit|cherry-pick|reset|clean`
-  mutation forms; (c) a timeout per tool; (d) stdout/stderr captured to bounded buffers.
-- **Output capture:** tool stdout/stderr are returned into `job.result` and validated
-  by `forbiddenKeys` (no secrets/paths leak). No tool output is written to disk by the
-  worker.
-- **Filesystem boundaries:** the worker's only writable location is its own `.env` read
-  (none at runtime) and in-memory buffers. It does not create/modify repo files in V1.
-- **Secret/environment isolation:** the Engineering agent identity has NO service_role,
-  NO Meta/Vercel/DNS/billing/deployment credentials, and NO gh token. Tool subprocesses
-  inherit a scrubbed environment (no `SUPABASE_*`, `META_*`, `GH_*`, `VERCEL_*`).
-- **Artifact/result behavior:** results are jsonb in `job.result`; no files written.
-- **Patch-writing:** explicitly a LATER permission increase. V1 is read/analyze/test
-  only; there is no `write_file`/`patch`/`commit` tool in V1.
+See the dedicated spec `docs/architecture/ENGINEERING-AGENT-V1-SPEC.md`. Summary:
+
+- **Two logical roles** (same model sequentially in V1): Engineering **Coordinator**
+  (system map, dependency graph, validation/decision ledgers, review planning,
+  change-impact analysis, final findings) and Engineering **Worker** (bounded tasks:
+  repo read/search, git status/diff/log, targeted tests, lint, typecheck, build,
+  dependency tracing, evidence collection, failure investigation).
+- **Memory = local SQLite, not LLM context**:
+  `D:\Personal\Projects\Strehe-Prona\STREHE-ENGINEERING-RUNTIME\state\engineering.sqlite3`
+  (+ `state\artifacts\` for large logs). No new Supabase schema for V1 memory.
+- **Isolated worktree** at `STREHE-ENGINEERING-RUNTIME\worktree\strehe-app-engineering`,
+  synced read-only (fetch + detached checkout at the reviewed commit); every result
+  states the exact Git commit + fingerprint.
+- **One Supabase job = one review/investigation session**; internal subtasks live in
+  local SQLite (`review_tasks`/`review_evidence`).
+- **Permissions:** READ / ANALYZE / TEST / RECOMMEND / PLAN / VERIFY only. No edit,
+  patch, commit, merge, rebase, push, tag, deploy, migration, or DB write. No
+  `patch.prepare` capability in V1.
+- **First job:** `ENGINEERING-BASELINE-001` (authoritative system map).
 
 ---
 
@@ -455,3 +453,23 @@ payload) and a draft panel in `app/operator/inbox/[id]/page.tsx`.
 - Autonomous spending / publishing (Growth is recommend-only).
 - Cloud LLM fallback (unless separately approved).
 - Engineering patch-writing (a later, explicit permission increase).
+
+---
+
+## 18. Resolved V1 decisions (agreed with Milot)
+
+- Inbox V1 uses bounded **context-in-payload**, not direct messaging-table grants.
+- Inbox AI never sends customer messages.
+- Human approval / draft handling lives in the existing Operator Inbox conversation page.
+- Engineering patch/code writing remains OUT of V1 (no `patch.prepare`).
+- Agent model selection is configuration, not an architectural dependency.
+- Verify production `agent_*` migrations are applied before implementation.
+- The old agent branch (`codex/household-agent-foundations` /
+  `qwen-inspection-lab-drafts`) is reference material only; manually port proven patterns.
+- Growth remains disabled until the social-media reporting layer is available.
+- Photo-Comparison/Inspection and Finance agents remain deferred.
+- Engineering Agent is two logical roles (Coordinator + Worker) sharing a model in V1;
+  its durable memory is local SQLite on D: (see `ENGINEERING-AGENT-V1-SPEC.md`).
+- Agent identities are separate Supabase agent principals with suggested emails
+  `agent.engineering@streheprona.com`, `agent.inbox@streheprona.com`,
+  `agent.growth@streheprona.com`; mailbox access is not assumed.
