@@ -1,0 +1,106 @@
+import path from "node:path";
+import { readEnv, requireValue } from "./lib/env.mjs";
+import { getCredential } from "./lib/credential.mjs";
+import { createAgentClient, signInAgent, heartbeat } from "./lib/supabase.mjs";
+import { createLogger } from "./lib/logging.mjs";
+import { processNextJob } from "./lib/claim-loop.mjs";
+
+const AGENT_LOADERS = {
+  engineering: () => import("./agents/engineering.spec.mjs").then((m) => m.default),
+  inbox: () => import("./agents/inbox.spec.mjs").then((m) => m.default),
+  growth: () => import("./agents/growth.spec.mjs").then((m) => m.default),
+};
+
+function parseArgs(argv) {
+  let agent = "engineering";
+  let once = false;
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "--once") once = true;
+    else if (a === "--agent" && argv[i + 1]) { agent = argv[++i]; }
+    else if (a.startsWith("--agent=")) agent = a.slice("--agent=".length);
+  }
+  return { agent, once };
+}
+
+function numOr(value, fallback, min) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min ? n : fallback;
+}
+
+async function main() {
+  const { agent, once } = parseArgs(process.argv.slice(2));
+  if (!AGENT_LOADERS[agent]) throw new Error(`unknown agent: ${agent}`);
+  const spec = await AGENT_LOADERS[agent]();
+
+  const envPath = process.env.GMK_ENV_FILE || path.resolve(process.cwd(), `.env.gmk-${agent}.local`);
+  const env = readEnv(envPath);
+  const logger = createLogger({ agent: spec.agentKey, capability: spec.capability });
+
+  const supabaseUrl = requireValue(env, "SUPABASE_URL");
+  const anonKey = requireValue(env, "SUPABASE_ANON_KEY");
+  const email = requireValue(env, "SUPABASE_AGENT_EMAIL");
+  const credentialTarget = env.get("GMK_CREDENTIAL_TARGET") || `strehe-agent-${agent}`;
+
+  const envGet = (key) => env.get(key) ?? process.env[key];
+
+  const config = {
+    supabaseUrl,
+    anonKey,
+    email,
+    ollamaBaseUrl: envGet("OLLAMA_BASE_URL") || "http://127.0.0.1:11434",
+    ollamaModel: envGet("OLLAMA_MODEL") || spec.ollamaModel || "deepseek-coder-v2:16b",
+    pollSeconds: numOr(envGet("GMK_POLL_SECONDS"), spec.pollSeconds, 2),
+    leaseSeconds: numOr(envGet("GMK_LEASE_SECONDS"), spec.leaseSeconds, 30),
+    ollamaTimeoutMs: numOr(envGet("GMK_OLLAMA_TIMEOUT_MS"), spec.ollamaTimeoutMs, 30000),
+    ollamaNumGpu: numOr(envGet("GMK_OLLAMA_NUM_GPU"), 0, 0),
+    runtimeRoot: envGet("GMK_RUNTIME_ROOT") || null,
+    worktreePath: envGet("GMK_WORKTREE_PATH") || null,
+  };
+
+  // Agent password comes from the OS credential store, never from env/files/logs.
+  const password = getCredential(credentialTarget);
+  const supabase = createAgentClient(supabaseUrl, anonKey);
+  await signInAgent(supabase, email, password);
+  logger.log("signed_in", { credential_target: credentialTarget });
+
+  await heartbeat(supabase);
+  logger.log("heartbeat", {});
+
+  const runtime = { supabase, config, logger };
+  spec.leaseSeconds = config.leaseSeconds; // env override (used by claim + renew)
+
+  let stopped = false;
+  const shutdown = () => {
+    if (stopped) return;
+    stopped = true;
+    logger.log("shutdown", {});
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  if (once) {
+    const processed = await processNextJob(runtime, spec);
+    logger.log(processed ? "pass_processed" : "pass_idle", {});
+    process.exit(0);
+  }
+
+  logger.log("watching", { poll_seconds: config.pollSeconds, model: config.ollamaModel });
+  while (!stopped) {
+    try {
+      const processed = await processNextJob(runtime, spec);
+      if (!processed) {
+        await heartbeat(supabase).catch(() => {});
+      }
+    } catch (err) {
+      logger.log("loop_error", { error_class: err instanceof Error ? err.message.slice(0, 200) : "unknown" });
+    }
+    await new Promise((resolve) => setTimeout(resolve, config.pollSeconds * 1000));
+  }
+}
+
+main().catch((err) => {
+  process.stderr.write(`worker fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.exit(1);
+});
