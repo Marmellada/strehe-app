@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -23,6 +24,14 @@ function sanitizedEnv() {
     if (process.env[key] !== undefined) env[key] = process.env[key];
   }
   return env;
+}
+
+export function getToolSecurityProfile() {
+  return {
+    shell: false,
+    arbitraryCommandTool: false,
+    environmentAllowlist: [...ENV_ALLOWLIST],
+  };
 }
 
 function resolveWithin(base, target) {
@@ -133,8 +142,6 @@ export function createToolGateway({ worktreePath }) {
     return { ok: true, content, bytes: stat.size, truncated: stat.size > MAX_FILE_READ_BYTES };
   }
 
-  const GIT_DENY = /\b(push|merge|rebase|tag|commit|checkout|reset|clean|fetch|clone|remote|cherry-pick|rm|add|mv)\b/i;
-
   const tools = {
     // read-only git
     "git.status": async () => git(["status", "--porcelain"]),
@@ -163,6 +170,20 @@ export function createToolGateway({ worktreePath }) {
         args.push("--", scope);
       }
       return git(args);
+    },
+    "git.scope_fingerprint": async (p) => {
+      const rawPaths = Array.isArray(p?.paths) ? p.paths.slice(0, 12) : [];
+      const paths = rawPaths.map(validateScopePath).filter(Boolean);
+      if (paths.length === 0 || paths.length !== rawPaths.length) {
+        return { ok: false, error: "invalid scope paths" };
+      }
+      const result = await git(["ls-files", "-s", "--", ...paths]);
+      if (!result.ok) return result;
+      return {
+        ...result,
+        fingerprint: crypto.createHash("sha256").update(result.stdout).digest("hex"),
+        fileCount: String(result.stdout || "").split("\n").filter(Boolean).length,
+      };
     },
     "files": async (p) => {
       const glob = typeof p?.glob === "string" && p.glob ? ["-g", p.glob] : [];
@@ -209,10 +230,6 @@ export function createToolGateway({ worktreePath }) {
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
-    },
-    // Exposed for tests only.
-    _isDenied(args) {
-      return GIT_DENY.test(args.join(" "));
     },
   };
 }

@@ -4,6 +4,13 @@ import { ollamaChat } from "../lib/ollama.mjs";
 import { parseJsonLoose } from "../lib/json.mjs";
 import { MODULES, FLOWS, DEPENDENCIES } from "./strehe-map.mjs";
 import { mapModuleImpact, selectChecksForFiles } from "../lib/impact.mjs";
+import {
+  recordProactiveAttempt,
+  recordProactiveFailure,
+  recordProactiveOutcome,
+  readRecentEngineeringDecisions,
+  updateFindingLifecycle,
+} from "../lib/proactive.mjs";
 
 // Engineering Agent V1 — Coordinator + Worker.
 // Coordinator owns durable continuity (SQLite); Worker executes one bounded task.
@@ -14,6 +21,29 @@ const MAX_RETRIES = 2;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+export const ENGINEERING_INTENTIONAL_CONSTRAINTS = Object.freeze([
+  "Outbound production messaging is human-authorized. Engineering agents deliberately do not have unrestricted autonomous send capability.",
+  "Agents must not autonomously deploy, apply migrations, or mutate production. Production changes remain human-gated.",
+  "AI processing for the Engineering Agent is local-only. Public AI APIs are disabled.",
+]);
+
+export function buildProactivePrompt(targetModule, excerpts) {
+  const decisions = Array.isArray(targetModule?.decisions)
+    ? targetModule.decisions.slice(0, 8)
+    : [];
+
+  return [
+    "You are performing one bounded, read-only engineering review.",
+    "Do not perform or claim any code change was made. Analyze only the supplied files; recommendations require human approval.",
+    "Return JSON only with: {summary:string, findings:Array<{severity:'critical'|'high'|'medium'|'low'|'info',confidence:'high'|'medium'|'low',summary:string,evidence:string[],recommendation:string}>}.",
+    "Return at most 5 concrete findings. Evidence must cite supplied file paths and concise observations. If no supported defect or useful risk is found, return findings: [].",
+    "An intentional architectural constraint or non-goal is not itself a defect. Do not recommend removing or bypassing an intentional constraint. Report only a concrete implementation defect, a violation of the constraint, a weakness that undermines its safety purpose, or a material risk within the intended architecture.",
+    `INTENTIONAL CONSTRAINTS: ${JSON.stringify(ENGINEERING_INTENTIONAL_CONSTRAINTS)}`,
+    `MODULE: ${targetModule.name}\nPURPOSE: ${targetModule.purpose || ""}\nCRITICALITY: ${targetModule.criticality || "unknown"}\nKNOWN FINDINGS: ${JSON.stringify(targetModule.known_findings || [])}\nKNOWN ARCHITECTURAL DECISIONS: ${JSON.stringify(decisions)}\nDECLARED TESTS: ${JSON.stringify(targetModule.tests || [])}`,
+    excerpts.join("\n\n"),
+  ].join("\n\n");
 }
 
 // ---- Worker task handlers (bounded, tool-gateway only) ----
@@ -138,6 +168,67 @@ async function runWorkerTask(ctx, task) {
       const verified = paths.filter((p) => files.some((f) => f === p || f.startsWith(`${p}/`)));
       const missing = paths.filter((p) => !verified.includes(p));
       return { ok: true, summary: `${verified.length}/${paths.length} paths present`, evidence: [{ kind: "verify.paths", verified, missing }] };
+    }
+
+    case "proactive.analyze": {
+      const targetModule = params.module && typeof params.module === "object" ? params.module : null;
+      if (!targetModule?.name || !Array.isArray(targetModule.source_paths)) {
+        throw new Error("proactive module target is invalid");
+      }
+      const candidates = [];
+      for (const sourcePath of targetModule.source_paths.slice(0, 12)) {
+        const listed = await tools.runTool("git.ls_files", { path: sourcePath });
+        if (!listed.ok) continue;
+        for (const file of String(listed.stdout || "").split("\n").filter(Boolean)) {
+          if (!candidates.includes(file)) candidates.push(file);
+          if (candidates.length >= 8) break;
+        }
+        if (candidates.length >= 8) break;
+      }
+
+      let remaining = 56 * 1024;
+      const excerpts = [];
+      for (const file of candidates) {
+        if (remaining <= 0) break;
+        const read = await tools.runTool("file.read", { path: file });
+        if (!read.ok || !read.content) continue;
+        const content = String(read.content).slice(0, Math.min(12 * 1024, remaining));
+        remaining -= content.length;
+        excerpts.push(`FILE: ${file}\n${content}`);
+      }
+      if (excerpts.length === 0) throw new Error(`no readable tracked files found for proactive module ${targetModule.name}`);
+
+      const prompt = buildProactivePrompt(targetModule, excerpts);
+      const raw = await ollamaChat({
+        baseUrl: ctx.config.ollamaBaseUrl,
+        model: ctx.config.ollamaModel,
+        prompt,
+        numGpu: ctx.config.ollamaNumGpu ?? 0,
+        timeoutMs: ctx.config.ollamaTimeoutMs,
+      });
+      const parsed = parseJsonLoose(raw);
+      if (!parsed.ok || !parsed.value || !Array.isArray(parsed.value.findings)) {
+        throw new Error("proactive Ollama output did not match the bounded findings schema");
+      }
+      const findings = parsed.value.findings.slice(0, 5).map((finding) => ({
+        severity: ["critical", "high", "medium", "low", "info"].includes(finding?.severity) ? finding.severity : "info",
+        confidence: ["high", "medium", "low"].includes(finding?.confidence) ? finding.confidence : "medium",
+        summary: String(finding?.summary || "Finding").slice(0, 2000),
+        evidence: Array.isArray(finding?.evidence) ? finding.evidence.slice(0, 10).map((item) => String(item).slice(0, 1000)) : [],
+        recommendation: String(finding?.recommendation || "Human review required before remediation.").slice(0, 4000),
+      }));
+      const analysis = {
+        summary: String(parsed.value.summary || `Reviewed ${targetModule.name}`).slice(0, 2000),
+        findings,
+        files_reviewed: excerpts.map((entry) => entry.slice(6, entry.indexOf("\n"))),
+      };
+      return {
+        ok: true,
+        summary: findings.length > 0
+          ? `${targetModule.name}: ${findings.length} finding(s) require human review`
+          : `${targetModule.name}: no findings in bounded review`,
+        evidence: [{ kind: "proactive.analysis", content: analysis }],
+      };
     }
 
     default:
@@ -354,7 +445,7 @@ function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, ch
 export default {
   agentKey: "engineering.local",
   capability: "engineering.local",
-  jobTypes: ["engineering.review", "engineering.baseline", "engineering.synthetic"],
+  jobTypes: ["engineering.review", "engineering.baseline", "engineering.proactive", "engineering.finding.lifecycle", "engineering.synthetic"],
   ollamaModel: "deepseek-coder-v2:16b",
   pollSeconds: 10,
   leaseSeconds: 300,
@@ -362,7 +453,7 @@ export default {
   maxQualityAttempts: 3,
   tools: [
     "git.status", "git.diff_stat", "git.diff", "git.log", "git.rev",
-    "git.ls_files", "git.show_stat", "file.read", "search", "node.check",
+    "git.ls_files", "git.scope_fingerprint", "git.show_stat", "file.read", "search", "node.check",
     "npm.lint", "npm.build", "npm.typecheck", "npm.test",
   ],
 
@@ -374,7 +465,7 @@ export default {
     const ctx = { runtime, config, logger, db, tools };
 
     const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
-    const kind = payload.type || (job.job_type === "engineering.baseline" ? "baseline" : job.job_type === "engineering.synthetic" ? "synthetic" : "review");
+    const kind = payload.type || (job.job_type === "engineering.baseline" ? "baseline" : job.job_type === "engineering.proactive" ? "proactive" : job.job_type === "engineering.finding.lifecycle" ? "finding_lifecycle" : job.job_type === "engineering.synthetic" ? "synthetic" : "review");
 
     // Resolve the exact commit under review (payload override, else the worktree HEAD).
     let commit = typeof payload.commit_sha === "string" ? payload.commit_sha : null;
@@ -398,7 +489,14 @@ export default {
     let checksSelected = [];
     const findings = [];
 
-    if (kind === "synthetic") {
+    if (kind === "finding_lifecycle") {
+      const findingId = Number(payload.finding_id);
+      const lifecycle = String(payload.lifecycle || "").toUpperCase();
+      if (!Number.isSafeInteger(findingId) || findingId <= 0) throw new Error("invalid finding lifecycle target");
+      const updated = updateFindingLifecycle(db, { findingId, lifecycle, decidedAt: nowIso() });
+      completed = [{ kind: "finding.lifecycle", description: `set finding ${findingId} lifecycle`, summary: `${updated.lifecycle}` }];
+      summary = `finding ${findingId} lifecycle updated to ${updated.lifecycle} by an admin-requested job`;
+    } else if (kind === "synthetic") {
       completed = await runSession(ctx, {
         sessionId,
         jobId: job.id,
@@ -419,6 +517,80 @@ export default {
       });
       const map = await writeBaselineMap(ctx, sessionId, commit);
       summary = `baseline: ${map.modules} modules, ${map.flows} flows, ${map.deps} deps, ${map.tests} tests at ${commit}`;
+    } else if (kind === "proactive") {
+      if (!payload.target_module || !payload.target_fingerprint) {
+        throw new Error("proactive job is missing its deterministic module target");
+      }
+      if (tree !== payload.target_fingerprint || commit !== payload.commit_sha) {
+        const error = new Error("repository changed after proactive review was scheduled; change-aware work must run first");
+        error.code = "repository_changed_since_schedule";
+        throw error;
+      }
+      const moduleRow = db.prepare("SELECT * FROM modules WHERE name = ?").get(payload.target_module);
+      if (!moduleRow) throw new Error(`proactive module is not present in Engineering memory: ${payload.target_module}`);
+      const decisions = readRecentEngineeringDecisions(db, payload.target_module, 8);
+      const targetModule = {
+        ...moduleRow,
+        source_paths: JSON.parse(moduleRow.source_paths || "[]"),
+        tests: JSON.parse(moduleRow.tests || "[]"),
+        known_findings: JSON.parse(moduleRow.known_findings || "[]").slice(0, 10),
+        decisions,
+      };
+      const attemptedAt = nowIso();
+      recordProactiveAttempt(db, { moduleName: targetModule.name, attemptedAt });
+      completed = await runSession(ctx, {
+        sessionId,
+        jobId: job.id,
+        baseCommit: commit,
+        currentCommit: commit,
+        scope,
+        taskPlan: proactivePlan(targetModule),
+      });
+      const evidence = db.prepare(
+        `SELECT e.content FROM review_evidence e
+         JOIN review_tasks t ON t.id = e.task_id
+         WHERE t.session_id = ? AND e.kind = 'proactive.analysis'
+         ORDER BY e.id DESC LIMIT 1`,
+      ).get(sessionId);
+      if (!evidence?.content) {
+        const failureEvidence = db.prepare(
+          `SELECT e.content FROM review_evidence e
+           JOIN review_tasks t ON t.id = e.task_id
+           WHERE t.session_id = ? AND e.kind = 'error'
+           ORDER BY e.id DESC LIMIT 1`,
+        ).get(sessionId);
+        const failureText = String(failureEvidence?.content || "proactive_analysis_failed");
+        const failureClass = /timeout|abort/i.test(failureText)
+          ? "ollama_timeout"
+          : /schema|JSON|structured/i.test(failureText)
+            ? "ollama_schema_invalid"
+            : /no readable tracked files/i.test(failureText)
+              ? "zero_readable_files"
+              : "proactive_analysis_failed";
+        recordProactiveFailure(db, {
+          sessionId,
+          moduleName: targetModule.name,
+          commit,
+          attemptedAt,
+          failureClass,
+        });
+        const failure = new Error(`proactive analysis failed (${failureClass})`);
+        failure.code = failureClass;
+        throw failure;
+      }
+      const analysis = JSON.parse(evidence.content);
+      findings.push(...analysis.findings);
+      const reviewedAt = nowIso();
+      const outcome = recordProactiveOutcome(db, {
+        sessionId,
+        moduleName: targetModule.name,
+        commit,
+        fingerprint: payload.target_module_fingerprint || tree,
+        findings: analysis.findings,
+        reviewedAt,
+      });
+      summary = `${targetModule.name}: ${analysis.summary} (${outcome})`;
+      impact = { directly_affected: [targetModule.name], dependency_affected: [], carried_forward: [], deferred: [], validated: outcome === "NO_FINDINGS" ? [targetModule.name] : [], stale: outcome === "FINDINGS" ? [targetModule.name] : [] };
     } else {
       // review: true change-aware incremental review — diff base..current, map
       // changed files to modules, follow dependency edges, select checks, and
@@ -559,6 +731,14 @@ function baselinePlan() {
     { taskKind: "search", description: "find server actions", params: { pattern: "use server", glob: "app/**/*.ts" } },
     { taskKind: "parse.migrations", description: "extract tables/functions from migrations", params: {} },
     { taskKind: "read.package", description: "read package.json scripts/deps", params: {} },
+  ];
+}
+
+export function proactivePlan(targetModule) {
+  return [
+    { taskKind: "git.rev", description: "record exact proactive review commit and tree", params: {} },
+    { taskKind: "git.status", description: "confirm isolated worktree state", params: {} },
+    { taskKind: "proactive.analyze", description: `bounded read-only review of ${targetModule.name}`, params: { module: targetModule } },
   ];
 }
 

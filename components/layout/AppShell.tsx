@@ -147,11 +147,12 @@ export function AppShell({
             </div>
           ) : null}
 
-          {isAdmin ? (
+          {canUseOfficeSurface ? (
             <div className="shell-nav-group">
               <p className="shell-nav-label">System</p>
 
-              <Link href="/settings">Settings</Link>
+              <Link href="/operator/agents">Agents</Link>
+              {isAdmin ? <Link href="/settings">Settings</Link> : null}
             </div>
           ) : null}
         </nav>

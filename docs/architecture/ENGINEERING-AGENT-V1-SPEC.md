@@ -362,3 +362,34 @@ Deep validation of every postponed/non-V1 module is not required.
 - Autonomous deployment or any production mutation.
 - Inspection/Photo-Comparison and Finance agents (mapped as `DEFERRED` only).
 - Agent Council / multi-agent meetings.
+
+---
+
+## 21. Proactive checker and operator surface (V1 extension)
+
+The daemon checks the normal `engineering.local` queue first. Only after that queue is
+empty may it evaluate the persisted proactive schedule. The default cadence is 240
+minutes; the due time is mirrored in `runtime_state.proactive_next_eligible_at` and in
+the narrow Supabase operator-control row so a restart cannot reset the timer.
+
+`engineering.proactive` is one bounded, review-gated job for one deterministically
+selected module. Selection is code-driven, not model-driven: criticality, validation
+state, open findings, missing tests, age, and security/reliability relevance contribute
+fixed weights. A recently reviewed module is excluded when its scoped Git fingerprint
+is unchanged. Failed attempts are recorded separately from successful freshness and
+cool the target down for 12 hours so another eligible module can run. The database enqueue RPC takes an advisory transaction lock, expires stale active proactive jobs, and a partial
+unique index permits at most one queued/running proactive job. Change-aware jobs are
+ordered ahead of proactive jobs regardless of user-supplied numeric priority.
+
+The Worker reads at most eight tracked files (56 KiB total prompt material), asks only
+the configured loopback Ollama endpoint for at most five structured findings, and has
+no write/patch/deploy/migration tools. Findings and explicit no-finding outcomes update
+SQLite freshness. Results remain `requires_review = true`; remediation is never
+automatic.
+
+`/operator/agents` is available to active admin and office users. It reads a redacted
+cloud mirror of local module/finding state plus the existing job lifecycle. Only admins
+may request a proactive check, manage finding lifecycle, toggle proactive checks, or pause/resume future claims. Pause does
+not kill a leased job in flight; it prevents the next claim after that bounded job
+settles. The cloud snapshot is an operator projection, not authoritative Engineering
+memory, and contains no credentials, source contents, or raw logs.

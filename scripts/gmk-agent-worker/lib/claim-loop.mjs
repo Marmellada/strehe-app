@@ -21,38 +21,48 @@ function startLeaseRenewal(supabase, jobId, leaseSeconds, logger) {
   return { stop: () => clearInterval(timer), intervalMs };
 }
 
+export function orderJobsForProcessing(jobs) {
+  return [...jobs].sort((a, b) => {
+    const aProactive = a.job_type === "engineering.proactive" ? 1 : 0;
+    const bProactive = b.job_type === "engineering.proactive" ? 1 : 0;
+    return aProactive - bProactive
+      || a.priority - b.priority
+      || String(a.created_at).localeCompare(String(b.created_at));
+  });
+}
+
 export async function processNextJob(runtime, spec) {
   const { supabase, logger } = runtime;
   const now = new Date().toISOString();
-
   const { data: jobs, error } = await supabase
     .from("agent_jobs")
-    .select("id, payload, job_type")
+    .select("id, payload, job_type, priority, created_at")
     .eq("required_capability", spec.capability)
     .eq("status", "queued")
     .lte("available_at", now)
     .gt("expires_at", now)
     .order("priority", { ascending: true })
     .order("created_at", { ascending: true })
-    .limit(5);
+    .limit(25);
   if (error) throw error;
   if (!jobs || jobs.length === 0) return false;
 
-  for (const candidate of jobs) {
+  for (const candidate of orderJobsForProcessing(jobs)) {
     const { data: claimed, error: claimError } = await supabase.rpc("claim_agent_job", {
       target_job_id: candidate.id,
       lease_seconds: spec.leaseSeconds,
     });
     if (claimError || !claimed) {
       logger.log("claim_race_lost", { job_id: candidate.id });
-      continue; // lost the race — never fail the job for a claim error
+      continue;
     }
 
     const renewal = startLeaseRenewal(supabase, claimed.id, spec.leaseSeconds, logger);
     const started = Date.now();
     try {
+      await runtime.onJobState?.("working", claimed.id);
       const result = await spec.run(runtime, claimed);
-      assertSafeResult(result); // hard gate before persisting anything
+      assertSafeResult(result);
       const { error: completeError } = await supabase.rpc("complete_agent_job", {
         target_job_id: claimed.id,
         job_result: result,
@@ -63,13 +73,13 @@ export async function processNextJob(runtime, spec) {
         job_type: claimed.job_type,
         duration_ms: Date.now() - started,
       });
+      await runtime.onJobState?.("idle", null);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code =
-        err && typeof err === "object" && typeof err.code === "string"
-          ? err.code
-          : "agent_processing_failed";
+      const code = err && typeof err === "object" && typeof err.code === "string"
+        ? err.code
+        : "agent_processing_failed";
       try {
         await supabase.rpc("fail_agent_job", {
           target_job_id: claimed.id,
@@ -84,6 +94,7 @@ export async function processNextJob(runtime, spec) {
         error_class: code.slice(0, 120),
         duration_ms: Date.now() - started,
       });
+      await runtime.onJobState?.("error", null, code.slice(0, 120));
       return true;
     } finally {
       renewal.stop();

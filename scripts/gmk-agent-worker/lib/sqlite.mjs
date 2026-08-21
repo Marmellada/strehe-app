@@ -21,6 +21,13 @@ CREATE TABLE IF NOT EXISTS modules (
   mapping_state TEXT NOT NULL DEFAULT 'UNKNOWN',
   validation_state TEXT NOT NULL DEFAULT 'UNKNOWN',
   last_validated_commit TEXT,
+  last_meaningful_review_at TEXT,
+  last_reviewed_fingerprint TEXT,
+  last_review_outcome TEXT,
+  last_proactive_attempt_at TEXT,
+  last_proactive_failure_at TEXT,
+  last_proactive_failure_class TEXT,
+  proactive_failure_count INTEGER NOT NULL DEFAULT 0,
   known_findings TEXT NOT NULL DEFAULT '[]',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -66,6 +73,7 @@ CREATE TABLE IF NOT EXISTS validation_records (
 CREATE TABLE IF NOT EXISTS engineering_findings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id TEXT,
+  module TEXT,
   finding TEXT NOT NULL,
   evidence TEXT,
   recommendation TEXT,
@@ -123,7 +131,29 @@ CREATE TABLE IF NOT EXISTS runtime_state (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_test_catalog_file ON test_catalog(file);
+CREATE INDEX IF NOT EXISTS idx_validation_records_module_created
+  ON validation_records(module, created_at DESC);
 `;
+
+function ensureColumn(db, table, column, declaration) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some((entry) => entry.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
+  }
+}
+
+function migrateExistingDatabase(db) {
+  ensureColumn(db, "modules", "last_meaningful_review_at", "TEXT");
+  ensureColumn(db, "modules", "last_reviewed_fingerprint", "TEXT");
+  ensureColumn(db, "modules", "last_review_outcome", "TEXT");
+  ensureColumn(db, "modules", "last_proactive_attempt_at", "TEXT");
+  ensureColumn(db, "modules", "last_proactive_failure_at", "TEXT");
+  ensureColumn(db, "modules", "last_proactive_failure_class", "TEXT");
+  ensureColumn(db, "modules", "proactive_failure_count", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "engineering_findings", "module", "TEXT");
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_engineering_findings_module_lifecycle
+    ON engineering_findings(module, lifecycle)`);
+}
 
 export function ensureRuntimeDirs(runtimeRoot) {
   const dirs = [
@@ -142,6 +172,7 @@ export function openDatabase(runtimeRoot) {
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  migrateExistingDatabase(db);
   return { db, dbPath };
 }
 

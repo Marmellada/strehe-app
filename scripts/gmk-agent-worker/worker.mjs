@@ -3,7 +3,9 @@ import { readEnv, requireValue } from "./lib/env.mjs";
 import { getCredential } from "./lib/credential.mjs";
 import { createAgentClient, signInAgent, heartbeat } from "./lib/supabase.mjs";
 import { createLogger } from "./lib/logging.mjs";
-import { processNextJob } from "./lib/claim-loop.mjs";
+import { createToolGateway } from "./lib/tools.mjs";
+import { publishEngineeringSnapshot } from "./lib/proactive.mjs";
+import { processWorkerOnce, processWorkerPass } from "./lib/worker-pass.mjs";
 
 const AGENT_LOADERS = {
   engineering: () => import("./agents/engineering.spec.mjs").then((m) => m.default),
@@ -61,13 +63,26 @@ async function main() {
   // Agent password comes from the OS credential store, never from env/files/logs.
   const password = getCredential(credentialTarget);
   const supabase = createAgentClient(supabaseUrl, anonKey);
-  await signInAgent(supabase, email, password);
+  const auth = await signInAgent(supabase, email, password);
   logger.log("signed_in", { credential_target: credentialTarget });
 
   await heartbeat(supabase);
   logger.log("heartbeat", {});
 
-  const runtime = { supabase, config, logger };
+  const runtime = {
+    supabase,
+    config,
+    logger,
+    agentId: auth.user.id,
+  };
+  if (agent === "engineering") {
+    runtime.tools = createToolGateway({ worktreePath: config.worktreePath });
+    runtime.onJobState = (state, jobId, errorClass) =>
+      publishEngineeringSnapshot(runtime, state, jobId, errorClass).catch((err) => {
+        logger.log("snapshot_publish_failed", { error_class: err instanceof Error ? err.message.slice(0, 160) : "unknown" });
+      });
+    await runtime.onJobState("idle", null);
+  }
   spec.leaseSeconds = config.leaseSeconds; // env override (used by claim + renew)
 
   let stopped = false;
@@ -81,7 +96,10 @@ async function main() {
   process.on("SIGTERM", shutdown);
 
   if (once) {
-    const processed = await processNextJob(runtime, spec);
+    const pass = await processWorkerOnce(runtime, spec, { engineering: agent === "engineering" });
+    const processed = pass.processed;
+    const scheduled = pass.scheduled;
+    if (!processed && agent === "engineering") logger.log("proactive_check", { enqueued: Boolean(scheduled?.enqueued), reason: scheduled?.reason || (pass.control.control_available ? "not_due" : "control_unavailable"), target: scheduled?.target || null });
     logger.log(processed ? "pass_processed" : "pass_idle", {});
     process.exit(0);
   }
@@ -89,12 +107,19 @@ async function main() {
   logger.log("watching", { poll_seconds: config.pollSeconds, model: config.ollamaModel });
   while (!stopped) {
     try {
-      const processed = await processNextJob(runtime, spec);
+      const pass = await processWorkerPass(runtime, spec, { engineering: agent === "engineering" });
+      const { control, processed, scheduled } = pass;
       if (!processed) {
         await heartbeat(supabase).catch(() => {});
+        if (agent === "engineering" && !control.paused) {
+          if (scheduled?.enqueued) logger.log("proactive_enqueued", { job_id: scheduled.job_id, target: scheduled.target });
+          if (control.worker_state === "error") await runtime.onJobState("idle", null);
+        }
+        if (agent === "engineering" && control.paused) await runtime.onJobState("paused", null);
       }
     } catch (err) {
       logger.log("loop_error", { error_class: err instanceof Error ? err.message.slice(0, 200) : "unknown" });
+      if (agent === "engineering") await runtime.onJobState("error", null, err instanceof Error ? err.message.slice(0, 120) : "unknown");
     }
     await new Promise((resolve) => setTimeout(resolve, config.pollSeconds * 1000));
   }
