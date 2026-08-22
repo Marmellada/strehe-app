@@ -1,5 +1,13 @@
 // Model-agnostic local Ollama adapter. Loopback-only by construction.
 
+export const OLLAMA_CONTEXT_EXCEEDED_PATTERN = /prompt is longer than the context length/i;
+
+// Deterministic classification: the request exceeded the model's current context
+// window. Retrying the identical prompt cannot succeed, so this is not transient.
+export function isContextLengthError(text) {
+  return OLLAMA_CONTEXT_EXCEEDED_PATTERN.test(String(text || ""));
+}
+
 export function ensureLocalOllamaUrl(rawUrl) {
   const url = new URL(rawUrl);
   if (!["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
@@ -41,7 +49,12 @@ export async function ollamaChat({
   });
 
   if (!response.ok) {
-    throw new Error(`Ollama returned ${response.status}: ${await response.text()}`);
+    const body = await response.text();
+    const error = new Error(`Ollama returned ${response.status}: ${body}`);
+    // Deterministic context overflow: mark it so callers never retry the identical
+    // oversized prompt (the request is unchanged, so the failure is unchanged).
+    if (isContextLengthError(body)) error.code = "ollama_context_exceeded";
+    throw error;
   }
   const payload = await response.json();
   return payload?.message?.content ?? "";

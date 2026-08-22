@@ -1,6 +1,6 @@
 import { createToolGateway } from "../lib/tools.mjs";
 import { openDatabase, setState } from "../lib/sqlite.mjs";
-import { ollamaChat } from "../lib/ollama.mjs";
+import { ollamaChat, isContextLengthError } from "../lib/ollama.mjs";
 import { parseJsonLoose } from "../lib/json.mjs";
 import { MODULES, FLOWS, DEPENDENCIES } from "./strehe-map.mjs";
 import { mapModuleImpact, selectChecksForFiles } from "../lib/impact.mjs";
@@ -18,6 +18,15 @@ import {
 
 const MAX_TASKS_PER_SESSION = 40;
 const MAX_RETRIES = 2;
+
+// Proactive review input bounds — sized to stay inside the local model's context
+// window (num_ctx is deliberately NOT raised). Max candidate files included in the
+// prompt, normal total source excerpt budget, per-file excerpt cap, and a hard
+// final-prompt byte budget enforced adaptively after assembly.
+export const PROACTIVE_MAX_FILES = 6;
+export const PROACTIVE_TOTAL_EXCERPT_BUDGET = 18 * 1024;
+export const PROACTIVE_MAX_EXCERPT_PER_FILE = 6 * 1024;
+export const PROACTIVE_MAX_PROMPT_BYTES = 22 * 1024;
 
 function nowIso() {
   return new Date().toISOString();
@@ -44,6 +53,106 @@ export function buildProactivePrompt(targetModule, excerpts) {
     `MODULE: ${targetModule.name}\nPURPOSE: ${targetModule.purpose || ""}\nCRITICALITY: ${targetModule.criticality || "unknown"}\nKNOWN FINDINGS: ${JSON.stringify(targetModule.known_findings || [])}\nKNOWN ARCHITECTURAL DECISIONS: ${JSON.stringify(decisions)}\nDECLARED TESTS: ${JSON.stringify(targetModule.tests || [])}`,
     excerpts.join("\n\n"),
   ].join("\n\n");
+}
+
+// Deterministic failures must not be retried unchanged: an oversized prompt that
+// already exceeded the context window will fail identically on every replay.
+// Genuinely transient failures keep the existing bounded retry budget.
+export function shouldRetryTask(error, retryCount, maxRetries = MAX_RETRIES) {
+  if (error?.code === "ollama_context_exceeded") return false;
+  return retryCount < maxRetries;
+}
+
+// Bounded proactive input: candidate discovery + read-only file excerpts, capped by
+// max candidate files, total excerpt budget, and per-file excerpt budget, then a hard
+// final-prompt byte budget enforced adaptively. Returns the final prompt plus counts
+// used for telemetry (no source content beyond the excerpts already used for the
+// prompt; no secrets).
+export async function buildProactiveInput(
+  targetModule,
+  tools,
+  {
+    maxFiles = PROACTIVE_MAX_FILES,
+    totalBudget = PROACTIVE_TOTAL_EXCERPT_BUDGET,
+    perFileBudget = PROACTIVE_MAX_EXCERPT_PER_FILE,
+    maxPromptBytes = PROACTIVE_MAX_PROMPT_BYTES,
+  } = {},
+) {
+  const sourcePaths = Array.isArray(targetModule.source_paths) ? targetModule.source_paths : [];
+  const candidates = [];
+  for (const sourcePath of sourcePaths.slice(0, 12)) {
+    const listed = await tools.runTool("git.ls_files", { path: sourcePath });
+    if (!listed.ok) continue;
+    for (const file of String(listed.stdout || "").split("\n").filter(Boolean)) {
+      if (!candidates.includes(file)) candidates.push(file);
+      if (candidates.length >= maxFiles) break;
+    }
+    if (candidates.length >= maxFiles) break;
+  }
+
+  let remaining = totalBudget;
+  const excerpts = [];
+  for (const file of candidates) {
+    if (remaining <= 0) break;
+    const read = await tools.runTool("file.read", { path: file });
+    if (!read.ok || !read.content) continue;
+    const content = String(read.content).slice(0, Math.min(perFileBudget, remaining));
+    remaining -= content.length;
+    excerpts.push(`FILE: ${file}\n${content}`);
+  }
+  if (excerpts.length === 0) {
+    throw new Error(`no readable tracked files found for proactive module ${targetModule.name}`);
+  }
+
+  // Adaptive fail-safe: the fixed caps count UTF-16 code units, which can under-count
+  // UTF-8 bytes for dense source (e.g. non-ASCII). If the assembled prompt exceeds the
+  // hard byte budget, deterministically shrink the LONGEST source excerpt and rebuild —
+  // never truncating the fixed instructions/schema portion — while keeping every
+  // selected file represented (dropping a file is the last resort, and only after all
+  // excerpts are at a one-code-point floor). Halving the longest excerpt converges, and
+  // the guard bounds the loop so it can never spin.
+  let prompt = buildProactivePrompt(targetModule, excerpts);
+  let promptBytes = Buffer.byteLength(prompt, "utf8");
+  let adaptivelyTrimmed = false;
+  if (promptBytes > maxPromptBytes) {
+    adaptivelyTrimmed = true;
+    let guard = 0;
+    while (promptBytes > maxPromptBytes && guard++ < 32) {
+      let index = 0;
+      let longestBytes = -1;
+      for (let i = 0; i < excerpts.length; i += 1) {
+        const size = Buffer.byteLength(excerpts[i], "utf8");
+        if (size > longestBytes) {
+          index = i;
+          longestBytes = size;
+        }
+      }
+      const headerEnd = excerpts[index].indexOf("\n") + 1;
+      const codePoints = [...excerpts[index].slice(headerEnd)];
+      if (codePoints.length > 1) {
+        excerpts[index] = excerpts[index].slice(0, headerEnd)
+          + codePoints.slice(0, Math.max(1, Math.floor(codePoints.length / 2))).join("");
+      } else if (excerpts.length > 1) {
+        excerpts.splice(index, 1); // last resort: drop the least-representable excess
+      } else {
+        break; // single excerpt at its floor: nothing further to trim
+      }
+      prompt = buildProactivePrompt(targetModule, excerpts);
+      promptBytes = Buffer.byteLength(prompt, "utf8");
+    }
+  }
+
+  const excerptChars = excerpts.reduce((sum, entry) => sum + entry.length, 0);
+  return {
+    files: excerpts.map((entry) => entry.slice(6, entry.indexOf("\n"))),
+    excerpts,
+    excerptChars,
+    excerptBytes: Buffer.byteLength(excerpts.join("\n\n"), "utf8"),
+    prompt,
+    promptChars: prompt.length,
+    promptBytes,
+    adaptivelyTrimmed,
+  };
 }
 
 // ---- Worker task handlers (bounded, tool-gateway only) ----
@@ -175,34 +284,11 @@ async function runWorkerTask(ctx, task) {
       if (!targetModule?.name || !Array.isArray(targetModule.source_paths)) {
         throw new Error("proactive module target is invalid");
       }
-      const candidates = [];
-      for (const sourcePath of targetModule.source_paths.slice(0, 12)) {
-        const listed = await tools.runTool("git.ls_files", { path: sourcePath });
-        if (!listed.ok) continue;
-        for (const file of String(listed.stdout || "").split("\n").filter(Boolean)) {
-          if (!candidates.includes(file)) candidates.push(file);
-          if (candidates.length >= 8) break;
-        }
-        if (candidates.length >= 8) break;
-      }
-
-      let remaining = 56 * 1024;
-      const excerpts = [];
-      for (const file of candidates) {
-        if (remaining <= 0) break;
-        const read = await tools.runTool("file.read", { path: file });
-        if (!read.ok || !read.content) continue;
-        const content = String(read.content).slice(0, Math.min(12 * 1024, remaining));
-        remaining -= content.length;
-        excerpts.push(`FILE: ${file}\n${content}`);
-      }
-      if (excerpts.length === 0) throw new Error(`no readable tracked files found for proactive module ${targetModule.name}`);
-
-      const prompt = buildProactivePrompt(targetModule, excerpts);
+      const input = await buildProactiveInput(targetModule, tools);
       const raw = await ollamaChat({
         baseUrl: ctx.config.ollamaBaseUrl,
         model: ctx.config.ollamaModel,
-        prompt,
+        prompt: input.prompt,
         numGpu: ctx.config.ollamaNumGpu ?? 0,
         timeoutMs: ctx.config.ollamaTimeoutMs,
       });
@@ -220,8 +306,24 @@ async function runWorkerTask(ctx, task) {
       const analysis = {
         summary: String(parsed.value.summary || `Reviewed ${targetModule.name}`).slice(0, 2000),
         findings,
-        files_reviewed: excerpts.map((entry) => entry.slice(6, entry.indexOf("\n"))),
+        files_reviewed: input.files,
+        telemetry: {
+          model: ctx.config.ollamaModel,
+          files_included: input.files,
+          excerpt_chars: input.excerptChars,
+          excerpt_bytes: input.excerptBytes,
+          prompt_chars: input.promptChars,
+          prompt_bytes: input.promptBytes,
+          adaptive_trimming_occurred: input.adaptivelyTrimmed,
+        },
       };
+      ctx.logger?.log("proactive_analysis", {
+        model: ctx.config.ollamaModel,
+        files: input.files.length,
+        excerpt_bytes: input.excerptBytes,
+        prompt_bytes: input.promptBytes,
+        trimmed: input.adaptivelyTrimmed,
+      });
       return {
         ok: true,
         summary: findings.length > 0
@@ -382,7 +484,7 @@ async function runSession(ctx, { sessionId, jobId, baseCommit, currentCommit, sc
       logger.log("task_done", { session_id: sessionId, task_id: task.id, kind: task.kind });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if ((task.retry_count ?? 0) < MAX_RETRIES) {
+      if (shouldRetryTask(err, task.retry_count ?? 0)) {
         db.prepare("UPDATE review_tasks SET retry_count = retry_count + 1 WHERE id = ?").run(task.id);
         logger.log("task_retry", { session_id: sessionId, task_id: task.id, kind: task.kind });
         continue; // leave pending; will be retried next loop iteration
@@ -560,13 +662,15 @@ export default {
            ORDER BY e.id DESC LIMIT 1`,
         ).get(sessionId);
         const failureText = String(failureEvidence?.content || "proactive_analysis_failed");
-        const failureClass = /timeout|abort/i.test(failureText)
-          ? "ollama_timeout"
-          : /schema|JSON|structured/i.test(failureText)
-            ? "ollama_schema_invalid"
-            : /no readable tracked files/i.test(failureText)
-              ? "zero_readable_files"
-              : "proactive_analysis_failed";
+        const failureClass = isContextLengthError(failureText)
+          ? "ollama_context_exceeded"
+          : /timeout|abort/i.test(failureText)
+            ? "ollama_timeout"
+            : /schema|JSON|structured/i.test(failureText)
+              ? "ollama_schema_invalid"
+              : /no readable tracked files/i.test(failureText)
+                ? "zero_readable_files"
+                : "proactive_analysis_failed";
         recordProactiveFailure(db, {
           sessionId,
           moduleName: targetModule.name,

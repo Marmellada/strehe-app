@@ -4,9 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { buildProactivePrompt, proactivePlan } from "./agents/engineering.spec.mjs";
+import {
+  buildProactiveInput,
+  buildProactivePrompt,
+  proactivePlan,
+  PROACTIVE_MAX_EXCERPT_PER_FILE,
+  PROACTIVE_MAX_FILES,
+  PROACTIVE_MAX_PROMPT_BYTES,
+  PROACTIVE_TOTAL_EXCERPT_BUDGET,
+  shouldRetryTask,
+} from "./agents/engineering.spec.mjs";
 import { orderJobsForProcessing } from "./lib/claim-loop.mjs";
-import { ensureLocalOllamaUrl } from "./lib/ollama.mjs";
+import { ensureLocalOllamaUrl, isContextLengthError, ollamaChat } from "./lib/ollama.mjs";
 import {
   buildEngineeringSnapshot,
   initializeNextEligibility,
@@ -342,4 +351,119 @@ test("public AI and production mutation paths remain impossible at the executabl
   assert.equal((await gateway.runTool("shell.exec", { command: "git push" })).ok, false);
   assert.equal((await gateway.runTool("file.write", { path: "x", content: "x" })).ok, false);
   assert.equal(fs.existsSync(path.join(root, "x")), false);
+});
+
+test("proactive prompt input is bounded: 6 files / 18 KiB total / 6 KiB per file / 22 KiB prompt", async () => {
+  assert.equal(PROACTIVE_MAX_FILES, 6);
+  assert.equal(PROACTIVE_TOTAL_EXCERPT_BUDGET, 18 * 1024);
+  assert.equal(PROACTIVE_MAX_EXCERPT_PER_FILE, 6 * 1024);
+  assert.equal(PROACTIVE_MAX_PROMPT_BYTES, 22 * 1024);
+
+  // 12 candidate files of 1 KiB: the 6-file cap must be the binding limit, and the
+  // assembled prompt must stay under the hard byte budget WITHOUT adaptive trimming.
+  const manySmall = Array.from({ length: 12 }, (_, i) => `lib/mod${i}/index.ts`).join("\n");
+  const tools = {
+    async runTool(name) {
+      if (name === "git.ls_files") return { ok: true, stdout: manySmall };
+      if (name === "file.read") return { ok: true, content: "z".repeat(1024) };
+      throw new Error(`unexpected tool ${name}`);
+    },
+  };
+  const module = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
+  const input = await buildProactiveInput(module, tools);
+  assert.equal(input.files.length, 6, "candidate cap of 6 files was not enforced");
+  const contentChars = input.excerpts.reduce((sum, entry) => sum + (entry.length - entry.indexOf("\n") - 1), 0);
+  assert.ok(contentChars <= 18 * 1024, `excerpt content ${contentChars} exceeds the 18 KiB total budget`);
+  for (const excerpt of input.excerpts) {
+    const content = excerpt.length - excerpt.indexOf("\n") - 1;
+    assert.ok(content <= 6 * 1024, `per-file excerpt ${content} exceeds the 6 KiB cap`);
+  }
+  assert.ok(input.promptBytes <= 22 * 1024, `final prompt is not bounded (${input.promptBytes} bytes)`);
+  assert.equal(input.adaptivelyTrimmed, false, "normal small inputs must be unchanged");
+  assert.ok(input.excerptBytes > 0 && input.promptChars > 0, "telemetry counts missing");
+});
+
+test("byte-dense source cannot produce a prompt above the 22 KiB hard budget", async () => {
+  // 6 files x 2 KiB CJK chars (3 UTF-8 bytes each) — ~37 KiB of raw excerpts alone.
+  assert.ok(Buffer.byteLength("界".repeat(2048), "utf8") * 6 > PROACTIVE_MAX_PROMPT_BYTES,
+    "fixture must be byte-dense enough to exercise the hard budget");
+  const listed = Array.from({ length: 6 }, (_, i) => `lib/mod${i}/index.ts`).join("\n");
+  const tools = {
+    async runTool(name) {
+      if (name === "git.ls_files") return { ok: true, stdout: listed };
+      if (name === "file.read") return { ok: true, content: "界".repeat(2048) };
+      throw new Error(`unexpected tool ${name}`);
+    },
+  };
+  const module = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
+  const input = await buildProactiveInput(module, tools);
+  assert.equal(input.adaptivelyTrimmed, true, "dense input must trigger adaptive trimming");
+  assert.ok(input.promptBytes <= 22 * 1024, `final prompt ${input.promptBytes} bytes exceeds the 22 KiB hard budget`);
+});
+
+test("adaptive trimming preserves representation from as many files as possible", async () => {
+  const listed = Array.from({ length: 6 }, (_, i) => `lib/mod${i}/index.ts`).join("\n");
+  const tools = {
+    async runTool(name) {
+      if (name === "git.ls_files") return { ok: true, stdout: listed };
+      if (name === "file.read") return { ok: true, content: "界".repeat(2048) };
+      throw new Error(`unexpected tool ${name}`);
+    },
+  };
+  const module = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
+  const input = await buildProactiveInput(module, tools);
+  assert.equal(input.files.length, 6, "trimming must keep every selected file represented");
+  for (const excerpt of input.excerpts) {
+    assert.match(excerpt, /^FILE: lib\/mod\d\/index\.ts\n.+/s, "excerpt header + at least one code point must survive");
+  }
+  assert.ok(input.promptBytes <= 22 * 1024);
+});
+
+test("context overflow is classified as ollama_context_exceeded", () => {
+  assert.equal(isContextLengthError("the prompt is longer than the context length currently available to the model"), true);
+  assert.equal(isContextLengthError("Ollama returned 400: the prompt is longer than the context length currently available to the model"), true);
+  assert.equal(isContextLengthError("ECONNREFUSED"), false);
+  assert.equal(isContextLengthError(""), false);
+});
+
+test("ollamaChat tags deterministic context overflow with a machine-readable error code", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    "the prompt is longer than the context length currently available to the model",
+    { status: 400, headers: { "Content-Type": "text/plain" } },
+  );
+  try {
+    await assert.rejects(
+      ollamaChat({ baseUrl: "http://127.0.0.1:11434", model: "test-model", prompt: "x" }),
+      (err) => err instanceof Error && err.code === "ollama_context_exceeded",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("deterministic context overflow is never retried unchanged; transient failures still retry", () => {
+  assert.equal(shouldRetryTask({ code: "ollama_context_exceeded" }, 0), false);
+  assert.equal(shouldRetryTask({ code: "ollama_context_exceeded" }, 1), false);
+  assert.equal(shouldRetryTask({ code: "ollama_context_exceeded" }, 2), false);
+  assert.equal(shouldRetryTask(new Error("ECONNRESET"), 0), true);
+  assert.equal(shouldRetryTask(new Error("ECONNRESET"), 1), true);
+  assert.equal(shouldRetryTask(new Error("ECONNRESET"), 2), false);
+});
+
+test("bounded proactive input still produces a valid prompt and telemetry on the success path", async () => {
+  const tools = {
+    async runTool(name) {
+      if (name === "git.ls_files") return { ok: true, stdout: "lib/auth/index.ts" };
+      if (name === "file.read") return { ok: true, content: "export const guard = true;" };
+      throw new Error(`unexpected tool ${name}`);
+    },
+  };
+  const module = { name: "Auth", purpose: "RBAC", criticality: "high", known_findings: [], tests: ["test/auth.spec.ts"], decisions: [], source_paths: ["lib/auth"] };
+  const input = await buildProactiveInput(module, tools);
+  assert.deepEqual(input.files, ["lib/auth/index.ts"]);
+  assert.match(input.prompt, /MODULE: Auth/);
+  assert.match(input.prompt, /INTENTIONAL CONSTRAINTS/);
+  assert.ok(input.promptChars > 0 && input.promptBytes > 0 && input.excerptBytes > 0);
+  assert.equal(input.prompt, buildProactivePrompt(module, input.excerpts));
 });
