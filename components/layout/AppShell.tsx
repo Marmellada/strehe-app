@@ -38,6 +38,7 @@ export function AppShell({
     ? [
         { href: "/tasks", label: "Tasks" },
         { href: "/operator/inbox", label: "Inbox" },
+        { href: "/operator/analytics", label: "Analytics" },
         { href: "/properties", label: "Properties" },
         { href: "/clients", label: "Clients" },
         { href: "/leads", label: "Leads" },
