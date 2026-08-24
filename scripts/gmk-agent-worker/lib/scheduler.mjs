@@ -218,6 +218,83 @@ export function releaseExecutionAfterResult(db, jobId, processResult, options = 
   });
 }
 
+export async function reconcileOrphanedCodexReservations(db, {
+  getJobLeaseState,
+  now = new Date(),
+  probeLiveness = (pid) => probeProcessTreeLiveness(pid),
+  terminateImpl = (child) => terminateProcessTree(child),
+} = {}) {
+  const rows = db.prepare(
+    `SELECT job_id, owner_pid, worker_pid
+     FROM coordinator_reservations
+     WHERE process_kind = 'codex' AND worker_pid IS NOT NULL`,
+  ).all();
+  const evidence = [];
+  for (const row of rows) {
+    const ownerState = probeLiveness(row.owner_pid);
+    const workerState = probeLiveness(row.worker_pid);
+    if (ownerState !== "dead" || workerState !== "alive") continue;
+    let leaseState;
+    try {
+      leaseState = await getJobLeaseState?.(row.job_id);
+    } catch (error) {
+      evidence.push({
+        jobId: row.job_id, workerPid: row.worker_pid, action: "retained",
+        reason: "lease_state_unknown", error: String(error?.message || error).slice(0, 500),
+      });
+      continue;
+    }
+    const leaseExpiresAt = leaseState?.lease_expires_at ? new Date(leaseState.lease_expires_at) : null;
+    const validLease = leaseState?.status === "running"
+      && leaseExpiresAt != null
+      && Number.isFinite(leaseExpiresAt.getTime())
+      && leaseExpiresAt.getTime() > now.getTime();
+    const invalidLease = leaseState != null && (
+      leaseState.status !== "running"
+      || leaseExpiresAt == null
+      || (Number.isFinite(leaseExpiresAt.getTime()) && leaseExpiresAt.getTime() <= now.getTime())
+    );
+    if (validLease) {
+      evidence.push({ jobId: row.job_id, workerPid: row.worker_pid, action: "retained", reason: "lease_valid" });
+      continue;
+    }
+    if (!invalidLease) {
+      evidence.push({ jobId: row.job_id, workerPid: row.worker_pid, action: "retained", reason: "lease_state_unknown" });
+      continue;
+    }
+    let terminationRequested = false;
+    try {
+      terminationRequested = await terminateImpl({
+        pid: row.worker_pid,
+        kill(signal) { return process.kill(row.worker_pid, signal); },
+      });
+    } catch (error) {
+      evidence.push({
+        jobId: row.job_id, workerPid: row.worker_pid, action: "retained",
+        reason: "orphan_termination_failed", error: String(error?.message || error).slice(0, 500),
+      });
+      continue;
+    }
+    if (terminationRequested !== true || probeLiveness(row.worker_pid) !== "dead") {
+      evidence.push({
+        jobId: row.job_id, workerPid: row.worker_pid, action: "retained",
+        reason: "orphan_termination_unconfirmed",
+      });
+      continue;
+    }
+    const deleted = db.prepare(
+      `DELETE FROM coordinator_reservations
+       WHERE job_id = ? AND owner_pid = ? AND worker_pid = ? AND process_kind = 'codex'`,
+    ).run(row.job_id, row.owner_pid, row.worker_pid);
+    evidence.push({
+      jobId: row.job_id, workerPid: row.worker_pid,
+      action: Number(deleted.changes) === 1 ? "released" : "retained",
+      reason: Number(deleted.changes) === 1 ? "orphan_termination_confirmed" : "reservation_changed",
+    });
+  }
+  return evidence;
+}
+
 export function createCountingLlm(adapter, maxCalls) {
   if (!Number.isInteger(maxCalls) || maxCalls < 1) return adapter;
   let calls = 0;
@@ -305,61 +382,134 @@ export function runBoundedProcess({
   args = [],
   options = {},
   timeoutMs,
+  idleTimeoutMs = null,
+  input = null,
+  maxOutputBytes = 64 * 1024,
   settlementGraceMs = WATCHDOG_SETTLEMENT_GRACE_MS,
   spawnImpl = spawn,
   terminateImpl = terminateProcessTree,
+  onSpawn = null,
 }) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("timeoutMs must be positive");
+  if (idleTimeoutMs != null && (!Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0)) {
+    throw new Error("idleTimeoutMs must be positive when provided");
+  }
+  if (!Number.isInteger(maxOutputBytes) || maxOutputBytes < 1024) {
+    throw new Error("maxOutputBytes must be an integer of at least 1024");
+  }
   if (!Number.isFinite(settlementGraceMs) || settlementGraceMs <= 0) {
     throw new Error("settlementGraceMs must be positive");
   }
   return new Promise((resolve) => {
-    const child = spawnImpl(command, args, options);
+    let child;
+    try {
+      child = spawnImpl(command, args, options);
+    } catch (error) {
+      resolve({
+        ok: false, code: null, signal: null, error, timedOut: false,
+        timeoutReason: null, terminationConfirmed: true, processMayBeAlive: false,
+        stdout: "", stderr: "", stdoutHead: "", stderrHead: "",
+        stdoutBytes: 0, stderrBytes: 0, pid: null,
+      });
+      return;
+    }
     let stdout = "";
     let stderr = "";
+    let stdoutHead = "";
+    let stderrHead = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
     let timedOut = false;
+    let timeoutReason = null;
+    let forcedError = null;
     let settled = false;
     let closeResult = null;
     let terminationConfirmed = false;
     let terminationAttemptFinished = false;
     let settlementTimer = null;
-    const append = (current, chunk) => (current + chunk.toString()).slice(-64 * 1024);
-    child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk); });
-    child.stderr?.on("data", (chunk) => { stderr = append(stderr, chunk); });
     let wallClockTimer = null;
+    let idleTimer = null;
+    const append = (current, chunk) => {
+      const combined = Buffer.concat([Buffer.from(current, "utf8"), Buffer.from(chunk)]);
+      return combined.subarray(Math.max(0, combined.length - maxOutputBytes)).toString("utf8");
+    };
+    const appendHead = (current, chunk) => {
+      if (Buffer.byteLength(current, "utf8") >= 8 * 1024) return current;
+      return Buffer.concat([Buffer.from(current, "utf8"), Buffer.from(chunk)])
+        .subarray(0, 8 * 1024).toString("utf8");
+    };
+    const resetIdleTimer = () => {
+      if (idleTimeoutMs == null || settled || timeoutReason) return;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => beginTermination("idle_output_exceeded"), idleTimeoutMs);
+      idleTimer.unref?.();
+    };
+    child.stdout?.on("data", (chunk) => {
+      stdoutBytes += Buffer.byteLength(chunk);
+      stdoutHead = appendHead(stdoutHead, chunk);
+      stdout = append(stdout, chunk);
+      resetIdleTimer();
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderrBytes += Buffer.byteLength(chunk);
+      stderrHead = appendHead(stderrHead, chunk);
+      stderr = append(stderr, chunk);
+      resetIdleTimer();
+    });
     const finish = (result) => {
       if (settled) return;
       settled = true;
       clearTimeout(wallClockTimer);
+      clearTimeout(idleTimer);
       clearTimeout(settlementTimer);
-      resolve({ ...result, timedOut, stdout, stderr, pid: child.pid ?? null });
+      resolve({
+        terminationConfirmed: true,
+        processMayBeAlive: false,
+        ...result,
+        timedOut,
+        timeoutReason,
+        stdout,
+        stderr,
+        stdoutHead,
+        stderrHead,
+        stdoutBytes,
+        stderrBytes,
+        pid: child.pid ?? null,
+      });
     };
-    const finishTimedOutIfReady = () => {
-      if (!closeResult || !terminationAttemptFinished) return;
+    const finishForcedIfReady = () => {
+      if (!terminationAttemptFinished || (!closeResult && !terminationConfirmed)) return;
       finish({
-        ...closeResult,
+        ...(closeResult || { code: null, signal: null }),
         ok: false,
+        error: forcedError || closeResult?.error,
         terminationConfirmed,
         processMayBeAlive: !terminationConfirmed,
       });
     };
     child.on("error", (error) => {
       const result = { ok: false, code: null, signal: null, error };
-      if (!timedOut) finish(result);
-      else { closeResult = result; finishTimedOutIfReady(); }
+      if (!timeoutReason && !forcedError) finish(result);
+      else { closeResult = result; finishForcedIfReady(); }
     });
     child.on("close", (code, signal) => {
-      const result = { ok: !timedOut && code === 0, code, signal };
-      if (!timedOut) finish(result);
-      else { closeResult = result; finishTimedOutIfReady(); }
+      const result = { ok: !timeoutReason && !forcedError && code === 0, code, signal };
+      if (!timeoutReason && !forcedError) finish(result);
+      else { closeResult = result; finishForcedIfReady(); }
     });
-    wallClockTimer = setTimeout(() => {
-      timedOut = true;
+    const beginTermination = (reason, error = null) => {
+      if (settled || timeoutReason || forcedError) return;
+      if (reason === "wall_clock_exceeded" || reason === "idle_output_exceeded") {
+        timedOut = true;
+        timeoutReason = reason;
+      } else {
+        forcedError = error || new Error(reason);
+      }
       settlementTimer = setTimeout(() => finish({
         ok: false,
         code: closeResult?.code ?? null,
         signal: closeResult?.signal ?? null,
-        error: closeResult?.error,
+        error: forcedError || closeResult?.error,
         terminationConfirmed,
         processMayBeAlive: !terminationConfirmed,
       }), settlementGraceMs);
@@ -370,9 +520,27 @@ export function runBoundedProcess({
         .catch(() => { terminationConfirmed = false; })
         .finally(() => {
           terminationAttemptFinished = true;
-          finishTimedOutIfReady();
+          finishForcedIfReady();
         });
-    }, timeoutMs);
+    };
+    try {
+      const spawnResult = onSpawn?.(child);
+      if (spawnResult === false || spawnResult?.allowed === false) {
+        const error = new Error(spawnResult?.reason || "process spawn binding rejected");
+        error.code = spawnResult?.reason || "process_spawn_rejected";
+        beginTermination("startup_rejected", error);
+        return;
+      }
+    } catch (error) {
+      beginTermination("startup_rejected", error);
+      return;
+    }
+    if (input != null) {
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(input, "utf8");
+    }
+    wallClockTimer = setTimeout(() => beginTermination("wall_clock_exceeded"), timeoutMs);
     wallClockTimer.unref?.();
+    resetIdleTimer();
   });
 }

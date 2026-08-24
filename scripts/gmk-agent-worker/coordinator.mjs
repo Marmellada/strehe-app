@@ -9,16 +9,20 @@ import { loadRouterConfig } from "./lib/router/config.mjs";
 import { classifyJob } from "./lib/router/classify.mjs";
 import { routeJob } from "./lib/router/route.mjs";
 import { assertJobAuthority } from "./lib/router/authority.mjs";
-import { recordCoordinatorEvent, recordJobLifecycle } from "./lib/ledger.mjs";
+import { recordCoordinatorEvent, recordJobLifecycle, recordLlmUsage } from "./lib/ledger.mjs";
 import { recordBlockedCoordinator } from "./lib/blocked-artifact.mjs";
 import { evaluateHealth } from "./lib/health.mjs";
 import { evaluateBudget } from "./lib/budget.mjs";
 import {
+  bindReservationWorker,
   DEFAULT_EXECUTION_LIMITS,
+  reconcileOrphanedCodexReservations,
   releaseExecutionAfterResult,
   reserveExecution,
   runBoundedProcess,
 } from "./lib/scheduler.mjs";
+import { createCodexAdapter } from "./lib/llm/codex.mjs";
+import { assertCodexPersistableResult } from "./lib/codex-runner.mjs";
 
 const AGENTS = Object.freeze({
   engineering: { capability: "engineering.local", resourceClass: "heavy" },
@@ -85,6 +89,105 @@ function gateError(gate) {
   return error;
 }
 
+function startCodexLeaseRenewal(supabase, jobId, leaseSeconds, db) {
+  const intervalMs = Math.max(1000, Math.floor((leaseSeconds * 1000) / 3));
+  const timer = setInterval(async () => {
+    try {
+      const { error } = await supabase.rpc("renew_agent_job_lease", {
+        target_job_id: jobId,
+        lease_seconds: leaseSeconds,
+      });
+      if (error) throw error;
+    } catch (error) {
+      recordCoordinatorEvent(db, "codex_lease_renew_failed", {
+        job_id: jobId,
+        error: String(error?.message || error).slice(0, 500),
+      });
+    }
+  }, intervalMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+async function dispatchCodex({
+  supabase,
+  db,
+  job,
+  runtimeRoot,
+  sourceWorktree,
+  configuredCli,
+  timeoutMs,
+}) {
+  const leaseSeconds = 300;
+  const { data: claimed, error: claimError } = await supabase.rpc("claim_agent_job", {
+    target_job_id: job.id,
+    lease_seconds: leaseSeconds,
+  });
+  if (claimError || !claimed) {
+    const error = new Error(`Codex claim failed: ${claimError?.message || "claim race lost"}`);
+    error.code = "claim_race_lost";
+    throw error;
+  }
+  const stopRenewal = startCodexLeaseRenewal(supabase, claimed.id, leaseSeconds, db);
+  const adapter = createCodexAdapter({
+    runtimeRoot,
+    sourceWorktree,
+    configuredCli,
+    timeoutMs,
+    onSpawn(child) {
+      return bindReservationWorker(db, { jobId: claimed.id, workerPid: child.pid });
+    },
+  });
+  let result;
+  try {
+    result = await adapter.execute({ job: claimed });
+  } finally {
+    stopRenewal();
+  }
+  if (result.invocation?.pid) {
+    recordLlmUsage(db, {
+      provider: "codex",
+      model: "codex-cli",
+      jobId: claimed.id,
+      runId: claimed.run_id || null,
+      agentKey: "engineering.local",
+      taskType: claimed.job_type,
+      apiCalls: 1,
+      costStatus: "run_counted",
+      durationMs: result.duration_ms,
+    });
+  }
+  if (result.final_status === "success") {
+    assertCodexPersistableResult(result);
+    const { error: completeError } = await supabase.rpc("complete_agent_job", {
+      target_job_id: claimed.id,
+      job_result: result,
+    });
+    if (completeError) {
+      const error = new Error(`Codex result completion failed: ${completeError.message}`);
+      error.code = "codex_complete_failed";
+      throw error;
+    }
+    return result;
+  }
+  const failureCode = String(result.failure_code || `codex_${result.final_status}`).slice(0, 120);
+  const { error: failError } = await supabase.rpc("fail_agent_job", {
+    target_job_id: claimed.id,
+    failure_code: failureCode,
+    failure_message: String(result.failure_message || `Codex finished with ${result.final_status}`).slice(0, 4000),
+  });
+  if (failError) {
+    recordCoordinatorEvent(db, "codex_fail_rpc_error", {
+      job_id: claimed.id,
+      error: String(failError.message || failError).slice(0, 500),
+    });
+  }
+  const error = new Error(`Codex finished with ${result.final_status}: ${failureCode}`);
+  error.code = failureCode;
+  error.codexResult = result;
+  throw error;
+}
+
 async function queuedJob(supabase, capability) {
   const now = new Date().toISOString();
   const { data, error } = await supabase
@@ -104,7 +207,7 @@ async function queuedJob(supabase, capability) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.once || args.overnight) {
-    throw new Error("P2 coordinator supports --once only; Overnight Mode starts in P6");
+    throw new Error("P4 coordinator supports --once only; Overnight Mode starts in P6");
   }
   const agent = AGENTS[args.agent];
   if (!agent) throw new Error(`unknown agent: ${args.agent}`);
@@ -128,6 +231,26 @@ async function main() {
       requireValue(env, "SUPABASE_AGENT_EMAIL"),
       getCredential(credentialTarget),
     );
+    const orphanEvidence = await reconcileOrphanedCodexReservations(db, {
+      async getJobLeaseState(jobId) {
+        const { data, error } = await supabase
+          .from("agent_jobs")
+          .select("id, status, lease_expires_at")
+          .eq("id", jobId)
+          .maybeSingle();
+        if (error) throw error;
+        return data ?? null;
+      },
+    });
+    for (const entry of orphanEvidence) {
+      recordCoordinatorEvent(db, `codex_orphan_${entry.action}`, {
+        job_id: entry.jobId,
+        worker_pid: entry.workerPid,
+        reason: entry.reason,
+        error: entry.error || null,
+        reservation_retained: entry.action !== "released",
+      });
+    }
     const job = await queuedJob(supabase, agent.capability);
     if (!job) {
       recordCoordinatorEvent(db, "coordinator_idle", { agent: args.agent });
@@ -170,18 +293,14 @@ async function main() {
 
       assertJobAuthority(job);
 
-      if (route.handle === "codex") {
-        const error = new Error("Codex execution starts in P4; P2 refuses to dispatch this route");
-        error.code = "provider_not_implemented";
-        throw error;
-      }
-
-      const executionLimits = DEFAULT_EXECUTION_LIMITS[agent.resourceClass];
+      const isCodex = route.handle === "codex";
+      const executionLimits = DEFAULT_EXECUTION_LIMITS[isCodex ? "codex" : agent.resourceClass];
       const deadlineAt = new Date(Date.now() + executionLimits.wallClockMs).toISOString();
       concurrency = reserveExecution(db, {
         jobId: job.id,
-        resourceClass: agent.resourceClass,
+        resourceClass: isCodex ? "heavy" : agent.resourceClass,
         provider,
+        processKind: isCodex ? "codex" : "worker",
         deadlineAt,
       });
       if (!concurrency.allowed) throw gateError(concurrency);
@@ -193,14 +312,72 @@ async function main() {
         iterationCeiling: executionLimits.llmCallCeiling,
         deadlineAt,
       });
-      const worker = await runWorker({
-        agent: args.agent,
-        jobId: job.id,
-        modelHandle: route.handle,
-        timeoutMs: executionLimits.wallClockMs,
-        llmCallCeiling: executionLimits.llmCallCeiling,
-        runtimeRoot,
-      });
+      const worker = isCodex
+        ? await dispatchCodex({
+          supabase,
+          db,
+          job,
+          runtimeRoot,
+          sourceWorktree: path.resolve(envGet("GMK_WORKTREE_PATH") || process.cwd()),
+          configuredCli: routerConfig.models.providers.codex.cli,
+          timeoutMs: executionLimits.wallClockMs,
+        }).then((result) => ({
+          ok: result.final_status === "success",
+          code: result.exit_code,
+          timedOut: result.timeout_state,
+          terminationConfirmed: result.termination_confirmed,
+          processMayBeAlive: result.process_may_be_alive,
+          pid: result.invocation?.pid ?? null,
+          stdout: "",
+          stderr: result.failure_message || "",
+          codexResult: result,
+        }), (error) => {
+          const result = error.codexResult;
+          if (result) {
+            workerResult = {
+              ok: false,
+              code: result.exit_code,
+              timedOut: result.timeout_state,
+              terminationConfirmed: result.termination_confirmed,
+              processMayBeAlive: result.process_may_be_alive,
+              pid: result.invocation?.pid ?? null,
+              stdout: "",
+              stderr: result.failure_message || error.message,
+              codexResult: result,
+            };
+            recordJobLifecycle(db, {
+              jobId: job.id,
+              state: result.final_status,
+              modelHandle: route.handle,
+              deadlineAt,
+            });
+            if (result.final_status === "termination_unconfirmed") {
+              recordCoordinatorEvent(db, "watchdog_termination_unconfirmed", {
+                job_id: job.id,
+                worker_pid: result.invocation?.pid ?? null,
+                reservation_retained: true,
+                process_kind: "codex",
+              });
+            } else if (result.timeout_state) {
+              recordCoordinatorEvent(db, "watchdog_timeout", {
+                job_id: job.id,
+                model_handle: route.handle,
+                wall_clock_ms: executionLimits.wallClockMs,
+                timeout_reason: result.timeout_reason,
+                process_kind: "codex",
+              });
+            }
+          }
+          throw error;
+        })
+        : await runWorker({
+          agent: args.agent,
+          jobId: job.id,
+          modelHandle: route.handle,
+          timeoutMs: executionLimits.wallClockMs,
+          llmCallCeiling: executionLimits.llmCallCeiling,
+          runtimeRoot,
+        });
       workerResult = worker;
       if (worker.timedOut && !worker.terminationConfirmed) {
         concurrency = {
