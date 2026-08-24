@@ -34,16 +34,17 @@ export function orderJobsForProcessing(jobs) {
 export async function processNextJob(runtime, spec) {
   const { supabase, logger } = runtime;
   const now = new Date().toISOString();
-  const { data: jobs, error } = await supabase
+  let query = supabase
     .from("agent_jobs")
-    .select("id, payload, job_type, priority, created_at")
+    .select("id, payload, job_type, priority, created_at, attempt_count, requires_review, workspace_type")
     .eq("required_capability", spec.capability)
     .eq("status", "queued")
     .lte("available_at", now)
     .gt("expires_at", now)
     .order("priority", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(25);
+    .order("created_at", { ascending: true });
+  if (runtime.targetJobId) query = query.eq("id", runtime.targetJobId);
+  const { data: jobs, error } = await query.limit(runtime.targetJobId ? 1 : 25);
   if (error) throw error;
   if (!jobs || jobs.length === 0) return false;
 
@@ -61,6 +62,12 @@ export async function processNextJob(runtime, spec) {
     const started = Date.now();
     try {
       await runtime.onJobState?.("working", claimed.id);
+      runtime.llm?.setContext?.({
+        jobId: claimed.id,
+        runId: claimed.run_id || null,
+        agentKey: spec.agentKey,
+        taskType: claimed.job_type,
+      });
       const result = await spec.run(runtime, claimed);
       assertSafeResult(result);
       const { error: completeError } = await supabase.rpc("complete_agent_job", {

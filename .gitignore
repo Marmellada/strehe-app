@@ -40,6 +40,9 @@ tmp-marketing-review/
 # env files (can opt-in for committing if needed)
 .env*
 
+# Live router config/env belong at the runtime root outside this repository.
+# Repository templates live under scripts/gmk-agent-worker/config-examples/.
+
 # vercel
 .vercel
 

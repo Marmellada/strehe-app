@@ -1,0 +1,21 @@
+{
+  "currency": "USD",
+  "per_million_tokens": {
+    "opencode/kimi-k3": {
+      "input": 0,
+      "output": 0
+    },
+    "opencode/kimi-k2.7-code": {
+      "input": 0,
+      "output": 0
+    },
+    "opencode/qwen3.7-plus": {
+      "input": 0,
+      "output": 0
+    },
+    "opencode/minimax-m3": {
+      "input": 0,
+      "output": 0
+    }
+  }
+}

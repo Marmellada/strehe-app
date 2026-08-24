@@ -6,6 +6,7 @@ import { createLogger } from "./lib/logging.mjs";
 import { createToolGateway } from "./lib/tools.mjs";
 import { publishEngineeringSnapshot } from "./lib/proactive.mjs";
 import { processWorkerOnce, processWorkerPass } from "./lib/worker-pass.mjs";
+import { createLlmRegistry } from "./lib/llm/registry.mjs";
 
 const AGENT_LOADERS = {
   engineering: () => import("./agents/engineering.spec.mjs").then((m) => m.default),
@@ -16,13 +17,19 @@ const AGENT_LOADERS = {
 function parseArgs(argv) {
   let agent = "engineering";
   let once = false;
+  let modelHandle = null;
+  let jobId = null;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--once") once = true;
     else if (a === "--agent" && argv[i + 1]) { agent = argv[++i]; }
     else if (a.startsWith("--agent=")) agent = a.slice("--agent=".length);
+    else if (a === "--model-handle" && argv[i + 1]) { modelHandle = argv[++i]; }
+    else if (a.startsWith("--model-handle=")) modelHandle = a.slice("--model-handle=".length);
+    else if (a === "--job-id" && argv[i + 1]) { jobId = argv[++i]; }
+    else if (a.startsWith("--job-id=")) jobId = a.slice("--job-id=".length);
   }
-  return { agent, once };
+  return { agent, once, modelHandle, jobId };
 }
 
 function numOr(value, fallback, min) {
@@ -31,7 +38,7 @@ function numOr(value, fallback, min) {
 }
 
 async function main() {
-  const { agent, once } = parseArgs(process.argv.slice(2));
+  const { agent, once, modelHandle, jobId } = parseArgs(process.argv.slice(2));
   if (!AGENT_LOADERS[agent]) throw new Error(`unknown agent: ${agent}`);
   const spec = await AGENT_LOADERS[agent]();
 
@@ -74,7 +81,18 @@ async function main() {
     config,
     logger,
     agentId: auth.user.id,
+    targetJobId: jobId,
   };
+  runtime.llm = createLlmRegistry({
+    runtimeRoot: config.runtimeRoot,
+    modelHandle,
+    ollamaConfig: {
+      baseUrl: config.ollamaBaseUrl,
+      model: config.ollamaModel,
+      numGpu: config.ollamaNumGpu,
+      timeoutMs: config.ollamaTimeoutMs,
+    },
+  });
   if (agent === "engineering") {
     runtime.tools = createToolGateway({ worktreePath: config.worktreePath });
     runtime.onJobState = (state, jobId, errorClass) =>
@@ -101,10 +119,14 @@ async function main() {
     const scheduled = pass.scheduled;
     if (!processed && agent === "engineering") logger.log("proactive_check", { enqueued: Boolean(scheduled?.enqueued), reason: scheduled?.reason || (pass.control.control_available ? "not_due" : "control_unavailable"), target: scheduled?.target || null });
     logger.log(processed ? "pass_processed" : "pass_idle", {});
+    if (jobId && !processed) {
+      logger.log("target_job_not_processed", { job_id: jobId });
+      process.exit(3);
+    }
     process.exit(0);
   }
 
-  logger.log("watching", { poll_seconds: config.pollSeconds, model: config.ollamaModel });
+  logger.log("watching", { poll_seconds: config.pollSeconds, provider: runtime.llm.provider, model: runtime.llm.model });
   while (!stopped) {
     try {
       const pass = await processWorkerPass(runtime, spec, { engineering: agent === "engineering" });

@@ -130,9 +130,62 @@ CREATE TABLE IF NOT EXISTS runtime_state (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS llm_usage_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  job_id TEXT,
+  run_id TEXT,
+  agent_key TEXT,
+  task_type TEXT,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  cache_read_tokens INTEGER,
+  cache_write_tokens INTEGER,
+  reasoning_tokens INTEGER,
+  api_calls INTEGER NOT NULL DEFAULT 1,
+  estimated_cost_usd REAL,
+  cost_status TEXT NOT NULL DEFAULT 'unknown',
+  duration_ms INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS routing_outcomes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_type TEXT NOT NULL,
+  scope_fingerprint TEXT,
+  model TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  failure_class TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS coordinator_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event TEXT NOT NULL,
+  detail_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS job_lifecycle_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  model_handle TEXT,
+  iteration_count INTEGER NOT NULL DEFAULT 0,
+  deadline_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_test_catalog_file ON test_catalog(file);
 CREATE INDEX IF NOT EXISTS idx_validation_records_module_created
   ON validation_records(module, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_llm_usage_provider_created
+  ON llm_usage_ledger(provider, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_routing_outcomes_signature_created
+  ON routing_outcomes(job_type, scope_fingerprint, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_job_lifecycle_job_created
+  ON job_lifecycle_log(job_id, created_at DESC);
 `;
 
 function ensureColumn(db, table, column, declaration) {

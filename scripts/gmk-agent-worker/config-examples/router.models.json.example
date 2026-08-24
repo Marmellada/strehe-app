@@ -1,0 +1,54 @@
+{
+  "providers": {
+    "opencode": {
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "enabled": true
+    },
+    "codex": {
+      "cli": "codex",
+      "sandbox": "workspace-write",
+      "enabled": true
+    },
+    "ollama": {
+      "enabled": false,
+      "note": "local inference is opt-in"
+    }
+  },
+  "models": {
+    "opencode/kimi-k3": {
+      "tier": "escalation",
+      "max_ctx": 256000,
+      "enabled": true,
+      "protocol": "openai_chat_completions"
+    },
+    "opencode/kimi-k2.7-code": {
+      "tier": "coding",
+      "max_ctx": 128000,
+      "enabled": true,
+      "protocol": "openai_chat_completions"
+    },
+    "opencode/qwen3.7-plus": {
+      "tier": "routine",
+      "max_ctx": 128000,
+      "enabled": true,
+      "protocol": "anthropic_messages"
+    },
+    "opencode/minimax-m3": {
+      "tier": "routine",
+      "max_ctx": 128000,
+      "enabled": true,
+      "protocol": "anthropic_messages"
+    },
+    "opencode/deepseek-v4-pro": {
+      "tier": "coding",
+      "enabled": false,
+      "protocol": "openai_chat_completions",
+      "reason": "China-hosted models are intentionally disabled"
+    },
+    "codex": {
+      "tier": "implementation",
+      "enabled": true,
+      "protocol": "codex_cli"
+    }
+  }
+}

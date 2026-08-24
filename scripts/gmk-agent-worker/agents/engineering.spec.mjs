@@ -1,6 +1,6 @@
 import { createToolGateway } from "../lib/tools.mjs";
 import { openDatabase, setState } from "../lib/sqlite.mjs";
-import { ollamaChat, isContextLengthError } from "../lib/ollama.mjs";
+import { isContextLengthError } from "../lib/ollama.mjs";
 import { parseJsonLoose } from "../lib/json.mjs";
 import { MODULES, FLOWS, DEPENDENCIES } from "./strehe-map.mjs";
 import { mapModuleImpact, selectChecksForFiles } from "../lib/impact.mjs";
@@ -14,7 +14,7 @@ import {
 
 // Engineering Agent V1 — Coordinator + Worker.
 // Coordinator owns durable continuity (SQLite); Worker executes one bounded task.
-// Both use the same Ollama model sequentially; no persistent LLM context.
+// Both use the injected bounded model adapter sequentially; no persistent LLM context.
 
 const MAX_TASKS_PER_SESSION = 40;
 const MAX_RETRIES = 2;
@@ -35,7 +35,7 @@ function nowIso() {
 export const ENGINEERING_INTENTIONAL_CONSTRAINTS = Object.freeze([
   "Outbound production messaging is human-authorized. Engineering agents deliberately do not have unrestricted autonomous send capability.",
   "Agents must not autonomously deploy, apply migrations, or mutate production. Production changes remain human-gated.",
-  "AI processing for the Engineering Agent is local-only. Public AI APIs are disabled.",
+  "Standalone Engineering Agent inference is local-only and loopback-only; routed cloud inference must use the explicit audited adapter and never receives tool subprocess secrets.",
 ]);
 
 export function buildProactivePrompt(targetModule, excerpts) {
@@ -59,7 +59,7 @@ export function buildProactivePrompt(targetModule, excerpts) {
 // already exceeded the context window will fail identically on every replay.
 // Genuinely transient failures keep the existing bounded retry budget.
 export function shouldRetryTask(error, retryCount, maxRetries = MAX_RETRIES) {
-  if (error?.code === "ollama_context_exceeded") return false;
+  if (["ollama_context_exceeded", "context_length"].includes(error?.code)) return false;
   return retryCount < maxRetries;
 }
 
@@ -169,20 +169,16 @@ async function runWorkerTask(ctx, task) {
       const delayMs = Number(params.delay_ms) || 0;
       if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
       const started = Date.now();
-      const raw = await ollamaChat({
-        baseUrl: ctx.config.ollamaBaseUrl,
-        model: ctx.config.ollamaModel,
+      const raw = await ctx.runtime.llm.chat({
         prompt,
-        numGpu: ctx.config.ollamaNumGpu ?? 0,
-        timeoutMs: ctx.config.ollamaTimeoutMs,
       });
       const parsed = parseJsonLoose(raw);
-      if (!parsed.ok) throw new Error(`ollama output not JSON: ${parsed.error}`);
+      if (!parsed.ok) throw new Error(`model output not JSON: ${parsed.error}`);
       return {
         ok: true,
-        summary: "local ollama call produced structured JSON",
+        summary: "injected model adapter produced structured JSON",
         evidence: [
-          { kind: "ollama", model: ctx.config.ollamaModel, duration_ms: Date.now() - started, output: parsed.value },
+          { kind: "llm", provider: ctx.runtime.llm.provider, model: ctx.runtime.llm.model, duration_ms: Date.now() - started, output: parsed.value },
         ],
       };
     }
@@ -285,16 +281,12 @@ async function runWorkerTask(ctx, task) {
         throw new Error("proactive module target is invalid");
       }
       const input = await buildProactiveInput(targetModule, tools);
-      const raw = await ollamaChat({
-        baseUrl: ctx.config.ollamaBaseUrl,
-        model: ctx.config.ollamaModel,
+      const raw = await ctx.runtime.llm.chat({
         prompt: input.prompt,
-        numGpu: ctx.config.ollamaNumGpu ?? 0,
-        timeoutMs: ctx.config.ollamaTimeoutMs,
       });
       const parsed = parseJsonLoose(raw);
       if (!parsed.ok || !parsed.value || !Array.isArray(parsed.value.findings)) {
-        throw new Error("proactive Ollama output did not match the bounded findings schema");
+        throw new Error("proactive model output did not match the bounded findings schema");
       }
       const findings = parsed.value.findings.slice(0, 5).map((finding) => ({
         severity: ["critical", "high", "medium", "low", "info"].includes(finding?.severity) ? finding.severity : "info",
@@ -308,7 +300,8 @@ async function runWorkerTask(ctx, task) {
         findings,
         files_reviewed: input.files,
         telemetry: {
-          model: ctx.config.ollamaModel,
+          model: ctx.runtime.llm.model,
+          provider: ctx.runtime.llm.provider,
           files_included: input.files,
           excerpt_chars: input.excerptChars,
           excerpt_bytes: input.excerptBytes,
@@ -318,7 +311,7 @@ async function runWorkerTask(ctx, task) {
         },
       };
       ctx.logger?.log("proactive_analysis", {
-        model: ctx.config.ollamaModel,
+        model: ctx.runtime.llm.model,
         files: input.files.length,
         excerpt_bytes: input.excerptBytes,
         prompt_bytes: input.promptBytes,
@@ -532,9 +525,14 @@ function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, ch
     questions: [],
     summary,
     production_changes_made: false,
-    privacy: { external_ai_used: false, local_processing: true },
+    privacy: {
+      external_ai_used: ctx.runtime.llm.isExternal === true,
+      local_processing: ctx.runtime.llm.isExternal !== true,
+    },
     runtime: {
-      model: ctx.config.ollamaModel,
+      provider: ctx.runtime.llm.provider,
+      model: ctx.runtime.llm.model,
+      protocol: ctx.runtime.llm.protocol,
       attempts: 1,
       duration_ms: 0,
       tool_calls: checks.length,
@@ -553,6 +551,8 @@ export default {
   leaseSeconds: 300,
   ollamaTimeoutMs: 180000,
   maxQualityAttempts: 3,
+  resourceClass: "heavy",
+  taskType: "engineering",
   tools: [
     "git.status", "git.diff_stat", "git.diff", "git.log", "git.rev",
     "git.ls_files", "git.scope_fingerprint", "git.show_stat", "file.read", "search", "node.check",

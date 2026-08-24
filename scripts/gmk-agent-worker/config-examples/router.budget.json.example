@@ -1,0 +1,29 @@
+{
+  "opencode": {
+    "rolling_5h": {
+      "max_tokens": 3000000,
+      "max_usd_estimate": 5.0
+    },
+    "rolling_7d": {
+      "max_tokens": 12000000,
+      "max_usd_estimate": 20.0
+    },
+    "rolling_30d": {
+      "max_tokens": 40000000,
+      "max_usd_estimate": 60.0
+    }
+  },
+  "codex": {
+    "rolling_5h": {
+      "max_runs": 20
+    },
+    "rolling_7d": {
+      "max_runs": 80
+    },
+    "rolling_30d": {
+      "max_runs": 240
+    }
+  },
+  "soft_threshold_pct": 80,
+  "hard_threshold_pct": 100
+}

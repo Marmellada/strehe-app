@@ -47,11 +47,21 @@ export function assertNoSecrets(value) {
   return value;
 }
 
-// Privacy block invariant: every agent result must assert local-only processing.
+// Privacy block invariant: processing location must be explicit and exclusive.
+// Standalone behavior remains local-only; router-injected cloud calls are audited
+// by their provider/model/protocol metadata and usage ledger.
 export function assertPrivacyBlock(result) {
   const privacy = result?.privacy ?? {};
-  if (privacy.external_ai_used !== false || privacy.local_processing !== true) {
+  const local = privacy.external_ai_used === false && privacy.local_processing === true;
+  const external = privacy.external_ai_used === true && privacy.local_processing === false;
+  if (!local && !external) {
     throw new Error("privacy boundary is incomplete");
+  }
+  if (external) {
+    const runtime = result?.runtime ?? {};
+    if (![runtime.provider, runtime.model, runtime.protocol].every((value) => typeof value === "string" && value.length > 0)) {
+      throw new Error("external AI use requires audited provider/model/protocol metadata");
+    }
   }
   return result;
 }

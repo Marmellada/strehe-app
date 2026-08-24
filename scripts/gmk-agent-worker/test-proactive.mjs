@@ -369,8 +369,8 @@ test("proactive prompt input is bounded: 6 files / 18 KiB total / 6 KiB per file
       throw new Error(`unexpected tool ${name}`);
     },
   };
-  const module = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
-  const input = await buildProactiveInput(module, tools);
+  const targetModule = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
+  const input = await buildProactiveInput(targetModule, tools);
   assert.equal(input.files.length, 6, "candidate cap of 6 files was not enforced");
   const contentChars = input.excerpts.reduce((sum, entry) => sum + (entry.length - entry.indexOf("\n") - 1), 0);
   assert.ok(contentChars <= 18 * 1024, `excerpt content ${contentChars} exceeds the 18 KiB total budget`);
@@ -395,8 +395,8 @@ test("byte-dense source cannot produce a prompt above the 22 KiB hard budget", a
       throw new Error(`unexpected tool ${name}`);
     },
   };
-  const module = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
-  const input = await buildProactiveInput(module, tools);
+  const targetModule = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
+  const input = await buildProactiveInput(targetModule, tools);
   assert.equal(input.adaptivelyTrimmed, true, "dense input must trigger adaptive trimming");
   assert.ok(input.promptBytes <= 22 * 1024, `final prompt ${input.promptBytes} bytes exceeds the 22 KiB hard budget`);
 });
@@ -410,8 +410,8 @@ test("adaptive trimming preserves representation from as many files as possible"
       throw new Error(`unexpected tool ${name}`);
     },
   };
-  const module = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
-  const input = await buildProactiveInput(module, tools);
+  const targetModule = { name: "Auth", purpose: "security", criticality: "high", known_findings: [], tests: [], decisions: [], source_paths: ["lib"] };
+  const input = await buildProactiveInput(targetModule, tools);
   assert.equal(input.files.length, 6, "trimming must keep every selected file represented");
   for (const excerpt of input.excerpts) {
     assert.match(excerpt, /^FILE: lib\/mod\d\/index\.ts\n.+/s, "excerpt header + at least one code point must survive");
@@ -446,6 +446,7 @@ test("deterministic context overflow is never retried unchanged; transient failu
   assert.equal(shouldRetryTask({ code: "ollama_context_exceeded" }, 0), false);
   assert.equal(shouldRetryTask({ code: "ollama_context_exceeded" }, 1), false);
   assert.equal(shouldRetryTask({ code: "ollama_context_exceeded" }, 2), false);
+  assert.equal(shouldRetryTask({ code: "context_length" }, 0), false);
   assert.equal(shouldRetryTask(new Error("ECONNRESET"), 0), true);
   assert.equal(shouldRetryTask(new Error("ECONNRESET"), 1), true);
   assert.equal(shouldRetryTask(new Error("ECONNRESET"), 2), false);
@@ -459,11 +460,11 @@ test("bounded proactive input still produces a valid prompt and telemetry on the
       throw new Error(`unexpected tool ${name}`);
     },
   };
-  const module = { name: "Auth", purpose: "RBAC", criticality: "high", known_findings: [], tests: ["test/auth.spec.ts"], decisions: [], source_paths: ["lib/auth"] };
-  const input = await buildProactiveInput(module, tools);
+  const targetModule = { name: "Auth", purpose: "RBAC", criticality: "high", known_findings: [], tests: ["test/auth.spec.ts"], decisions: [], source_paths: ["lib/auth"] };
+  const input = await buildProactiveInput(targetModule, tools);
   assert.deepEqual(input.files, ["lib/auth/index.ts"]);
   assert.match(input.prompt, /MODULE: Auth/);
   assert.match(input.prompt, /INTENTIONAL CONSTRAINTS/);
   assert.ok(input.promptChars > 0 && input.promptBytes > 0 && input.excerptBytes > 0);
-  assert.equal(input.prompt, buildProactivePrompt(module, input.excerpts));
+  assert.equal(input.prompt, buildProactivePrompt(targetModule, input.excerpts));
 });
