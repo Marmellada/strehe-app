@@ -1,0 +1,15 @@
+{
+  "fixture_id": "strehe-fixture-inbox-v1-english-inquiry",
+  "fixture_marker": "STREHE_SYNTHETIC_INBOX_FIXTURE_V1",
+  "synthetic": true,
+  "source": "controlled_fixture",
+  "channel": "messenger",
+  "declared_language": "en",
+  "messages": [
+    {
+      "message_id": "strehe-synthetic-message-v1-english-inquiry",
+      "role": "customer",
+      "text": "Hello, could you explain how a routine property care request usually starts?"
+    }
+  ]
+}

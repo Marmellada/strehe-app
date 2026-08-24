@@ -1,0 +1,15 @@
+{
+  "fixture_id": "strehe-fixture-inbox-v1-moisture-mold",
+  "fixture_marker": "STREHE_SYNTHETIC_INBOX_FIXTURE_V1",
+  "synthetic": true,
+  "source": "controlled_fixture",
+  "channel": "messenger",
+  "declared_language": "sq",
+  "messages": [
+    {
+      "message_id": "strehe-synthetic-message-v1-moisture-mold",
+      "role": "customer",
+      "text": "Në një dhomë ka lagështi dhe dyshoj për myk. Si mund të kërkoj një kontroll pa supozuar shkakun?"
+    }
+  ]
+}

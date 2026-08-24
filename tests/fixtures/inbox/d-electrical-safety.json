@@ -1,0 +1,15 @@
+{
+  "fixture_id": "strehe-fixture-inbox-v1-electrical-safety",
+  "fixture_marker": "STREHE_SYNTHETIC_INBOX_FIXTURE_V1",
+  "synthetic": true,
+  "source": "controlled_fixture",
+  "channel": "whatsapp",
+  "declared_language": "sq",
+  "messages": [
+    {
+      "message_id": "strehe-synthetic-message-v1-electrical-safety",
+      "role": "customer",
+      "text": "Priza po lëshon shkëndija dhe ndihet erë e djegur. Çfarë duhet të bëj tani?"
+    }
+  ]
+}

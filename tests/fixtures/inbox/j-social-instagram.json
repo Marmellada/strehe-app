@@ -1,0 +1,15 @@
+{
+  "fixture_id": "strehe-fixture-inbox-v1-social-instagram",
+  "fixture_marker": "STREHE_SYNTHETIC_INBOX_FIXTURE_V1",
+  "synthetic": true,
+  "source": "controlled_fixture",
+  "channel": "instagram",
+  "declared_language": "sq",
+  "messages": [
+    {
+      "message_id": "strehe-synthetic-message-v1-social-instagram",
+      "role": "customer",
+      "text": "Pashë faqen e STREHE në Instagram. A mund të më tregoni si fillon një kërkesë për kujdesin e banesës?"
+    }
+  ]
+}

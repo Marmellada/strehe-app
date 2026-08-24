@@ -20,6 +20,18 @@ const AGENT_DEFAULTS = {
     model: "deepseek-coder-v2:16b",
     runtimeRoot: "D:\\Personal\\Projects\\Strehe-Prona\\STREHE-ENGINEERING-RUNTIME",
     worktreePath: "D:\\Personal\\Projects\\Strehe-Prona\\STREHE-ENGINEERING-RUNTIME\\worktree\\strehe-app-engineering",
+    jobTypes: ["engineering.local"],
+  },
+  inbox: {
+    email: "agent.inbox@streheprona.com",
+    key: "inbox.local",
+    capability: "inbox.analyze",
+    displayName: "Fixture-only Inbox Agent",
+    description: "Synthetic-fixture triage and human-reviewed drafting only; no live Inbox access or send authority.",
+    model: "qwen3.7-plus",
+    runtimeRoot: "D:\\Personal\\Projects\\Strehe-Prona\\STREHE-ENGINEERING-RUNTIME",
+    worktreePath: "D:\\Personal\\Projects\\Strehe-Prona\\STREHE-ENGINEERING-RUNTIME\\worktree\\strehe-app-engineering",
+    jobTypes: ["inbox.triage", "inbox.draft"],
   },
 };
 
@@ -120,9 +132,14 @@ async function main() {
         agent_id: authUser.id,
         capability_key: capability,
         constraints: {
-          job_types: [capability],
+          job_types: defaults.jobTypes || [capability],
+          ...(agent === "inbox" ? {
+            fixture_only: true,
+            live_inbox_access: false,
+            outbound_messaging: false,
+          } : {}),
           human_review_required: true,
-          max_quality_attempts: 3,
+          max_quality_attempts: agent === "inbox" ? 1 : 3,
         },
       },
       { onConflict: "agent_id,capability_key" },

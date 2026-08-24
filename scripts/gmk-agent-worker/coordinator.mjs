@@ -26,6 +26,7 @@ import { assertCodexPersistableResult } from "./lib/codex-runner.mjs";
 
 const AGENTS = Object.freeze({
   engineering: { capability: "engineering.local", resourceClass: "heavy" },
+  inbox: { capability: "inbox.analyze", resourceClass: "light" },
 });
 
 function parseArgs(argv) {

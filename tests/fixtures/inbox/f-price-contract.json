@@ -1,0 +1,15 @@
+{
+  "fixture_id": "strehe-fixture-inbox-v1-price-contract",
+  "fixture_marker": "STREHE_SYNTHETIC_INBOX_FIXTURE_V1",
+  "synthetic": true,
+  "source": "controlled_fixture",
+  "channel": "whatsapp",
+  "declared_language": "sq",
+  "messages": [
+    {
+      "message_id": "strehe-synthetic-message-v1-price-contract",
+      "role": "customer",
+      "text": "Sa kushton shërbimi dhe a mund të më konfirmoni nëse kontrata ime është aktive? Nuk kam dhënë hollësi të tjera."
+    }
+  ]
+}

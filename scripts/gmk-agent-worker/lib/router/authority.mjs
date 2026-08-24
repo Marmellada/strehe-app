@@ -1,3 +1,5 @@
+import { assertSyntheticInboxFixture } from "../inbox/contract.mjs";
+
 const FORBIDDEN_TRUE_KEYS = new Set([
   "send", "deploy", "push", "force_push", "apply_migration", "migrate",
   "rotate_secret", "rotate_secrets", "change_billing", "production_write",
@@ -30,10 +32,24 @@ function inspect(value, path = "payload") {
 
 export function assertJobAuthority(job) {
   const payload = job?.payload && typeof job.payload === "object" ? job.payload : {};
-  if (String(job?.job_type || "").startsWith("inbox.") && payload.conversation_id) {
-    const error = new Error("Inbox V1 accepts fixtures only; real conversation_id is forbidden");
-    error.code = "authority_blocked";
-    throw error;
+  if (String(job?.job_type || "").startsWith("inbox.")) {
+    if (job.requires_review !== true) {
+      const error = new Error("Inbox V1 jobs must require review in the durable job lifecycle");
+      error.code = "authority_blocked";
+      throw error;
+    }
+    if (!["inbox.triage", "inbox.draft"].includes(job.job_type)) {
+      const error = new Error("Inbox V1 job type is not fixture-enabled");
+      error.code = "authority_blocked";
+      throw error;
+    }
+    const keys = Object.keys(payload);
+    if (keys.length !== 1 || keys[0] !== "conversation_fixture") {
+      const error = new Error("Inbox V1 accepts only a controlled conversation_fixture payload");
+      error.code = "authority_blocked";
+      throw error;
+    }
+    assertSyntheticInboxFixture(payload.conversation_fixture);
   }
   inspect(payload);
   return true;

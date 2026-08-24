@@ -1,0 +1,15 @@
+{
+  "fixture_id": "strehe-fixture-inbox-v1-diaspora-property-check",
+  "fixture_marker": "STREHE_SYNTHETIC_INBOX_FIXTURE_V1",
+  "synthetic": true,
+  "source": "controlled_fixture",
+  "channel": "whatsapp",
+  "declared_language": "sq",
+  "messages": [
+    {
+      "message_id": "strehe-synthetic-message-v1-diaspora-property-check",
+      "role": "customer",
+      "text": "Jetoj jashtë vendit dhe dua të di nëse mund të organizohet një kontroll i banesës sime. Çfarë hollësish ju duhen?"
+    }
+  ]
+}
