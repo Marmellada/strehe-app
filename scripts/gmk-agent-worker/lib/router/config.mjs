@@ -42,7 +42,7 @@ export const DEFAULT_MODEL_CONFIG = Object.freeze({
 
 export const DEFAULT_BUDGET_CONFIG = Object.freeze({
   // Internal operator planning/safety ceilings only—not authoritative OpenCode provider limits.
-  // USD estimates 5/20/60 are conservative vs. 12/30/60; token ceilings are separate, not dollar-equivalent.
+  // USD safety ceilings are not provider-limit truth; token ceilings are separate, not dollar-equivalent.
   opencode: {
     rolling_5h: { max_tokens: 3000000, max_usd_estimate: 5.0 },
     rolling_7d: { max_tokens: 12000000, max_usd_estimate: 20.0 },

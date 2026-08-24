@@ -1,4 +1,4 @@
-import { recordLlmUsage } from "../ledger.mjs";
+import { assertUsageMeteringAvailable, recordLlmUsage } from "../ledger.mjs";
 
 function apiUrl(baseUrl, protocol) {
   const base = String(baseUrl || "").replace(/\/$/, "");
@@ -64,24 +64,39 @@ export function normalizeOpenCodeUsage(protocol, payload) {
     cacheReadTokens,
     cacheWriteTokens,
     reasoningTokens,
+    reportedCostUsd: payload?.cost_usd ?? usage.cost_usd ?? null,
     estimatedCostUsd: payload?.estimated_cost_usd ?? usage.estimated_cost_usd ?? null,
     costStatus: payload?.cost_status ?? usage.cost_status ?? "unknown",
   };
 }
 
 function estimatedCost(usage, rate) {
-  const providerCost = Number(usage.estimatedCostUsd);
-  if (Number.isFinite(providerCost) && providerCost > 0) {
-    return { value: providerCost, status: usage.costStatus || "reported" };
+  const reportedCost = usage.reportedCostUsd == null ? null : Number(usage.reportedCostUsd);
+  if (reportedCost !== null && Number.isFinite(reportedCost) && reportedCost >= 0) {
+    return { reportedValue: reportedCost, estimatedValue: null, status: "reported" };
+  }
+  const providerCost = usage.estimatedCostUsd == null ? null : Number(usage.estimatedCostUsd);
+  if (providerCost !== null && Number.isFinite(providerCost) && providerCost >= 0
+    && ["reported", "exact"].includes(String(usage.costStatus).toLowerCase())) {
+    return { reportedValue: providerCost, estimatedValue: null, status: "reported" };
+  }
+  if (providerCost !== null && Number.isFinite(providerCost) && providerCost >= 0
+    && String(usage.costStatus).toLowerCase() === "estimated") {
+    return { reportedValue: null, estimatedValue: providerCost, status: "estimated" };
   }
   const inputRate = Number(rate?.input);
   const outputRate = Number(rate?.output);
-  if (Number.isFinite(inputRate) && Number.isFinite(outputRate)) {
+  if (Number.isFinite(inputRate) && Number.isFinite(outputRate)
+    && (inputRate > 0 || outputRate > 0)) {
     const input = Number(usage.inputTokens) || 0;
     const output = Number(usage.outputTokens) || 0;
-    return { value: ((input * inputRate) + (output * outputRate)) / 1000000, status: "estimated" };
+    return {
+      reportedValue: null,
+      estimatedValue: ((input * inputRate) + (output * outputRate)) / 1000000,
+      status: "estimated",
+    };
   }
-  return { value: Number.isFinite(providerCost) ? providerCost : null, status: usage.costStatus || "unknown" };
+  return { reportedValue: null, estimatedValue: null, status: usage.costStatus || "unknown" };
 }
 
 function classifyFetchError(error) {
@@ -116,8 +131,22 @@ export function createOpenCodeAdapter({
       cacheWriteTokens: usage.cacheWriteTokens,
       reasoningTokens: usage.reasoningTokens,
       apiCalls: 1,
-      estimatedCostUsd: cost.value,
+      estimatedCostUsd: cost.estimatedValue,
+      reportedCostUsd: cost.reportedValue,
       costStatus: cost.status,
+      durationMs,
+    });
+  }
+
+  function writeTransportFailure(durationMs) {
+    recordLlmUsage(db, {
+      provider: "opencode",
+      model,
+      ...context,
+      apiCalls: 1,
+      estimatedCostUsd: null,
+      reportedCostUsd: null,
+      costStatus: "transport_failed",
       durationMs,
     });
   }
@@ -131,8 +160,10 @@ export function createOpenCodeAdapter({
       context = next && typeof next === "object" ? { ...next } : {};
     },
     async chat({ prompt, temperature = 0.1, maxTokens } = {}) {
+      assertUsageMeteringAvailable(db, "opencode");
       const started = Date.now();
       let recorded = false;
+      let providerResponseReceived = false;
       try {
         const headers = {
           "Content-Type": "application/json",
@@ -148,6 +179,7 @@ export function createOpenCodeAdapter({
           body: JSON.stringify(requestFor(protocol, model, String(prompt || ""), temperature, maxTokens)),
           signal: AbortSignal.timeout(timeoutMs),
         });
+        providerResponseReceived = true;
         const text = await response.text();
         let payload = {};
         try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
@@ -168,7 +200,11 @@ export function createOpenCodeAdapter({
         return responseContent(protocol, payload);
       } catch (error) {
         if (!recorded) {
-          writeUsage({}, Date.now() - started);
+          if (providerResponseReceived) {
+            writeUsage({}, Date.now() - started);
+          } else {
+            writeTransportFailure(Date.now() - started);
+          }
           recorded = true;
         }
         if (!error.code) error.code = classifyFetchError(error);

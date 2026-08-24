@@ -160,7 +160,7 @@ test("OpenCode chat-completions adapter uses its protocol endpoint and ledgers u
     model: "kimi-k3",
     protocol: "openai_chat_completions",
     db,
-    ratecard: { input: 0, output: 0 },
+    ratecard: { input: 1, output: 2 },
     fetchImpl: async (url, options) => {
       request = { url, options };
       return new Response(JSON.stringify({
@@ -178,6 +178,8 @@ test("OpenCode chat-completions adapter uses its protocol endpoint and ledgers u
   assert.equal(row.output_tokens, 3);
   assert.equal(row.reasoning_tokens, 1);
   assert.equal(row.cost_status, "estimated");
+  assert.equal(row.reported_cost_usd, null);
+  assert.equal(row.estimated_cost_usd, 0.000017);
   db.close();
 });
 
@@ -205,6 +207,9 @@ test("OpenCode Anthropic Messages adapter uses /v1/messages and normalizes cache
   const row = db.prepare("SELECT * FROM llm_usage_ledger").get();
   assert.equal(row.cache_read_tokens, 5);
   assert.equal(row.cache_write_tokens, 1);
+  assert.equal(row.estimated_cost_usd, null);
+  assert.equal(row.reported_cost_usd, null);
+  assert.equal(row.cost_status, "unknown");
   db.close();
 });
 

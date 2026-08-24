@@ -30,7 +30,15 @@ try {
               COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
               COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,
               COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
-              COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd
+              COALESCE(SUM(CASE
+                WHEN reported_cost_usd IS NOT NULL THEN reported_cost_usd
+                WHEN lower(cost_status) IN ('reported', 'exact') THEN COALESCE(estimated_cost_usd, 0)
+                ELSE 0 END), 0) AS reported_cost_usd,
+              COALESCE(SUM(CASE
+                WHEN reported_cost_usd IS NULL AND lower(cost_status) = 'estimated'
+                  THEN COALESCE(estimated_cost_usd, 0)
+                ELSE 0 END), 0) AS estimated_cost_usd,
+              SUM(CASE WHEN lower(cost_status) = 'unknown' THEN 1 ELSE 0 END) AS unknown_cost_calls
        FROM llm_usage_ledger
        WHERE created_at >= datetime('now', ?)
        GROUP BY provider, model

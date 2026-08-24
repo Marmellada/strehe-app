@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS llm_usage_ledger (
   reasoning_tokens INTEGER,
   api_calls INTEGER NOT NULL DEFAULT 1,
   estimated_cost_usd REAL,
+  reported_cost_usd REAL,
   cost_status TEXT NOT NULL DEFAULT 'unknown',
   duration_ms INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -173,8 +174,21 @@ CREATE TABLE IF NOT EXISTS job_lifecycle_log (
   state TEXT NOT NULL,
   model_handle TEXT,
   iteration_count INTEGER NOT NULL DEFAULT 0,
+  iteration_ceiling INTEGER,
   deadline_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS coordinator_reservations (
+  job_id TEXT PRIMARY KEY,
+  resource_class TEXT NOT NULL CHECK(resource_class IN ('heavy', 'light')),
+  provider TEXT NOT NULL,
+  process_kind TEXT NOT NULL DEFAULT 'worker',
+  owner_pid INTEGER NOT NULL,
+  worker_pid INTEGER,
+  worker_bound_at TEXT,
+  reserved_at TEXT NOT NULL,
+  deadline_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_test_catalog_file ON test_catalog(file);
@@ -186,6 +200,8 @@ CREATE INDEX IF NOT EXISTS idx_routing_outcomes_signature_created
   ON routing_outcomes(job_type, scope_fingerprint, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_lifecycle_job_created
   ON job_lifecycle_log(job_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_coordinator_reservations_deadline
+  ON coordinator_reservations(deadline_at);
 `;
 
 function ensureColumn(db, table, column, declaration) {
@@ -204,6 +220,10 @@ function migrateExistingDatabase(db) {
   ensureColumn(db, "modules", "last_proactive_failure_class", "TEXT");
   ensureColumn(db, "modules", "proactive_failure_count", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "engineering_findings", "module", "TEXT");
+  ensureColumn(db, "llm_usage_ledger", "reported_cost_usd", "REAL");
+  ensureColumn(db, "job_lifecycle_log", "iteration_ceiling", "INTEGER");
+  ensureColumn(db, "coordinator_reservations", "worker_pid", "INTEGER");
+  ensureColumn(db, "coordinator_reservations", "worker_bound_at", "TEXT");
   db.exec(`CREATE INDEX IF NOT EXISTS idx_engineering_findings_module_lifecycle
     ON engineering_findings(module, lifecycle)`);
 }
@@ -222,6 +242,7 @@ export function openDatabase(runtimeRoot) {
   ensureRuntimeDirs(runtimeRoot);
   const dbPath = path.join(runtimeRoot, "state", "engineering.sqlite3");
   const db = new DatabaseSync(dbPath);
+  db.exec("PRAGMA busy_timeout = 2000;");
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);

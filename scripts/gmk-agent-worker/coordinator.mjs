@@ -1,7 +1,6 @@
 // Live execution requires operator-provisioned router config under <runtime-root>/config/
 // and <runtime-root>/.env.gmk-router.local; repository examples are templates only.
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { readEnv, requireValue } from "./lib/env.mjs";
 import { getCredential } from "./lib/credential.mjs";
 import { createAgentClient, signInAgent } from "./lib/supabase.mjs";
@@ -11,10 +10,18 @@ import { classifyJob } from "./lib/router/classify.mjs";
 import { routeJob } from "./lib/router/route.mjs";
 import { assertJobAuthority } from "./lib/router/authority.mjs";
 import { recordCoordinatorEvent, recordJobLifecycle } from "./lib/ledger.mjs";
-import { writeBlockedArtifact } from "./lib/blocked-artifact.mjs";
+import { recordBlockedCoordinator } from "./lib/blocked-artifact.mjs";
+import { evaluateHealth } from "./lib/health.mjs";
+import { evaluateBudget } from "./lib/budget.mjs";
+import {
+  DEFAULT_EXECUTION_LIMITS,
+  releaseExecutionAfterResult,
+  reserveExecution,
+  runBoundedProcess,
+} from "./lib/scheduler.mjs";
 
 const AGENTS = Object.freeze({
-  engineering: { capability: "engineering.local" },
+  engineering: { capability: "engineering.local", resourceClass: "heavy" },
 });
 
 function parseArgs(argv) {
@@ -45,36 +52,44 @@ function childEnvironment() {
   return env;
 }
 
-function runWorker({ agent, jobId, modelHandle }) {
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, [
+function runWorker({ agent, jobId, modelHandle, timeoutMs, llmCallCeiling, runtimeRoot }) {
+  return runBoundedProcess({
+    command: process.execPath,
+    args: [
       path.resolve(process.cwd(), "scripts", "gmk-agent-worker", "worker.mjs"),
       "--agent", agent,
       "--once",
       "--job-id", jobId,
       "--model-handle", modelHandle,
-    ], {
+      "--llm-call-ceiling", String(llmCallCeiling),
+    ],
+    options: {
       cwd: process.cwd(),
       shell: false,
       windowsHide: true,
-      env: childEnvironment(),
+      env: { ...childEnvironment(), GMK_RUNTIME_ROOT: runtimeRoot },
       stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    const append = (current, chunk) => (current + chunk.toString()).slice(-64 * 1024);
-    child.stdout.on("data", (chunk) => { stdout = append(stdout, chunk); });
-    child.stderr.on("data", (chunk) => { stderr = append(stderr, chunk); });
-    child.on("error", (error) => resolve({ ok: false, code: null, error, stdout, stderr }));
-    child.on("close", (code, signal) => resolve({ ok: code === 0, code, signal, stdout, stderr }));
+    },
+    timeoutMs,
   });
+}
+
+function providerFromHandle(handle) {
+  return handle.includes("/") ? handle.split("/", 1)[0] : handle;
+}
+
+function gateError(gate) {
+  const error = new Error(`${gate.reason}: ${JSON.stringify(gate.evidence || gate.windows || gate.error || {})}`);
+  error.code = gate.reason;
+  error.gate = gate;
+  return error;
 }
 
 async function queuedJob(supabase, capability) {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("agent_jobs")
-    .select("id, payload, job_type, priority, created_at, attempt_count, requires_review, workspace_type")
+    .select("id, payload, job_type, priority, created_at, attempt_count, max_attempts, requires_review, workspace_type")
     .eq("required_capability", capability)
     .eq("status", "queued")
     .lte("available_at", now)
@@ -119,10 +134,15 @@ async function main() {
       return;
     }
 
+    let health = null;
+    let budget = null;
+    let concurrency = null;
+    let reservationHeld = false;
+    let workerResult = null;
+    let route = null;
     try {
-      assertJobAuthority(job);
       const classification = classifyJob(job, { db });
-      const route = routeJob(job, classification, routerConfig.models, { db });
+      route = routeJob(job, classification, routerConfig.models, { db });
       recordJobLifecycle(db, { jobId: job.id, state: "routed", modelHandle: route.handle });
       recordCoordinatorEvent(db, "job_routed", {
         job_id: job.id,
@@ -132,19 +152,95 @@ async function main() {
         risk_class: route.riskClass,
       });
 
+      health = await evaluateHealth({
+        runtimeRoot,
+        resourceClass: agent.resourceClass,
+        rejectLocalInference: args.overnight,
+      });
+      recordCoordinatorEvent(db, health.allowed ? "health_green" : health.reason, {
+        job_id: job.id,
+        resource_class: agent.resourceClass,
+        evidence: health.evidence,
+      });
+      if (!health.allowed) throw gateError(health);
+
+      const provider = providerFromHandle(route.handle);
+      budget = evaluateBudget({ db, provider, budgetConfig: routerConfig.budget, job, route });
+      if (!budget.allowed) throw gateError(budget);
+
+      assertJobAuthority(job);
+
       if (route.handle === "codex") {
         const error = new Error("Codex execution starts in P4; P2 refuses to dispatch this route");
         error.code = "provider_not_implemented";
         throw error;
       }
 
-      recordJobLifecycle(db, { jobId: job.id, state: "dispatch", modelHandle: route.handle });
-      const worker = await runWorker({ agent: args.agent, jobId: job.id, modelHandle: route.handle });
+      const executionLimits = DEFAULT_EXECUTION_LIMITS[agent.resourceClass];
+      const deadlineAt = new Date(Date.now() + executionLimits.wallClockMs).toISOString();
+      concurrency = reserveExecution(db, {
+        jobId: job.id,
+        resourceClass: agent.resourceClass,
+        provider,
+        deadlineAt,
+      });
+      if (!concurrency.allowed) throw gateError(concurrency);
+      reservationHeld = true;
       recordJobLifecycle(db, {
         jobId: job.id,
-        state: worker.ok ? "worker_exited" : "worker_failed",
+        state: "dispatch",
+        modelHandle: route.handle,
+        iterationCeiling: executionLimits.llmCallCeiling,
+        deadlineAt,
+      });
+      const worker = await runWorker({
+        agent: args.agent,
+        jobId: job.id,
+        modelHandle: route.handle,
+        timeoutMs: executionLimits.wallClockMs,
+        llmCallCeiling: executionLimits.llmCallCeiling,
+        runtimeRoot,
+      });
+      workerResult = worker;
+      if (worker.timedOut && !worker.terminationConfirmed) {
+        concurrency = {
+          ...concurrency,
+          worker_pid: worker.pid,
+          terminationConfirmed: false,
+          processMayBeAlive: true,
+        };
+        recordCoordinatorEvent(db, "watchdog_termination_unconfirmed", {
+          job_id: job.id,
+          worker_pid: worker.pid,
+          reservation_retained: true,
+        });
+      }
+      recordJobLifecycle(db, {
+        jobId: job.id,
+        state: worker.timedOut ? "wall_clock_exceeded" : worker.ok ? "worker_exited" : "worker_failed",
         modelHandle: route.handle,
       });
+      if (worker.timedOut) {
+        recordCoordinatorEvent(db, "watchdog_timeout", {
+          job_id: job.id,
+          model_handle: route.handle,
+          wall_clock_ms: executionLimits.wallClockMs,
+        });
+        const { error: failError } = await supabase.rpc("fail_agent_job", {
+          target_job_id: job.id,
+          failure_code: "wall_clock_exceeded",
+          failure_message: `Coordinator wall-clock deadline exceeded after ${executionLimits.wallClockMs} ms`,
+        });
+        if (failError) {
+          recordCoordinatorEvent(db, "watchdog_fail_rpc_error", {
+            job_id: job.id,
+            error: String(failError.message || failError).slice(0, 500),
+          });
+        }
+        const error = new Error(`worker exceeded wall-clock deadline (${executionLimits.wallClockMs} ms)`);
+        error.code = "wall_clock_exceeded";
+        throw error;
+      }
       if (!worker.ok) {
         const error = new Error(`worker exited ${worker.code ?? "before start"}: ${(worker.stderr || worker.stdout || "no output").slice(-1000)}`);
         error.code = "worker_dispatch_failed";
@@ -153,18 +249,27 @@ async function main() {
     } catch (error) {
       const code = error?.code || "coordinator_failed";
       const reason = `${code}: ${error instanceof Error ? error.message : String(error)}`;
-      const artifact = writeBlockedArtifact(runtimeRoot, {
+      recordBlockedCoordinator(db, runtimeRoot, {
+        job,
         reason,
-        pendingJobs: [job],
-        attempted: ["classify", "route", "authority", "single-job dispatch"],
+        attempted: ["classify", "route", "health gate", "budget gate", "authority gate", "bounded dispatch"],
+        health,
+        budget,
+        concurrency,
         resumeCommand: `node scripts/gmk-agent-worker/coordinator.mjs --once --agent ${args.agent}`,
       });
-      recordCoordinatorEvent(db, "coordinator_blocked", {
-        job_id: job.id,
-        reason: code,
-        artifact,
-      });
       throw error;
+    } finally {
+      if (reservationHeld && workerResult?.processMayBeAlive !== true) {
+        if (!releaseExecutionAfterResult(db, job.id, workerResult)) {
+          recordCoordinatorEvent(db, "concurrency_release_failed", { job_id: job.id });
+        }
+      } else if (reservationHeld) {
+        recordCoordinatorEvent(db, "concurrency_reservation_retained", {
+          job_id: job.id,
+          reason: "worker_process_liveness_unconfirmed",
+        });
+      }
     }
   } finally {
     db.close();

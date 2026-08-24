@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { recordCoordinatorEvent } from "./ledger.mjs";
 
 function stamp(date) {
   return date.toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 13);
@@ -13,6 +14,9 @@ export function writeBlockedArtifact(runtimeRoot, {
   reason,
   pendingJobs = [],
   attempted = [],
+  health = null,
+  budget = null,
+  concurrency = null,
   resumeCommand = "node scripts/gmk-agent-worker/coordinator.mjs --once",
   date = new Date(),
 } = {}) {
@@ -30,8 +34,9 @@ export function writeBlockedArtifact(runtimeRoot, {
     `- Reason: ${safeText(reason)}`,
     `- Pending jobs: ${pendingJobs.length ? pendingJobs.map((job) => safeText(job.id || job)).join(", ") : "none recorded"}`,
     `- Attempted: ${attempted.length ? attempted.map((item) => safeText(item)).join("; ") : "none"}`,
-    "- Health: not evaluated in P0-P2 (P3)",
-    "- Budget: configured/ledgered but not enforced in P0-P2 (P3)",
+    `- Health: ${safeText(health ? JSON.stringify(health) : "not available")}`,
+    `- Budget: ${safeText(budget ? JSON.stringify(budget) : "not available")}`,
+    `- Concurrency: ${safeText(concurrency ? JSON.stringify(concurrency) : "not available")}`,
     "",
     "Resume:",
     "```powershell",
@@ -41,4 +46,32 @@ export function writeBlockedArtifact(runtimeRoot, {
   ].join("\n");
   fs.writeFileSync(filePath, content, { encoding: "utf8", flag: "wx" });
   return filePath;
+}
+
+export function recordBlockedCoordinator(db, runtimeRoot, {
+  job,
+  reason,
+  attempted,
+  health = null,
+  budget = null,
+  concurrency = null,
+  resumeCommand,
+  date = new Date(),
+}) {
+  const artifact = writeBlockedArtifact(runtimeRoot, {
+    reason,
+    pendingJobs: job ? [job] : [],
+    attempted,
+    health,
+    budget,
+    concurrency,
+    resumeCommand,
+    date,
+  });
+  recordCoordinatorEvent(db, "coordinator_blocked", {
+    job_id: job?.id || null,
+    reason: String(reason).split(":", 1)[0],
+    artifact,
+  });
+  return artifact;
 }

@@ -7,6 +7,8 @@ import { createToolGateway } from "./lib/tools.mjs";
 import { publishEngineeringSnapshot } from "./lib/proactive.mjs";
 import { processWorkerOnce, processWorkerPass } from "./lib/worker-pass.mjs";
 import { createLlmRegistry } from "./lib/llm/registry.mjs";
+import { bindReservationWorker, createCountingLlm } from "./lib/scheduler.mjs";
+import { openDatabase } from "./lib/sqlite.mjs";
 
 const AGENT_LOADERS = {
   engineering: () => import("./agents/engineering.spec.mjs").then((m) => m.default),
@@ -19,6 +21,7 @@ function parseArgs(argv) {
   let once = false;
   let modelHandle = null;
   let jobId = null;
+  let llmCallCeiling = null;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--once") once = true;
@@ -28,8 +31,10 @@ function parseArgs(argv) {
     else if (a.startsWith("--model-handle=")) modelHandle = a.slice("--model-handle=".length);
     else if (a === "--job-id" && argv[i + 1]) { jobId = argv[++i]; }
     else if (a.startsWith("--job-id=")) jobId = a.slice("--job-id=".length);
+    else if (a === "--llm-call-ceiling" && argv[i + 1]) { llmCallCeiling = Number(argv[++i]); }
+    else if (a.startsWith("--llm-call-ceiling=")) llmCallCeiling = Number(a.slice("--llm-call-ceiling=".length));
   }
-  return { agent, once, modelHandle, jobId };
+  return { agent, once, modelHandle, jobId, llmCallCeiling };
 }
 
 function numOr(value, fallback, min) {
@@ -38,7 +43,7 @@ function numOr(value, fallback, min) {
 }
 
 async function main() {
-  const { agent, once, modelHandle, jobId } = parseArgs(process.argv.slice(2));
+  const { agent, once, modelHandle, jobId, llmCallCeiling } = parseArgs(process.argv.slice(2));
   if (!AGENT_LOADERS[agent]) throw new Error(`unknown agent: ${agent}`);
   const spec = await AGENT_LOADERS[agent]();
 
@@ -46,12 +51,23 @@ async function main() {
   const env = readEnv(envPath);
   const logger = createLogger({ agent: spec.agentKey, capability: spec.capability });
 
+  const envGet = (key) => env.get(key) ?? process.env[key];
+  const runtimeRoot = envGet("GMK_RUNTIME_ROOT") || null;
+  if (jobId) {
+    if (!runtimeRoot) throw new Error("worker_pid_binding_failed: GMK_RUNTIME_ROOT is required");
+    const { db } = openDatabase(path.resolve(runtimeRoot));
+    try {
+      const binding = bindReservationWorker(db, { jobId, workerPid: process.pid });
+      if (!binding.allowed) throw new Error(`${binding.reason}: ${binding.error || "unknown"}`);
+    } finally {
+      db.close();
+    }
+  }
+
   const supabaseUrl = requireValue(env, "SUPABASE_URL");
   const anonKey = requireValue(env, "SUPABASE_ANON_KEY");
   const email = requireValue(env, "SUPABASE_AGENT_EMAIL");
   const credentialTarget = env.get("GMK_CREDENTIAL_TARGET") || `strehe-agent-${agent}`;
-
-  const envGet = (key) => env.get(key) ?? process.env[key];
 
   const config = {
     supabaseUrl,
@@ -63,7 +79,7 @@ async function main() {
     leaseSeconds: numOr(envGet("GMK_LEASE_SECONDS"), spec.leaseSeconds, 30),
     ollamaTimeoutMs: numOr(envGet("GMK_OLLAMA_TIMEOUT_MS"), spec.ollamaTimeoutMs, 30000),
     ollamaNumGpu: numOr(envGet("GMK_OLLAMA_NUM_GPU"), 0, 0),
-    runtimeRoot: envGet("GMK_RUNTIME_ROOT") || null,
+    runtimeRoot,
     worktreePath: envGet("GMK_WORKTREE_PATH") || null,
   };
 
@@ -83,7 +99,7 @@ async function main() {
     agentId: auth.user.id,
     targetJobId: jobId,
   };
-  runtime.llm = createLlmRegistry({
+  runtime.llm = createCountingLlm(createLlmRegistry({
     runtimeRoot: config.runtimeRoot,
     modelHandle,
     ollamaConfig: {
@@ -92,7 +108,7 @@ async function main() {
       numGpu: config.ollamaNumGpu,
       timeoutMs: config.ollamaTimeoutMs,
     },
-  });
+  }), llmCallCeiling);
   if (agent === "engineering") {
     runtime.tools = createToolGateway({ worktreePath: config.worktreePath });
     runtime.onJobState = (state, jobId, errorClass) =>

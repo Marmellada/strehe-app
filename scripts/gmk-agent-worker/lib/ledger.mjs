@@ -1,11 +1,26 @@
 function finiteInteger(value) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : null;
 }
 
 function finiteNumber(value) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+export function usageMeteringHoldStateKey(provider) {
+  return `budget_${String(provider).replace(/[^a-z0-9_]/gi, "_")}_metering_hold`;
+}
+
+export function assertUsageMeteringAvailable(db, provider) {
+  const row = db.prepare("SELECT value FROM runtime_state WHERE key = ?")
+    .get(usageMeteringHoldStateKey(provider));
+  if (!row) return;
+  const error = new Error(`Cloud usage metering is held for provider ${provider}`);
+  error.code = "budget_metering_fault";
+  throw error;
 }
 
 export function recordLlmUsage(db, entry) {
@@ -23,6 +38,7 @@ export function recordLlmUsage(db, entry) {
     reasoningTokens: finiteInteger(entry.reasoningTokens),
     apiCalls: finiteInteger(entry.apiCalls) ?? 1,
     estimatedCostUsd: finiteNumber(entry.estimatedCostUsd),
+    reportedCostUsd: finiteNumber(entry.reportedCostUsd),
     costStatus: String(entry.costStatus || "unknown"),
     durationMs: finiteInteger(entry.durationMs),
   };
@@ -30,14 +46,24 @@ export function recordLlmUsage(db, entry) {
     `INSERT INTO llm_usage_ledger
       (provider, model, job_id, run_id, agent_key, task_type, input_tokens,
        output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens,
-       api_calls, estimated_cost_usd, cost_status, duration_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       api_calls, estimated_cost_usd, reported_cost_usd, cost_status, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     usage.provider, usage.model, usage.jobId, usage.runId, usage.agentKey,
     usage.taskType, usage.inputTokens, usage.outputTokens, usage.cacheReadTokens,
     usage.cacheWriteTokens, usage.reasoningTokens, usage.apiCalls,
-    usage.estimatedCostUsd, usage.costStatus, usage.durationMs,
+    usage.estimatedCostUsd, usage.reportedCostUsd, usage.costStatus, usage.durationMs,
   );
+  const tokenTotal = Number(usage.inputTokens || 0) + Number(usage.outputTokens || 0);
+  if (usage.costStatus.toLowerCase() === "unknown" && tokenTotal <= 0) {
+    db.prepare(
+      `INSERT INTO runtime_state (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    ).run(usageMeteringHoldStateKey(usage.provider), JSON.stringify({
+      reason: "unknown_cost_and_unusable_tokens",
+      usage_ledger_id: Number(info.lastInsertRowid),
+    }));
+  }
   return Number(info.lastInsertRowid);
 }
 
@@ -71,13 +97,14 @@ export function recordJobLifecycle(db, entry) {
       : JSON.stringify(entry.modelHandle);
   const info = db.prepare(
     `INSERT INTO job_lifecycle_log
-      (job_id, state, model_handle, iteration_count, deadline_at)
-     VALUES (?, ?, ?, ?, ?)`,
+      (job_id, state, model_handle, iteration_count, iteration_ceiling, deadline_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   ).run(
     String(entry.jobId),
     String(entry.state),
     handle,
     finiteInteger(entry.iterationCount) ?? 0,
+    finiteInteger(entry.iterationCeiling),
     entry.deadlineAt ? String(entry.deadlineAt) : null,
   );
   return Number(info.lastInsertRowid);
