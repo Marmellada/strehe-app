@@ -106,6 +106,52 @@ function reconcileReservations(db, {
   return reclaimed;
 }
 
+// P6 startup audit. This deliberately uses the same reservation rows and PID
+// probe as normal dispatch. Only a positively dead process is ever reclaimed.
+export function reconcileExecutionReservations(db, {
+  now = new Date(),
+  startupGraceMs = RESERVATION_STARTUP_GRACE_MS,
+  probeLiveness = (pid) => probeProcessTreeLiveness(pid),
+} = {}) {
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const reclaimed = reconcileReservations(db, { now, startupGraceMs, probeLiveness });
+      const rows = db.prepare(
+        `SELECT job_id, resource_class, process_kind, owner_pid, worker_pid,
+                reserved_at, deadline_at
+         FROM coordinator_reservations ORDER BY reserved_at`,
+      ).all();
+      const unresolved = rows.map((row) => {
+        const owner = probeLiveness(row.owner_pid);
+        const worker = positivePid(row.worker_pid) ? probeLiveness(row.worker_pid) : null;
+        return { ...row, owner_liveness: owner, worker_liveness: worker };
+      });
+      db.exec("COMMIT");
+      if (unresolved.length) {
+        return {
+          allowed: false,
+          reason: unresolved.some((row) => row.owner_liveness === "unknown" || row.worker_liveness === "unknown")
+            ? "reservation_liveness_unknown"
+            : "reservation_process_unresolved",
+          reclaimed,
+          reservations: unresolved,
+        };
+      }
+      return { allowed: true, reason: "reservations_reconciled", reclaimed, reservations: [] };
+    } catch (error) {
+      try { db.exec("ROLLBACK"); } catch {}
+      throw error;
+    }
+  } catch (error) {
+    return {
+      allowed: false,
+      reason: "concurrency_state_unavailable",
+      error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+    };
+  }
+}
+
 export function reserveExecution(db, {
   jobId,
   resourceClass,

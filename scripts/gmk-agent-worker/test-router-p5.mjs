@@ -359,10 +359,11 @@ test("no production messaging path or mutation tool is reachable from Inbox Agen
   assert.match(source, /requires_human_review must be true/);
 });
 
-test("P5 does not activate live Inbox or P6 Overnight Mode", () => {
+test("P5 remains fixture-only when P6 Overnight Mode is explicitly available", () => {
   const coordinator = fs.readFileSync(path.resolve("scripts/gmk-agent-worker/coordinator.mjs"), "utf8");
-  assert.match(coordinator, /supports --once only; Overnight Mode starts in P6/);
-  assert.doesNotMatch(coordinator, /overnightLoop|--overnight[^\n]*while/);
+  assert.match(coordinator, /arg === "--overnight"/);
+  assert.match(coordinator, /requires explicit --once or --overnight activation/);
+  assert.doesNotMatch(coordinator, /sendMetaMessage|lib\/messaging\/send/);
   assert.throws(() => assertJobAuthority({
     job_type: "inbox.inspect",
     requires_review: true,

@@ -256,3 +256,16 @@ test("blocked artifact is local, explicit, and resumable", (t) => {
   assert.match(text, /job-1/);
   assert.match(text, /coordinator\.mjs --once/);
 });
+
+test("direct --once blocked artifacts redact secret-like text", (t) => {
+  const root = tempRuntime(t);
+  const artifact = writeBlockedArtifact(root, {
+    reason: "provider_5xx: api_key=super-secret authorization:Bearer raw-token password=hunter2",
+    attempted: ["provider token=another-secret"],
+    date: new Date("2026-08-24T03:05:05Z"),
+  });
+  const text = fs.readFileSync(artifact, "utf8");
+  assert.match(text, /provider_5xx/);
+  assert.match(text, /\[REDACTED\]/);
+  assert.doesNotMatch(text, /super-secret|raw-token|hunter2|another-secret/);
+});

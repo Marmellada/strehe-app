@@ -637,11 +637,12 @@ test("orphan termination failure retains reservation and heavy capacity", async 
   assert.equal(capacity.reason, "concurrency_heavy_limit");
 });
 
-test("P5 Inbox activation does not activate Overnight Mode", () => {
+test("P4 Codex and P5 Inbox boundaries remain intact after explicit P6 activation", () => {
   const inbox = fs.readFileSync(path.resolve("scripts/gmk-agent-worker/agents/inbox.spec.mjs"), "utf8");
   const coordinator = fs.readFileSync(path.resolve("scripts/gmk-agent-worker/coordinator.mjs"), "utf8");
   assert.match(inbox, /conversation_fixture/);
   assert.match(inbox, /tools: \[\]/);
-  assert.match(coordinator, /Overnight Mode starts in P6/);
-  assert.doesNotMatch(coordinator, /--overnight[^\n]*while|overnightLoop/i);
+  assert.match(coordinator, /arg === "--overnight"/);
+  assert.match(coordinator, /requires explicit --once or --overnight activation/);
+  assert.doesNotMatch(coordinator, /sendMetaMessage|lib\/messaging\/send/);
 });

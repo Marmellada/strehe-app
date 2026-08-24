@@ -1,4 +1,6 @@
 import { assertSafeResult } from "./validate.mjs";
+import { deterministicFailureClass } from "./failure-class.mjs";
+import { scopeFingerprint } from "./router/classify.mjs";
 
 // Job discovery + by-ID claim + lease renewal + dispatch + complete/fail.
 // Mirrors the proven reference-worker flow, with lease renewal added.
@@ -80,13 +82,20 @@ export async function processNextJob(runtime, spec) {
         job_type: claimed.job_type,
         duration_ms: Date.now() - started,
       });
+      runtime.lastFailureClass = null;
       await runtime.onJobState?.("idle", null);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code = err && typeof err === "object" && typeof err.code === "string"
-        ? err.code
-        : "agent_processing_failed";
+      const code = deterministicFailureClass(err);
+      runtime.lastFailureClass = code;
+      await runtime.recordRoutingOutcome?.({
+        jobType: String(claimed.job_type),
+        scopeFingerprint: scopeFingerprint(claimed),
+        model: String(runtime.modelHandle || runtime.llm?.model || "unknown"),
+        outcome: "failed",
+        failureClass: code,
+      });
       try {
         await supabase.rpc("fail_agent_job", {
           target_job_id: claimed.id,

@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { recordCoordinatorEvent } from "./ledger.mjs";
+import { redactSensitiveText } from "./redact.mjs";
 
 function stamp(date) {
   return date.toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 13);
 }
 
 function safeText(value, max = 4000) {
-  return String(value ?? "unknown").replace(/[\u0000-\u001f]/g, " ").slice(0, max);
+  return redactSensitiveText(value, max);
 }
 
 export function writeBlockedArtifact(runtimeRoot, {

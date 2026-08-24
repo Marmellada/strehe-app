@@ -13,6 +13,10 @@ export const DEFAULT_HEALTH_LIMITS = Object.freeze({
   cpuSampleMs: 15000,
 });
 
+export function shouldRejectLocalInference({ overnight = false, env = process.env } = {}) {
+  return overnight === true || String(env?.GMK_OVERNIGHT_SESSION_ID || "").trim().length > 0;
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

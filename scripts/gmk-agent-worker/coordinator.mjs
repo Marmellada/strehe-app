@@ -1,17 +1,19 @@
 // Live execution requires operator-provisioned router config under <runtime-root>/config/
 // and <runtime-root>/.env.gmk-router.local; repository examples are templates only.
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import { readEnv, requireValue } from "./lib/env.mjs";
 import { getCredential } from "./lib/credential.mjs";
 import { createAgentClient, signInAgent } from "./lib/supabase.mjs";
 import { openDatabase } from "./lib/sqlite.mjs";
-import { loadRouterConfig } from "./lib/router/config.mjs";
+import { loadRouterConfig, loadRouterEnvironment, ROUTER_CONFIG_FILENAMES } from "./lib/router/config.mjs";
 import { classifyJob } from "./lib/router/classify.mjs";
 import { routeJob } from "./lib/router/route.mjs";
 import { assertJobAuthority } from "./lib/router/authority.mjs";
-import { recordCoordinatorEvent, recordJobLifecycle, recordLlmUsage } from "./lib/ledger.mjs";
+import { recordCoordinatorEvent, recordJobLifecycle, recordLlmUsage, recordRoutingOutcome } from "./lib/ledger.mjs";
 import { recordBlockedCoordinator } from "./lib/blocked-artifact.mjs";
-import { evaluateHealth } from "./lib/health.mjs";
+import { evaluateHealth, shouldRejectLocalInference } from "./lib/health.mjs";
 import { evaluateBudget } from "./lib/budget.mjs";
 import {
   bindReservationWorker,
@@ -23,6 +25,18 @@ import {
 } from "./lib/scheduler.mjs";
 import { createCodexAdapter } from "./lib/llm/codex.mjs";
 import { assertCodexPersistableResult } from "./lib/codex-runner.mjs";
+import { readEngineeringControl } from "./lib/proactive.mjs";
+import inboxSpec from "./agents/inbox.spec.mjs";
+import { deterministicFailureClass, parseFatalFailureClass } from "./lib/failure-class.mjs";
+import {
+  acquireOvernightSession,
+  assertOvernightJobAuthority,
+  dispatchOvernightChild,
+  inspectCapabilityState,
+  runOvernightLoop,
+  runOvernightPreflight,
+  validateOvernightLimits,
+} from "./lib/overnight.mjs";
 
 const AGENTS = Object.freeze({
   engineering: { capability: "engineering.local", resourceClass: "heavy" },
@@ -33,14 +47,26 @@ function parseArgs(argv) {
   let agent = "engineering";
   let once = false;
   let overnight = false;
+  let jobId = null;
+  const overnightLimits = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--once") once = true;
     else if (arg === "--overnight") overnight = true;
     else if (arg === "--agent" && argv[index + 1]) agent = argv[++index];
     else if (arg.startsWith("--agent=")) agent = arg.slice("--agent=".length);
+    else if (arg === "--job-id" && argv[index + 1]) jobId = argv[++index];
+    else if (arg.startsWith("--job-id=")) jobId = arg.slice("--job-id=".length);
+    else if (arg === "--overnight-wall-clock-minutes" && argv[index + 1]) overnightLimits.wallClockMs = Number(argv[++index]) * 60_000;
+    else if (arg.startsWith("--overnight-wall-clock-minutes=")) overnightLimits.wallClockMs = Number(arg.slice(arg.indexOf("=") + 1)) * 60_000;
+    else if (arg === "--overnight-cadence-seconds" && argv[index + 1]) overnightLimits.cadenceMs = Number(argv[++index]) * 1000;
+    else if (arg.startsWith("--overnight-cadence-seconds=")) overnightLimits.cadenceMs = Number(arg.slice(arg.indexOf("=") + 1)) * 1000;
+    else if (arg === "--overnight-max-jobs" && argv[index + 1]) overnightLimits.maxJobs = Number(argv[++index]);
+    else if (arg.startsWith("--overnight-max-jobs=")) overnightLimits.maxJobs = Number(arg.slice(arg.indexOf("=") + 1));
+    else if (arg === "--overnight-retry-limit" && argv[index + 1]) overnightLimits.identicalFailureLimit = Number(argv[++index]);
+    else if (arg.startsWith("--overnight-retry-limit=")) overnightLimits.identicalFailureLimit = Number(arg.slice(arg.indexOf("=") + 1));
   }
-  return { agent, once, overnight };
+  return { agent, once, overnight, jobId, overnightLimits };
 }
 
 function childEnvironment() {
@@ -49,6 +75,7 @@ function childEnvironment() {
     "USERPROFILE", "ComSpec", "COMSPEC", "ProgramData", "ProgramFiles",
     "ProgramFiles(x86)", "LOCALAPPDATA", "APPDATA", "HOMEDRIVE", "HOMEPATH",
     "GMK_ENV_FILE", "GMK_RUNTIME_ROOT", "GMK_WORKTREE_PATH",
+    "GMK_OVERNIGHT_SESSION_ID",
     "GMK_LEASE_SECONDS", "GMK_OLLAMA_TIMEOUT_MS", "GMK_OLLAMA_NUM_GPU",
     "OPENCODE_GO_API_KEY", "OPENCODE_API_KEY", "OPENCODE_BASE_URL",
   ];
@@ -189,15 +216,17 @@ async function dispatchCodex({
   throw error;
 }
 
-async function queuedJob(supabase, capability) {
+async function queuedJob(supabase, capability, targetJobId = null) {
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  let query = supabase
     .from("agent_jobs")
     .select("id, payload, job_type, priority, created_at, attempt_count, max_attempts, requires_review, workspace_type")
     .eq("required_capability", capability)
     .eq("status", "queued")
     .lte("available_at", now)
-    .gt("expires_at", now)
+    .gt("expires_at", now);
+  if (targetJobId) query = query.eq("id", targetJobId);
+  const { data, error } = await query
     .order("priority", { ascending: true })
     .order("created_at", { ascending: true })
     .limit(1);
@@ -205,11 +234,226 @@ async function queuedJob(supabase, capability) {
   return data?.[0] || null;
 }
 
+function gitHead(worktreePath) {
+  return String(execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: worktreePath, encoding: "utf8", timeout: 30_000, windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  })).trim();
+}
+
+async function signedAgent(agentName, suppliedEnv = null) {
+  const env = suppliedEnv || readEnv(path.resolve(process.cwd(), `.env.gmk-${agentName}.local`));
+  const supabase = createAgentClient(requireValue(env, "SUPABASE_URL"), requireValue(env, "SUPABASE_ANON_KEY"));
+  const auth = await signInAgent(
+    supabase,
+    requireValue(env, "SUPABASE_AGENT_EMAIL"),
+    getCredential(env.get("GMK_CREDENTIAL_TARGET") || `strehe-agent-${agentName}`),
+  );
+  return { agentName, env, supabase, agentId: auth.user.id };
+}
+
+function providerCredentialsPresent(routerConfig, routerEnvironment) {
+  if (routerConfig.models.providers.opencode?.enabled === true
+    && !String(routerEnvironment.get("OPENCODE_GO_API_KEY") || routerEnvironment.get("OPENCODE_API_KEY") || "").trim()) {
+    return false;
+  }
+  if (routerConfig.models.providers.codex?.enabled === true) {
+    const cli = String(routerConfig.models.providers.codex.cli || "codex");
+    try {
+      execFileSync(process.platform === "win32" ? "where.exe" : "which", [cli], {
+        encoding: "utf8", timeout: 10_000, windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+    } catch {
+      return false;
+    }
+    const authRoot = process.env.CODEX_HOME || path.join(process.env.USERPROFILE || "", ".codex");
+    if (!authRoot || !fs.existsSync(path.join(authRoot, "auth.json"))) return false;
+  }
+  return true;
+}
+
+const SESSION_BLOCKING_CODES = new Set([
+  "authority_blocked", "budget_hard", "budget_paused", "budget_metering_fault",
+  "budget_state_unavailable", "health_sampling_error", "health_low_disk",
+  "health_low_memory", "health_high_cpu", "health_ollama_active",
+  "concurrency_state_unavailable", "reservation_liveness_unknown",
+  "reservation_process_unresolved", "watchdog_termination_unconfirmed",
+  "worktree_dirty", "push_protection_missing", "operator_paused",
+  "operator_control_unavailable",
+]);
+
+async function runOvernightMain(args) {
+  const limits = validateOvernightLimits(args.overnightLimits);
+  const engineeringEnv = readEnv(path.resolve(process.cwd(), ".env.gmk-engineering.local"));
+  const envGet = (key) => engineeringEnv.get(key) ?? process.env[key];
+  const runtimeRoot = path.resolve(envGet("GMK_RUNTIME_ROOT") || path.resolve(process.cwd(), "..", ".."));
+  const worktreePath = path.resolve(envGet("GMK_WORKTREE_PATH") || process.cwd());
+  const { db } = openDatabase(runtimeRoot);
+  let stopping = false;
+  const stop = () => { stopping = true; };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  try {
+    let startingCommit = "UNVERIFIED";
+    try { startingCommit = gitHead(worktreePath); } catch {}
+    const session = acquireOvernightSession(db, { startingCommit });
+    recordCoordinatorEvent(db, session.recovered ? "overnight_session_recovered" : "overnight_session_started", {
+      session_id: session.session_id,
+      starting_commit: startingCommit,
+      limits,
+    });
+    let routerConfig;
+    let routerEnvironment;
+    let engineering;
+    let inbox;
+    try {
+      routerConfig = loadRouterConfig(runtimeRoot);
+      routerEnvironment = loadRouterEnvironment(runtimeRoot);
+      engineering = await signedAgent("engineering", engineeringEnv);
+      inbox = await signedAgent("inbox");
+    } catch (error) {
+      const setupError = new Error("overnight preflight configuration or agent authentication is unavailable");
+      setupError.code = String(error?.message || "").includes("router config")
+        ? "router_config_invalid"
+        : "agent_credentials_unavailable";
+      const outcome = await runOvernightLoop({
+        db, runtimeRoot, session,
+        preflight: async () => { throw setupError; },
+        selectJob: async () => null,
+        dispatchJob: async () => ({ status: "session_blocked" }),
+        limits,
+      });
+      if (outcome.status === "BLOCKED") process.exitCode = 2;
+      return;
+    }
+    let canaryPending = true;
+    const clients = [
+      { ...engineering, ...AGENTS.engineering },
+      { ...inbox, ...AGENTS.inbox },
+    ];
+    const reconcileCodex = () => reconcileOrphanedCodexReservations(db, {
+      async getJobLeaseState(jobId) {
+        for (const client of clients) {
+          const { data, error } = await client.supabase.from("agent_jobs")
+            .select("id,status,lease_expires_at").eq("id", jobId).maybeSingle();
+          if (error) throw error;
+          if (data) return data;
+        }
+        return null;
+      },
+    });
+    const inspectCurrentJob = async () => {
+      const current = db.prepare("SELECT current_job FROM overnight_sessions WHERE session_id = ?")
+        .get(session.session_id)?.current_job;
+      if (!current) return { allowed: true, reason: "no_active_job" };
+      for (const client of clients) {
+        const { data, error } = await client.supabase.from("agent_jobs")
+          .select("id,status,lease_expires_at").eq("id", current).maybeSingle();
+        if (error) return { allowed: false, reason: "active_job_state_unknown" };
+        if (!data) continue;
+        if (data.status === "running") {
+          return { allowed: false, reason: "active_job_may_still_run", job_id: current, lease_expires_at: data.lease_expires_at };
+        }
+        return { allowed: true, reason: "previous_job_not_running", job_id: current, status: data.status };
+      }
+      return { allowed: false, reason: "active_job_state_unknown", job_id: current };
+    };
+    const preflight = async () => {
+      const result = await runOvernightPreflight({
+        db, runtimeRoot, worktreePath, expectedWorktree: path.resolve(process.cwd()), expectedCommit: startingCommit,
+        routerConfig, sessionId: session.session_id,
+        requiredConfigFiles: Object.values(ROUTER_CONFIG_FILENAMES),
+        credentialsPresent: () => providerCredentialsPresent(routerConfig, routerEnvironment),
+        readOperatorControl: () => readEngineeringControl({
+          supabase: engineering.supabase, agentId: engineering.agentId,
+        }),
+        reconcileCodex,
+        inspectCurrentJob,
+        capabilityInspector: () => inspectCapabilityState(process.env, {
+          inboxTools: inboxSpec.tools,
+          inboxJobTypes: inboxSpec.jobTypes,
+        }),
+        runCanary: canaryPending,
+      });
+      canaryPending = false;
+      return result;
+    };
+    const selectJob = async () => {
+      const candidates = [];
+      for (const client of clients) {
+        const job = await queuedJob(client.supabase, client.capability);
+        if (job) candidates.push({ ...job, agentName: client.agentName, client });
+      }
+      candidates.sort((left, right) => Number(left.priority) - Number(right.priority)
+        || String(left.created_at).localeCompare(String(right.created_at)));
+      return candidates[0] || null;
+    };
+    const dispatchJob = async (job) => {
+      assertOvernightJobAuthority(job);
+      const classification = classifyJob(job, { db });
+      const route = routeJob(job, classification, routerConfig.models, { db });
+      const timeoutMs = job.agentName === "engineering" ? 46 * 60 * 1000 : 16 * 60 * 1000;
+      const result = await dispatchOvernightChild({
+        readOperatorControl: () => readEngineeringControl({
+          supabase: engineering.supabase, agentId: engineering.agentId,
+        }),
+        spawnChild: () => runBoundedProcess({
+          command: process.execPath,
+          args: [
+            path.resolve(process.cwd(), "scripts", "gmk-agent-worker", "coordinator.mjs"),
+            "--once", "--agent", job.agentName, "--job-id", String(job.id),
+          ],
+          options: {
+            cwd: process.cwd(), shell: false, windowsHide: true,
+            env: {
+              ...childEnvironment(),
+              GMK_RUNTIME_ROOT: runtimeRoot,
+              GMK_WORKTREE_PATH: worktreePath,
+              GMK_OVERNIGHT_SESSION_ID: session.session_id,
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+          timeoutMs,
+        }),
+      });
+      if (result.processMayBeAlive === true || (result.timedOut && result.terminationConfirmed !== true)) {
+        return { status: "session_blocked", failureClass: "watchdog_termination_unconfirmed", processMayBeAlive: true };
+      }
+      const { data: durable, error } = await job.client.supabase.from("agent_jobs")
+        .select("id,status,attempt_count").eq("id", job.id).maybeSingle();
+      if (error || !durable) return { status: "session_blocked", failureClass: "job_state_unavailable" };
+      if (["completed", "awaiting_review"].includes(durable.status)) {
+        return {
+          status: "succeeded",
+          provider: route.handle === "codex" ? "codex" : providerFromHandle(route.handle),
+          model: route.handle === "codex" ? "codex-cli" : route.handle.split("/").slice(1).join("/"),
+        };
+      }
+      const fatal = parseFatalFailureClass(result.stderr, "coordinator");
+      if (fatal && SESSION_BLOCKING_CODES.has(fatal)) {
+        return { status: "session_blocked", failureClass: fatal, message: `dispatch stopped at ${fatal}` };
+      }
+      return { status: "retryable_failure", failureClass: fatal || `job_${durable.status}` };
+    };
+    const outcome = await runOvernightLoop({
+      db, runtimeRoot, session, preflight, selectJob, dispatchJob, limits,
+      shouldStop: () => stopping,
+    });
+    if (outcome.status === "BLOCKED") process.exitCode = 2;
+  } finally {
+    db.close();
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.once || args.overnight) {
-    throw new Error("P4 coordinator supports --once only; Overnight Mode starts in P6");
+  if (args.overnight) {
+    if (args.once) throw new Error("--overnight and --once are mutually exclusive");
+    await runOvernightMain(args);
+    return;
   }
+  if (!args.once) throw new Error("coordinator requires explicit --once or --overnight activation");
   const agent = AGENTS[args.agent];
   if (!agent) throw new Error(`unknown agent: ${args.agent}`);
 
@@ -252,7 +496,7 @@ async function main() {
         reservation_retained: entry.action !== "released",
       });
     }
-    const job = await queuedJob(supabase, agent.capability);
+    const job = await queuedJob(supabase, agent.capability, args.jobId);
     if (!job) {
       recordCoordinatorEvent(db, "coordinator_idle", { agent: args.agent });
       return;
@@ -264,8 +508,10 @@ async function main() {
     let reservationHeld = false;
     let workerResult = null;
     let route = null;
+    let classification = null;
+    let dispatchedViaCodex = false;
     try {
-      const classification = classifyJob(job, { db });
+      classification = classifyJob(job, { db });
       route = routeJob(job, classification, routerConfig.models, { db });
       recordJobLifecycle(db, { jobId: job.id, state: "routed", modelHandle: route.handle });
       recordCoordinatorEvent(db, "job_routed", {
@@ -279,7 +525,7 @@ async function main() {
       health = await evaluateHealth({
         runtimeRoot,
         resourceClass: agent.resourceClass,
-        rejectLocalInference: args.overnight,
+        rejectLocalInference: shouldRejectLocalInference({ overnight: args.overnight }),
       });
       recordCoordinatorEvent(db, health.allowed ? "health_green" : health.reason, {
         job_id: job.id,
@@ -313,6 +559,7 @@ async function main() {
         iterationCeiling: executionLimits.llmCallCeiling,
         deadlineAt,
       });
+      dispatchedViaCodex = isCodex;
       const worker = isCodex
         ? await dispatchCodex({
           supabase,
@@ -421,21 +668,38 @@ async function main() {
       }
       if (!worker.ok) {
         const error = new Error(`worker exited ${worker.code ?? "before start"}: ${(worker.stderr || worker.stdout || "no output").slice(-1000)}`);
-        error.code = "worker_dispatch_failed";
+        error.code = parseFatalFailureClass(worker.stderr, "worker") || "worker_dispatch_failed";
         throw error;
       }
     } catch (error) {
-      const code = error?.code || "coordinator_failed";
+      const code = deterministicFailureClass(error, "coordinator_failed");
+      if (dispatchedViaCodex && route && classification) {
+        recordRoutingOutcome(db, {
+          jobType: job.job_type,
+          scopeFingerprint: classification.scopeFingerprint,
+          model: route.handle,
+          outcome: "failed",
+          failureClass: code,
+        });
+      }
       const reason = `${code}: ${error instanceof Error ? error.message : String(error)}`;
-      recordBlockedCoordinator(db, runtimeRoot, {
-        job,
-        reason,
-        attempted: ["classify", "route", "health gate", "budget gate", "authority gate", "bounded dispatch"],
-        health,
-        budget,
-        concurrency,
-        resumeCommand: `node scripts/gmk-agent-worker/coordinator.mjs --once --agent ${args.agent}`,
-      });
+      if (!process.env.GMK_OVERNIGHT_SESSION_ID) {
+        recordBlockedCoordinator(db, runtimeRoot, {
+          job,
+          reason,
+          attempted: ["classify", "route", "health gate", "budget gate", "authority gate", "bounded dispatch"],
+          health,
+          budget,
+          concurrency,
+          resumeCommand: `node scripts/gmk-agent-worker/coordinator.mjs --once --agent ${args.agent}`,
+        });
+      } else {
+        recordCoordinatorEvent(db, "overnight_dispatch_failed", {
+          session_id: process.env.GMK_OVERNIGHT_SESSION_ID,
+          job_id: job?.id || null,
+          reason: code,
+        });
+      }
       throw error;
     } finally {
       if (reservationHeld && workerResult?.processMayBeAlive !== true) {
@@ -455,6 +719,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`coordinator fatal: ${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`coordinator fatal [${error?.code || "coordinator_failed"}]: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exit(1);
 });

@@ -191,6 +191,35 @@ CREATE TABLE IF NOT EXISTS coordinator_reservations (
   deadline_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS overnight_sessions (
+  session_id TEXT PRIMARY KEY,
+  mode_version TEXT NOT NULL,
+  owner_pid INTEGER,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  heartbeat_at TEXT NOT NULL,
+  starting_commit TEXT NOT NULL,
+  current_commit TEXT,
+  operator_paused INTEGER NOT NULL DEFAULT 0,
+  jobs_attempted INTEGER NOT NULL DEFAULT 0,
+  jobs_succeeded INTEGER NOT NULL DEFAULT 0,
+  jobs_blocked INTEGER NOT NULL DEFAULT 0,
+  jobs_failed INTEGER NOT NULL DEFAULT 0,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  provider_usage_json TEXT NOT NULL DEFAULT '{}',
+  codex_runs INTEGER NOT NULL DEFAULT 0,
+  health_blocks INTEGER NOT NULL DEFAULT 0,
+  budget_blocks INTEGER NOT NULL DEFAULT 0,
+  last_completed_job TEXT,
+  current_job TEXT,
+  stop_reason TEXT,
+  final_status TEXT,
+  blocked_artifact TEXT,
+  summary_artifact TEXT,
+  last_failure_signature TEXT,
+  identical_failure_count INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_test_catalog_file ON test_catalog(file);
 CREATE INDEX IF NOT EXISTS idx_validation_records_module_created
   ON validation_records(module, created_at DESC);
@@ -202,6 +231,10 @@ CREATE INDEX IF NOT EXISTS idx_job_lifecycle_job_created
   ON job_lifecycle_log(job_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_coordinator_reservations_deadline
   ON coordinator_reservations(deadline_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_overnight_single_active
+  ON overnight_sessions((1)) WHERE final_status IS NULL;
+CREATE INDEX IF NOT EXISTS idx_overnight_started
+  ON overnight_sessions(started_at DESC);
 `;
 
 function ensureColumn(db, table, column, declaration) {
@@ -224,6 +257,8 @@ function migrateExistingDatabase(db) {
   ensureColumn(db, "job_lifecycle_log", "iteration_ceiling", "INTEGER");
   ensureColumn(db, "coordinator_reservations", "worker_pid", "INTEGER");
   ensureColumn(db, "coordinator_reservations", "worker_bound_at", "TEXT");
+  ensureColumn(db, "overnight_sessions", "last_failure_signature", "TEXT");
+  ensureColumn(db, "overnight_sessions", "identical_failure_count", "INTEGER NOT NULL DEFAULT 0");
   db.exec(`CREATE INDEX IF NOT EXISTS idx_engineering_findings_module_lifecycle
     ON engineering_findings(module, lifecycle)`);
 }

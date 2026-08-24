@@ -9,6 +9,8 @@ import { processWorkerOnce, processWorkerPass } from "./lib/worker-pass.mjs";
 import { createLlmRegistry } from "./lib/llm/registry.mjs";
 import { bindReservationWorker, createCountingLlm } from "./lib/scheduler.mjs";
 import { openDatabase } from "./lib/sqlite.mjs";
+import { recordRoutingOutcome } from "./lib/ledger.mjs";
+import { deterministicFailureClass } from "./lib/failure-class.mjs";
 
 const AGENT_LOADERS = {
   engineering: () => import("./agents/engineering.spec.mjs").then((m) => m.default),
@@ -54,11 +56,19 @@ async function main() {
   const envGet = (key) => env.get(key) ?? process.env[key];
   const runtimeRoot = envGet("GMK_RUNTIME_ROOT") || null;
   if (jobId) {
-    if (!runtimeRoot) throw new Error("worker_pid_binding_failed: GMK_RUNTIME_ROOT is required");
+    if (!runtimeRoot) {
+      const error = new Error("GMK_RUNTIME_ROOT is required for worker PID binding");
+      error.code = "worker_pid_binding_failed";
+      throw error;
+    }
     const { db } = openDatabase(path.resolve(runtimeRoot));
     try {
       const binding = bindReservationWorker(db, { jobId, workerPid: process.pid });
-      if (!binding.allowed) throw new Error(`${binding.reason}: ${binding.error || "unknown"}`);
+      if (!binding.allowed) {
+        const error = new Error("worker PID binding was rejected");
+        error.code = "worker_pid_binding_failed";
+        throw error;
+      }
     } finally {
       db.close();
     }
@@ -98,6 +108,16 @@ async function main() {
     logger,
     agentId: auth.user.id,
     targetJobId: jobId,
+    modelHandle,
+    recordRoutingOutcome(entry) {
+      if (!runtimeRoot) return;
+      const { db } = openDatabase(path.resolve(runtimeRoot));
+      try {
+        recordRoutingOutcome(db, entry);
+      } finally {
+        db.close();
+      }
+    },
   };
   runtime.llm = createCountingLlm(createLlmRegistry({
     runtimeRoot: config.runtimeRoot,
@@ -139,6 +159,11 @@ async function main() {
       logger.log("target_job_not_processed", { job_id: jobId });
       process.exit(3);
     }
+    if (runtime.lastFailureClass) {
+      const error = new Error("classified worker failure");
+      error.code = runtime.lastFailureClass;
+      throw error;
+    }
     process.exit(0);
   }
 
@@ -164,6 +189,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stderr.write(`worker fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+  const failureClass = deterministicFailureClass(err, "worker_failed");
+  process.stderr.write(`worker fatal [${failureClass}]: classified worker failure\n`);
   process.exit(1);
 });
