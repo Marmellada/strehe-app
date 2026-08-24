@@ -376,14 +376,14 @@ test("Windows watchdog terminates descendant processes without elevation", {
   const script = [
     "const { spawn } = require('node:child_process');",
     "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { windowsHide: true, stdio: 'ignore' });",
-    "console.log(child.pid);",
+    "require('node:fs').writeSync(1, String(child.pid) + '\\n');",
     "setInterval(() => {}, 1000);",
   ].join(" ");
   const result = await runBoundedProcess({
     command: process.execPath,
     args: ["-e", script],
     options: { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
-    timeoutMs: 300,
+    timeoutMs: 1500,
   });
   const descendantPid = Number(result.stdout.trim().split(/\s+/)[0]);
   assert.equal(result.timedOut, true);
