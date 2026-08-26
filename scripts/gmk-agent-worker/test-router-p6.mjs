@@ -274,6 +274,7 @@ test("O. unconfirmed termination is session-blocking and retains a single mornin
       status: "session_blocked", failureClass: "watchdog_termination_unconfirmed", processMayBeAlive: true,
     }),
     limits: { maxJobs: 1 },
+    now: () => new Date(active.started_at),
   });
   assert.equal(result.status, "BLOCKED");
   assert.match(fs.readFileSync(result.artifact, "utf8"), /Process may still be alive: YES/);
@@ -355,6 +356,7 @@ test("W. session job-count limit is finite and writes one summary", async (t) =>
     selectJob: async () => ({ id: `job-${++index}` }),
     dispatchJob: async () => ({ status: "succeeded", provider: "opencode", model: "minimax-m3" }),
     limits: { maxJobs: 1 },
+    now: () => new Date(active.started_at),
   });
   assert.equal(result.status, "COMPLETED");
   assert.equal(result.session.jobs_attempted, 1);
@@ -371,6 +373,7 @@ test("X. same failure class across different jobs reaches the systemic limit", a
     preflight: async () => ({ allowed: true }), selectJob: async () => ({ id: `job-${++index}` }),
     dispatchJob: async () => ({ status: "retryable_failure", failureClass: "provider_5xx" }),
     limits: { identicalFailureLimit: 2 },
+    now: () => new Date(active.started_at),
   });
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.session.jobs_attempted, 2);
@@ -388,6 +391,7 @@ test("different failure classes do not combine into one systemic streak", async 
     preflight: async () => ({ allowed: true }), selectJob: async () => ({ id: `job-${index}` }),
     dispatchJob: async () => ({ status: "retryable_failure", failureClass: classes[index++] }),
     limits: { identicalFailureLimit: 2, maxJobs: 2 },
+    now: () => new Date(active.started_at),
   });
   assert.equal(result.status, "COMPLETED");
   assert.equal(result.session.identical_failure_count, 1);
@@ -408,6 +412,7 @@ test("successful work resets the consecutive failure streak", async (t) => {
     preflight: async () => ({ allowed: true }), selectJob: async () => ({ id: `job-${index}` }),
     dispatchJob: async () => outcomes[index++],
     limits: { identicalFailureLimit: 2, maxJobs: 3 },
+    now: () => new Date(active.started_at),
   });
   assert.equal(result.status, "COMPLETED");
   assert.equal(result.session.identical_failure_count, 1);
@@ -430,6 +435,7 @@ test("durable failure streak reloads on coordinator restart without double incre
     preflight: async () => ({ allowed: true }), selectJob: async () => ({ id: "different-job" }),
     dispatchJob: async () => ({ status: "retryable_failure", failureClass: "provider_5xx" }),
     limits: { identicalFailureLimit: 2 },
+    now: () => new Date(recovered.started_at),
   });
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.session.identical_failure_count, 2);

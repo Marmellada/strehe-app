@@ -5,7 +5,7 @@ export const DEFAULT_MODULE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_FAILURE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 export const CONTROL_UNAVAILABLE = Object.freeze({
   proactive_enabled: false,
-  paused: false,
+  paused: true,
   cadence_minutes: 240,
   next_proactive_at: null,
   manual_review_requested_at: null,
@@ -31,6 +31,24 @@ function parseJsonArray(value) {
   } catch {
     return [];
   }
+}
+
+function sanitizeSnapshotValue(value) {
+  if (typeof value === "string") {
+    return value.replace(/\u0000/g, "\uFFFD");
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSnapshotValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        sanitizeSnapshotValue(item),
+      ]),
+    );
+  }
+  return value;
 }
 
 function timeValue(value) {
@@ -277,7 +295,7 @@ export function buildEngineeringSnapshot(db, { model, runtimeStatus = "idle", cu
     return result;
   }, { validated: 0, stale: 0, deferred: 0 });
 
-  return {
+  return sanitizeSnapshotValue({
     schema_version: 1,
     model,
     runtime_status: runtimeStatus,
@@ -287,7 +305,7 @@ export function buildEngineeringSnapshot(db, { model, runtimeStatus = "idle", cu
     modules,
     findings,
     generated_at: new Date().toISOString(),
-  };
+  });
 }
 
 export async function readEngineeringControl(runtime) {

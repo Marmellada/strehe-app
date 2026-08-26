@@ -207,6 +207,12 @@ test("no-finding advances freshness and finding lifecycle remains auditable", (t
   const snapshot = buildEngineeringSnapshot(db, { model: "local-model" });
   assert.equal(snapshot.counts.pending_findings, 0);
   assert.equal(snapshot.findings.some((item) => item.id === finding.id && item.lifecycle === "RESOLVED"), true);
+  db.prepare("UPDATE engineering_findings SET evidence = ? WHERE id = ?")
+    .run(JSON.stringify(["bad\u0000evidence"]), finding.id);
+  const sanitizedSnapshot = buildEngineeringSnapshot(db, { model: "local-model" });
+  const sanitizedFinding = sanitizedSnapshot.findings.find((item) => item.id === finding.id);
+  assert.equal(sanitizedFinding.evidence[0].includes("\u0000"), false);
+  assert.equal(sanitizedFinding.evidence[0].includes("\uFFFD"), true);
   assert.equal(db.prepare("SELECT count(*) AS count FROM engineering_decisions WHERE finding_id = ?").get(finding.id).count, 1);
   const selected = selectProactiveTarget([
     { ...db.prepare("SELECT * FROM modules WHERE name = 'Auth / RBAC'").get(), current_module_fingerprint: "changed" },
@@ -284,7 +290,7 @@ test("proactive prompt includes prior decisions and intentional safety constrain
   db.close();
 });
 
-test("control-plane failure disables proactive scheduling but queued work still processes", async () => {
+test("control-plane failure fails closed and does not process queued work", async () => {
   const logs = [];
   let enqueueCalls = 0;
   let completed = 0;
@@ -303,10 +309,10 @@ test("control-plane failure disables proactive scheduling but queued work still 
   };
   const spec = { capability: "engineering.local", leaseSeconds: 300, run: async () => ({ privacy: { external_ai_used: false, local_processing: true }, production_changes_made: false }) };
   const pass = await processWorkerPass(runtime, spec, { engineering: true });
-  assert.equal(pass.processed, true);
+  assert.equal(pass.processed, false);
   assert.equal(pass.control.proactive_enabled, false);
-  assert.equal(pass.control.paused, false);
-  assert.equal(completed, 1);
+  assert.equal(pass.control.paused, true);
+  assert.equal(completed, 0);
   assert.equal(enqueueCalls, 0);
   await readEngineeringControl(runtime);
   assert.equal(logs.filter((item) => item.event === "engineering_control_unavailable").length, 1);
