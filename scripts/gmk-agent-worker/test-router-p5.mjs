@@ -13,6 +13,7 @@ import { assertJobAuthority } from "./lib/router/authority.mjs";
 import { classifyJob } from "./lib/router/classify.mjs";
 import { DEFAULT_MODEL_CONFIG } from "./lib/router/config.mjs";
 import { routeJob } from "./lib/router/route.mjs";
+import { processNextJob } from "./lib/claim-loop.mjs";
 
 const FIXTURE_ROOT = path.resolve("tests", "fixtures", "inbox");
 
@@ -117,6 +118,61 @@ function job(fx, jobType = "inbox.draft") {
   return { id: "synthetic-job", job_type: jobType, requires_review: true, payload: { conversation_fixture: fx } };
 }
 
+function retryBoundaryRuntime(fx, modelOutput) {
+  const claimed = job(fx);
+  let status = "queued";
+  let providerCalls = 0;
+  let failedCalls = 0;
+  const runtime = {
+    supabase: {
+      from(table) {
+        assert.equal(table, "agent_jobs");
+        const query = {
+          select() { return this; },
+          eq() { return this; },
+          lte() { return this; },
+          gt() { return this; },
+          order() { return this; },
+          async limit() { return status === "queued" ? { data: [claimed], error: null } : { data: [], error: null }; },
+        };
+        return query;
+      },
+      async rpc(name) {
+        if (name === "claim_agent_job") {
+          assert.equal(status, "queued");
+          status = "running";
+          return { data: claimed, error: null };
+        }
+        if (name === "fail_agent_job") {
+          failedCalls += 1;
+          status = "failed";
+          return { data: claimed, error: null };
+        }
+        throw new Error(`unexpected RPC in retry-boundary test: ${name}`);
+      },
+    },
+    logger: { log() {} },
+    recordRoutingOutcome() {},
+    llm: {
+      provider: "fake-provider",
+      model: "fake-inbox-model",
+      protocol: "deterministic_fake",
+      isExternal: false,
+      async chat() {
+        providerCalls += 1;
+        if (modelOutput instanceof Error) throw modelOutput;
+        return modelOutput;
+      },
+    },
+  };
+  return {
+    runtime,
+    get providerCalls() { return providerCalls; },
+    get failedCalls() { return failedCalls; },
+    get status() { return status; },
+  };
+}
+
 test("valid synthetic Albanian fixture produces a bounded structured review draft", async () => {
   const fx = fixture("a-albanian-services.json");
   const runtime = runtimeReturning(candidateFor(fx));
@@ -158,6 +214,25 @@ test("malformed model schema fails closed with the authoritative classification"
       (error) => error.code === code,
       JSON.stringify(override),
     );
+  }
+});
+
+test("Inbox deterministic failures never retry the unchanged job", async () => {
+  const fx = fixture("a-albanian-services.json");
+  const cases = [
+    ["schema_invalid", JSON.stringify(candidateFor(fx, { customer_needs: [] }))],
+    ["authority_blocked", JSON.stringify(candidateFor(fx, { send: true }))],
+    ["schema_invalid", "not-json"],
+    ["provider_context_exceeded", Object.assign(new Error("context window exceeded"), { code: "provider_context_exceeded" })],
+    ["provider_request_failed", Object.assign(new Error("request rejected"), { code: "provider_request_failed" })],
+  ];
+  for (const [expectedCode, modelOutput] of cases) {
+    const boundary = retryBoundaryRuntime(fx, modelOutput);
+    assert.equal(await processNextJob(boundary.runtime, inboxSpec), true, expectedCode);
+    assert.equal(await processNextJob(boundary.runtime, inboxSpec), false, `${expectedCode} re-claimed the failed job`);
+    assert.equal(boundary.providerCalls, 1, `${expectedCode} made an unchanged second provider call`);
+    assert.equal(boundary.failedCalls, 1, `${expectedCode} did not fail the job exactly once`);
+    assert.equal(boundary.status, "failed");
   }
 });
 

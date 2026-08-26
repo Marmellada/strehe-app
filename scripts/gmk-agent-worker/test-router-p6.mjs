@@ -368,16 +368,45 @@ test("X. same failure class across different jobs reaches the systemic limit", a
   const runtime = tempRuntime(t);
   const active = session(runtime);
   let index = 0;
+  let dispatchCalls = 0;
   const result = await runOvernightLoop({
     db: runtime.db, runtimeRoot: runtime.root, session: active,
     preflight: async () => ({ allowed: true }), selectJob: async () => ({ id: `job-${++index}` }),
-    dispatchJob: async () => ({ status: "retryable_failure", failureClass: "provider_5xx" }),
+    dispatchJob: async () => {
+      dispatchCalls += 1;
+      return { status: "retryable_failure", failureClass: "provider_5xx" };
+    },
     limits: { identicalFailureLimit: 2 },
     now: () => new Date(active.started_at),
   });
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.session.jobs_attempted, 2);
   assert.equal(result.session.retry_count, 2);
+  assert.equal(dispatchCalls, 2);
+  assert.match(result.session.stop_reason, /identical_failure_limit/);
+});
+
+test("transient provider failure follows only the bounded overnight failure policy", async (t) => {
+  const runtime = tempRuntime(t);
+  const active = session(runtime);
+  let index = 0;
+  let providerCalls = 0;
+  const result = await runOvernightLoop({
+    db: runtime.db,
+    runtimeRoot: runtime.root,
+    session: active,
+    preflight: async () => ({ allowed: true }),
+    selectJob: async () => ({ id: `transient-job-${++index}` }),
+    dispatchJob: async () => {
+      providerCalls += 1;
+      return { status: "retryable_failure", failureClass: "provider_network_error" };
+    },
+    limits: { identicalFailureLimit: 3 },
+    now: () => new Date(active.started_at),
+  });
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(providerCalls, 3);
+  assert.equal(result.session.retry_count, 3);
   assert.match(result.session.stop_reason, /identical_failure_limit/);
 });
 
