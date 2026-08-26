@@ -269,3 +269,36 @@ test("direct --once blocked artifacts redact secret-like text", (t) => {
   assert.match(text, /\[REDACTED\]/);
   assert.doesNotMatch(text, /super-secret|raw-token|hunter2|another-secret/);
 });
+
+test("OpenCode Kimi K2.7 compatibility forces supported temperature 1", async (t) => {
+  const root = tempRuntime(t);
+  const { db } = openDatabase(root);
+  let request;
+
+  const adapter = createOpenCodeAdapter({
+    apiKey: "test-key",
+    baseUrl: "https://opencode.example/zen/go/v1",
+    model: "kimi-k2.7-code",
+    protocol: "openai_chat_completions",
+    db,
+    ratecard: { input: 0, output: 0 },
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }), { status: 200 });
+    },
+  });
+
+  assert.equal(
+    await adapter.chat({ prompt: "test", temperature: 0.1 }),
+    "ok",
+  );
+
+  const body = JSON.parse(request.options.body);
+  assert.equal(body.model, "kimi-k2.7-code");
+  assert.equal(body.temperature, 1);
+
+  db.close();
+});

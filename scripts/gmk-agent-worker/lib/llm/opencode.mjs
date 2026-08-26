@@ -12,11 +12,15 @@ function apiUrl(baseUrl, protocol) {
 }
 
 function requestFor(protocol, model, prompt, temperature, maxTokens) {
+  // Console Go currently requires temperature=1 for Kimi K2.7 Code.
+  // Keep agent-level temperature intent unchanged for all other models.
+  const requestTemperature = model === "kimi-k2.7-code" ? 1 : temperature;
+
   if (protocol === "openai_chat_completions") {
     return {
       model,
       stream: false,
-      temperature,
+      temperature: requestTemperature,
       messages: [{ role: "user", content: prompt }],
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
     };
@@ -25,7 +29,7 @@ function requestFor(protocol, model, prompt, temperature, maxTokens) {
     return {
       model,
       stream: false,
-      temperature,
+      temperature: requestTemperature,
       max_tokens: maxTokens || 4096,
       messages: [{ role: "user", content: prompt }],
     };
