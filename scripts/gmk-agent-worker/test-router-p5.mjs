@@ -370,3 +370,22 @@ test("P5 remains fixture-only when P6 Overnight Mode is explicitly available", (
     payload: { conversation_fixture: fixture("a-albanian-services.json") },
   }), (error) => error.code === "authority_blocked");
 });
+
+test("Inbox prompt makes array field shapes explicit", () => {
+  const source = fs.readFileSync(
+    path.resolve("scripts/gmk-agent-worker/agents/inbox.spec.mjs"),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /customer_needs must be a JSON array containing 1-5 non-empty strings/,
+  );
+  assert.match(
+    source,
+    /risk_flags and uncertainty_flags must always be JSON arrays/,
+  );
+  assert.match(source, /key === "customer_needs"/);
+  assert.match(source, /key === "send"\) return \[key, false\]/);
+  assert.match(source, /key === "requires_human_review"\) return \[key, true\]/);
+});
