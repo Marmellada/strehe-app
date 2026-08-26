@@ -188,9 +188,11 @@ export function createOpenCodeAdapter({
         let payload = {};
         try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
         const usage = normalizeOpenCodeUsage(protocol, payload);
-        writeUsage(usage, Date.now() - started);
-        recorded = true;
         if (!response.ok) {
+          // The provider returned an explicit failed HTTP response.
+          // This is not successful inference with missing metering data.
+          writeUsage({ ...usage, costStatus: "request_failed" }, Date.now() - started);
+          recorded = true;
           const error = new Error(`OpenCode returned ${response.status}: ${text.slice(0, 1000)}`);
           error.code = /context[_ -]?length|maximum context|too many (input )?tokens/i.test(text)
             ? "context_length"
@@ -201,6 +203,8 @@ export function createOpenCodeAdapter({
                 : "provider_request_failed";
           throw error;
         }
+        writeUsage(usage, Date.now() - started);
+        recorded = true;
         return responseContent(protocol, payload);
       } catch (error) {
         if (!recorded) {

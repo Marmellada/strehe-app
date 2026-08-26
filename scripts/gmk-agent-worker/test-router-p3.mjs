@@ -615,3 +615,62 @@ test("two SQLite connections contending for one heavy capacity cannot both acqui
   assert.equal(results.filter((result) => result.allowed).length, 1);
   assert.equal(results.filter((result) => result.reason === "concurrency_heavy_limit").length, 1);
 });
+
+test("HTTP provider rejection is audited without a metering hold and a later request can run", async (t) => {
+  const { db } = tempDatabase(t);
+  let fetchCalls = 0;
+
+  const adapter = createOpenCodeAdapter({
+    apiKey: "test",
+    baseUrl: "https://opencode.example/zen/go/v1",
+    model: "kimi-k2.7-code",
+    protocol: "openai_chat_completions",
+    db,
+    ratecard: { input: 0, output: 0 },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+
+      if (fetchCalls === 1) {
+        return new Response(JSON.stringify({
+          error: {
+            type: "invalid_request_error",
+            message: "request rejected before inference",
+          },
+        }), { status: 400 });
+      }
+
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "recovered" } }],
+        usage: { prompt_tokens: 8, completion_tokens: 2 },
+      }), { status: 200 });
+    },
+  });
+
+  await assert.rejects(
+    adapter.chat({ prompt: "first", temperature: 0.1 }),
+    (error) => {
+      assert.equal(error.code, "provider_request_failed");
+      return true;
+    },
+  );
+
+  assert.equal(
+    getState(db, budgetMeteringHoldStateKey("opencode")),
+    null,
+  );
+
+  const failed = db.prepare(
+    "SELECT * FROM llm_usage_ledger ORDER BY id ASC LIMIT 1"
+  ).get();
+
+  assert.equal(failed.cost_status, "request_failed");
+  assert.equal(failed.input_tokens, null);
+  assert.equal(failed.output_tokens, null);
+
+  assert.equal(
+    await adapter.chat({ prompt: "second", temperature: 0.1 }),
+    "recovered",
+  );
+
+  assert.equal(fetchCalls, 2);
+});
