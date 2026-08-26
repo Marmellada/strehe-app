@@ -25,12 +25,23 @@ function payloadFixture(job) {
 
 export function buildInboxPrompt(fixture) {
   const outputShape = Object.fromEntries(INBOX_CANDIDATE_KEYS.map((key) => {
-    if (key === "customer_needs") return [key, ["<customer need>"]];
-    if (key === "decision_evidence") return [key, ["<observable reason>"]];
+    if (key === "schema_version") return [key, "strehe.inbox.result.v1"];
+    if (key === "fixture_id") return [key, fixture.fixture_id];
+    if (key === "channel") return [key, fixture.channel];
+    if (key === "language") return [key, fixture.declared_language];
+    if (key === "intent") return [key, "services_inquiry"];
+    if (key === "category") return [key, "services"];
+    if (key === "urgency") return [key, "low"];
+    if (key === "suggested_attention") return [key, "needs_reply"];
+    if (key === "confidence") return [key, "medium"];
+    if (key === "summary") return [key, "Concise summary of the customer request."];
+    if (key === "customer_needs") return [key, ["One specific customer need."]];
+    if (key === "draft_reply") return [key, "Concise draft reply in the fixture language."];
     if (key === "risk_flags" || key === "uncertainty_flags") return [key, []];
     if (key === "send") return [key, false];
     if (key === "requires_human_review") return [key, true];
-    return [key, `<required:${key}>`];
+    if (key === "decision_evidence") return [key, ["Observable reason from the fixture text."]];
+    return [key, "example value"];
   }));
   const prompt = [
     "You are STREHE Inbox Agent V1. Analyze only the synthetic fixture between DATA markers.",
@@ -50,7 +61,8 @@ export function buildInboxPrompt(fixture) {
     "decision_evidence must contain only concise observable reasons, never hidden reasoning or chain-of-thought.",
     "Structured array rules: customer_needs must be a JSON array containing 1-5 non-empty strings; decision_evidence must be a JSON array containing 1-5 non-empty strings.",
     "risk_flags and uncertainty_flags must always be JSON arrays; use [] when there are no applicable flags. Never return null or a plain string for any array field.",
-    `Required key template: ${JSON.stringify(outputShape)}`,
+    "Concrete JSON shape example (types and exact keys are mandatory; replace example classification/content with values grounded in this fixture):",
+    JSON.stringify(outputShape),
     "BEGIN_SYNTHETIC_FIXTURE_DATA",
     JSON.stringify(fixture),
     "END_SYNTHETIC_FIXTURE_DATA",

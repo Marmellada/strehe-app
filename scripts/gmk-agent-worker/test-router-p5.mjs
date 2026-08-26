@@ -141,6 +141,26 @@ test("send is required and must be literal false", () => {
   assert.throws(() => assertInboxCandidate(missing, fx), /missing=\[send\]/);
 });
 
+test("malformed model schema fails closed with the authoritative classification", () => {
+  const fx = fixture("a-albanian-services.json");
+  const malformed = [
+    [{ customer_needs: [] }, "schema_invalid"],
+    [{ customer_needs: "A clear need" }, "schema_invalid"],
+    [{ decision_evidence: [] }, "schema_invalid"],
+    [{ risk_flags: null }, "schema_invalid"],
+    [{ uncertainty_flags: "none" }, "schema_invalid"],
+    [{ send: true }, "authority_blocked"],
+    [{ requires_human_review: false }, "authority_blocked"],
+  ];
+  for (const [override, code] of malformed) {
+    assert.throws(
+      () => assertInboxCandidate(candidateFor(fx, override), fx),
+      (error) => error.code === code,
+      JSON.stringify(override),
+    );
+  }
+});
+
 test("unexpected action, tool, and send-like fields are rejected", () => {
   const fx = fixture("a-albanian-services.json");
   for (const extra of [{ action: "send" }, { tools: ["sendMetaMessage"] }, { outbound_action: "none" }]) {
@@ -385,7 +405,9 @@ test("Inbox prompt makes array field shapes explicit", () => {
     source,
     /risk_flags and uncertainty_flags must always be JSON arrays/,
   );
-  assert.match(source, /key === "customer_needs"/);
-  assert.match(source, /key === "send"\) return \[key, false\]/);
-  assert.match(source, /key === "requires_human_review"\) return \[key, true\]/);
+  assert.match(source, /Concrete JSON shape example/);
+  assert.match(source, /if \(key === "customer_needs"\) return \[key, \["One specific customer need\."\]\]/);
+  assert.match(source, /if \(key === "decision_evidence"\) return \[key, \["Observable reason from the fixture text\."\]\]/);
+  assert.match(source, /if \(key === "send"\) return \[key, false\]/);
+  assert.match(source, /if \(key === "requires_human_review"\) return \[key, true\]/);
 });
