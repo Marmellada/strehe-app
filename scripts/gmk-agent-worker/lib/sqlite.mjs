@@ -151,6 +151,17 @@ CREATE TABLE IF NOT EXISTS llm_usage_ledger (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS review_commit_advancements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL REFERENCES review_sessions(id),
+  base_commit TEXT NOT NULL,
+  target_commit TEXT NOT NULL UNIQUE,
+  approved_job_id TEXT NOT NULL,
+  approved_by_user_id TEXT NOT NULL,
+  evidence_json TEXT NOT NULL,
+  advanced_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS routing_outcomes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   job_type TEXT NOT NULL,
@@ -223,6 +234,8 @@ CREATE TABLE IF NOT EXISTS overnight_sessions (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_test_catalog_file ON test_catalog(file);
 CREATE INDEX IF NOT EXISTS idx_validation_records_module_created
   ON validation_records(module, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_review_commit_advancements_session
+  ON review_commit_advancements(session_id, advanced_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_provider_created
   ON llm_usage_ledger(provider, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_routing_outcomes_signature_created

@@ -18,6 +18,7 @@ import {
 
 const MAX_TASKS_PER_SESSION = 40;
 const MAX_RETRIES = 2;
+export const MAX_CHANGE_AWARE_CHECKS = 64;
 
 // Proactive review input bounds — sized to stay inside the local model's context
 // window (num_ctx is deliberately NOT raised). Max candidate files included in the
@@ -388,10 +389,10 @@ function persistEvidence(db, taskId, kind, content) {
   return Number(info.lastInsertRowid);
 }
 
-function recordValidation(db, sessionId, module, check, commit, state) {
+function recordValidation(db, sessionId, module, check, commit, state, evidenceRef = null) {
   db.prepare(
-    "INSERT INTO validation_records (module, check_performed, commit_sha, state, run_id) VALUES (?, ?, ?, ?, ?)",
-  ).run(module, check, commit, state, sessionId);
+    "INSERT INTO validation_records (module, check_performed, evidence_ref, commit_sha, state, run_id) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(module, check, evidenceRef, commit, state, sessionId);
 }
 
 function upsertModule(db, m) {
@@ -407,9 +408,6 @@ function upsertModule(db, m) {
        tests = excluded.tests,
        criticality = excluded.criticality,
        mapping_state = excluded.mapping_state,
-       validation_state = excluded.validation_state,
-       last_validated_commit = excluded.last_validated_commit,
-       known_findings = excluded.known_findings,
        updated_at = datetime('now')`,
   ).run(
     m.name,
@@ -422,8 +420,8 @@ function upsertModule(db, m) {
     m.criticality ?? "low",
     m.mapping_state ?? "MAPPED",
     m.validation_state ?? "NEEDS_REVIEW",
-    m.last_validated_commit ?? null,
-    JSON.stringify(m.notes ? [m.notes] : []),
+    null,
+    JSON.stringify([]),
   );
 }
 
@@ -442,7 +440,7 @@ function upsertDependency(db, from, to) {
 
 function upsertTest(db, file, kind, target) {
   db.prepare(
-    "INSERT INTO test_catalog (file, kind, target) VALUES (?, ?, ?) ON CONFLICT(file) DO UPDATE SET kind = excluded.kind, target = excluded.target",
+    "INSERT INTO test_catalog (file, kind, target) VALUES (?, ?, ?) ON CONFLICT(file) DO UPDATE SET kind = excluded.kind",
   ).run(file, kind, target);
 }
 
@@ -517,6 +515,7 @@ function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, ch
           directly_affected: impact.directly_affected,
           dependency_affected: impact.dependency_affected,
           deferred: impact.deferred,
+          unmapped_paths: impact.unmapped_paths || [],
         }
       : null,
     findings,
@@ -617,8 +616,20 @@ export default {
         scope,
         taskPlan: baselinePlan(),
       });
-      const map = await writeBaselineMap(ctx, sessionId, commit);
-      summary = `baseline: ${map.modules} modules, ${map.flows} flows, ${map.deps} deps, ${map.tests} tests at ${commit}`;
+      const incomplete = db.prepare(
+        "SELECT COUNT(*) AS n FROM review_tasks WHERE session_id = ? AND status <> 'done'",
+      ).get(sessionId).n;
+      if (incomplete > 0) {
+        db.prepare("UPDATE review_sessions SET status = 'failed', updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+        throw new Error(`baseline structural tasks incomplete: ${incomplete}`);
+      }
+      try {
+        const map = await writeBaselineMap(ctx, sessionId, commit);
+        summary = `baseline: ${map.modules} modules, ${map.flows} flows, ${map.deps} deps, ${map.tests} checks, ${map.fingerprints} fingerprints at ${commit}`;
+      } catch (error) {
+        db.prepare("UPDATE review_sessions SET status = 'failed', updated_at = ? WHERE id = ?").run(nowIso(), sessionId);
+        throw error;
+      }
     } else if (kind === "proactive") {
       if (!payload.target_module || !payload.target_fingerprint) {
         throw new Error("proactive job is missing its deterministic module target");
@@ -734,7 +745,7 @@ function computeValidationOutcome(impact, checksRun, unavailable) {
 }
 
 function updateValidationMemory(db, impact, commit, sessionId, changedCount) {
-  const { directly_affected, dependency_affected, validated } = impact;
+  const { directly_affected, dependency_affected, validated, unmapped_paths = [] } = impact;
   const affected = [...directly_affected, ...dependency_affected];
   for (const name of affected) {
     db.prepare("UPDATE modules SET validation_state = 'STALE', updated_at = datetime('now') WHERE name = ?").run(name);
@@ -743,6 +754,15 @@ function updateValidationMemory(db, impact, commit, sessionId, changedCount) {
     db.prepare("UPDATE modules SET validation_state = 'VALIDATED', last_validated_commit = ? WHERE name = ?").run(commit, name);
   }
   recordValidation(db, sessionId, "repository", `change-aware diff (${changedCount} changed files): ${directly_affected.length} direct + ${dependency_affected.length} dependency affected`, commit, "VALIDATED");
+  recordValidation(
+    db,
+    sessionId,
+    "repository",
+    `module attribution coverage: ${changedCount - unmapped_paths.length}/${changedCount} changed paths mapped; ${unmapped_paths.length} unmapped`,
+    commit,
+    unmapped_paths.length === 0 ? "VALIDATED" : "STALE",
+    JSON.stringify({ unmapped_paths }),
+  );
   for (const name of validated) {
     recordValidation(db, sessionId, name, "re-validated after checks passed", commit, "VALIDATED");
   }
@@ -751,7 +771,7 @@ function updateValidationMemory(db, impact, commit, sessionId, changedCount) {
   }
 }
 
-async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, commit }) {
+export async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, commit }) {
   const { db, tools } = ctx;
 
   // Structural baseline tasks via the resumable session (git.rev, git.status).
@@ -766,6 +786,17 @@ async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, commit 
       { taskKind: "git.status", description: "assert worktree clean", params: {} },
     ],
   });
+
+  const [head, status] = await Promise.all([
+    tools.runTool("git.rev"),
+    tools.runTool("git.status"),
+  ]);
+  if (!head?.ok || head.commit !== commit) {
+    throw new Error(`change-aware review target mismatch: expected ${commit}, got ${head?.commit || "unavailable"}`);
+  }
+  if (!status?.ok || String(status.stdout || "").trim()) {
+    throw new Error("change-aware review requires a clean worktree");
+  }
 
   // Deterministic diff via the allowlisted tool (no git command construction).
   const diff = await tools.runTool("git.diff_names", { base: baseCommit, current: commit });
@@ -786,6 +817,9 @@ async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, commit 
 
   // Select + run checks for the directly affected modules.
   const checksSelected = selectChecksForFiles(changedFiles);
+  if (checksSelected.length > MAX_CHANGE_AWARE_CHECKS) {
+    throw new Error(`change-aware review exceeds bounded check limit: ${checksSelected.length}/${MAX_CHANGE_AWARE_CHECKS}`);
+  }
   const checksRun = [];
   const findings = [];
   for (const c of checksSelected) {
@@ -810,7 +844,7 @@ async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, commit 
 
   for (const c of checksRun) completed.push({ kind: c.kind, description: c.description, summary: c.summary });
 
-  const summary = `change-aware review: ${changedFiles.length} changed files → ${impact.directly_affected.length} direct + ${impact.dependency_affected.length} dependency affected; ${impact.carried_forward.length} carried forward; ${impact.validated.length} re-validated`;
+  const summary = `change-aware review: ${changedFiles.length} changed files → ${impact.directly_affected.length} direct + ${impact.dependency_affected.length} dependency affected; ${impact.carried_forward.length} carried forward; ${impact.validated.length} re-validated; ${(impact.unmapped_paths || []).length} unmapped paths`;
 
   return {
     completed,
@@ -846,61 +880,163 @@ export function proactivePlan(targetModule) {
   ];
 }
 
-async function writeBaselineMap(ctx, sessionId, commit) {
-  const { db } = ctx;
-  const counts = { modules: 0, flows: 0, deps: 0, tests: 0 };
+function normalizeCatalogPath(file) {
+  return String(file || "").replace(/\\/g, "/").replace(/^\.\//, "");
+}
 
-  // Curated module map (idempotent upsert). Post-V1 areas remain DEFERRED.
-  for (const m of MODULES) {
-    const deferred = m.category === "post-v1";
-    upsertModule(db, {
-      ...m,
-      mapping_state: "MAPPED",
-      validation_state: deferred ? "DEFERRED" : "NEEDS_REVIEW",
-      last_validated_commit: commit,
-    });
-    counts.modules += 1;
-  }
+function catalogLines(result, label) {
+  if (!result?.ok) throw new Error(`baseline ${label} discovery failed: ${result?.error || "unknown error"}`);
+  return String(result.stdout || "").split("\n").filter(Boolean);
+}
 
-  // Behavioral / critical flows.
-  for (const f of FLOWS) {
-    upsertFlow(db, f);
-    counts.flows += 1;
-  }
-
-  // Module-level dependency edges (change-impact graph).
-  for (const [from, to] of DEPENDENCIES) {
-    upsertDependency(db, from, to);
-    counts.deps += 1;
-  }
-
-  // Test catalog: discover deterministic check files via the tool gateway.
-  const [unitTests, dbTests, scripts] = await Promise.all([
-    ctx.tools.runTool("files", { glob: "tests/**" }),
-    ctx.tools.runTool("files", { glob: "supabase/tests/**" }),
-    ctx.tools.runTool("files", { glob: "scripts/*.mjs" }),
+export async function discoverBaselineCatalog(tools) {
+  const [tests, dbTests, topLevelChecks, workerTests, workerVerifications] = await Promise.all([
+    tools.runTool("files", { glob: "tests/**" }),
+    tools.runTool("files", { glob: "supabase/tests/**" }),
+    tools.runTool("files", { glob: "scripts/*.mjs" }),
+    tools.runTool("files", { glob: "scripts/gmk-agent-worker/test-*.mjs" }),
+    tools.runTool("files", { glob: "scripts/gmk-agent-worker/verify-*.mjs" }),
   ]);
-  const catalog = [
-    ...(unitTests.stdout || "").split("\n").filter(Boolean).map((f) => [f, "test"]),
-    ...(dbTests.stdout || "").split("\n").filter(Boolean).map((f) => [f, "db-test"]),
-    ...(scripts.stdout || "").split("\n").filter(Boolean).map((f) => [f, "verification"]),
+  const executableTest = /\.(?:[cm]?js|tsx?)$/i;
+  const declaredTests = new Set(MODULES.flatMap((moduleDefinition) => moduleDefinition.tests || []).map(normalizeCatalogPath));
+  const isNamedTest = (file) => /(?:\.spec|\.test|\.setup)\.(?:[cm]?js|tsx?)$/i.test(normalizeCatalogPath(file));
+  const isTopLevelCheck = (file) => declaredTests.has(normalizeCatalogPath(file))
+    || /^scripts\/(?:test-|verify-)[^/]+\.mjs$/i.test(normalizeCatalogPath(file));
+  const entries = [
+    ...catalogLines(tests, "test")
+      .filter((file) => executableTest.test(file) && (declaredTests.has(normalizeCatalogPath(file)) || isNamedTest(file)))
+      .map((file) => ({ file, kind: "test" })),
+    ...catalogLines(dbTests, "database test").filter((file) => /\.sql$/i.test(file)).map((file) => ({ file, kind: "db-test" })),
+    ...catalogLines(topLevelChecks, "top-level verification").filter(isTopLevelCheck).map((file) => ({ file, kind: "verification" })),
+    ...catalogLines(workerTests, "worker test").map((file) => ({ file, kind: "test" })),
+    ...catalogLines(workerVerifications, "worker verification").map((file) => ({ file, kind: "verification" })),
   ];
-  for (const [file, kind] of catalog) {
-    upsertTest(db, file, kind, null);
-    counts.tests += 1;
+  const unique = new Map();
+  for (const entry of entries) {
+    const normalized = normalizeCatalogPath(entry.file);
+    if (!unique.has(normalized)) unique.set(normalized, { ...entry, normalized });
   }
+  return [...unique.values()].sort((a, b) => a.normalized.localeCompare(b.normalized));
+}
 
-  // Validation ledger (honest states; nothing fabricated).
-  recordValidation(db, sessionId, "repository", "baseline commit + tree + clean status", commit, "VALIDATED");
-  recordValidation(db, sessionId, "repository", "structural enumeration (routes/libs/migrations/scripts)", commit, "VALIDATED");
-  recordValidation(db, sessionId, "modules", `curated module map (${counts.modules} modules)`, commit, "NEEDS_REVIEW");
-  recordValidation(db, sessionId, "critical_flows", `behavioral flow map (${counts.flows} flows)`, commit, "NEEDS_REVIEW");
-  recordValidation(db, sessionId, "module_dependencies", "module-level dependency graph", commit, "NEEDS_REVIEW");
-  recordValidation(db, sessionId, "test_catalog", `${counts.tests} check files discovered (NOT individually executed)`, commit, "NEEDS_REVIEW");
-  recordValidation(db, sessionId, "build", "npm build/lint/typecheck NOT RUN (isolated worktree has no node_modules)", commit, "NEEDS_REVIEW");
-  recordValidation(db, sessionId, "inspection-lab", "post-V1", commit, "DEFERRED");
-  recordValidation(db, sessionId, "finance-agent", "post-V1", commit, "DEFERRED");
+function assertBaselineDefinition(catalog) {
+  const moduleNames = new Set(MODULES.map((module) => module.name));
+  if (moduleNames.size !== MODULES.length) throw new Error("baseline module names are not unique");
+  if (new Set(FLOWS.map((flow) => flow.name)).size !== FLOWS.length) throw new Error("baseline flow names are not unique");
+  for (const [from, to] of DEPENDENCIES) {
+    if (!moduleNames.has(from) || !moduleNames.has(to)) {
+      throw new Error(`baseline dependency has an unknown endpoint: ${from} -> ${to}`);
+    }
+  }
+  const catalogFiles = new Set(catalog.map((entry) => entry.normalized));
+  for (const moduleDefinition of MODULES) {
+    for (const test of moduleDefinition.tests || []) {
+      if (!catalogFiles.has(normalizeCatalogPath(test))) {
+        throw new Error(`declared baseline test was not discovered: ${moduleDefinition.name}: ${test}`);
+      }
+    }
+  }
+}
 
-  setState(db, "last_mapped_commit", commit || "");
-  return counts;
+async function collectBaselineFingerprints(tools) {
+  const observations = [];
+  for (const moduleDefinition of MODULES) {
+    const deferred = moduleDefinition.category === "post-v1";
+    const result = await tools.runTool("git.scope_fingerprint", { paths: moduleDefinition.source_paths || [] });
+    if (!deferred && (!result?.ok || !result.fileCount || !result.fingerprint)) {
+      throw new Error(`baseline fingerprint unavailable for active module ${moduleDefinition.name}: ${result?.error || "zero tracked files"}`);
+    }
+    observations.push({
+      module: moduleDefinition.name,
+      deferred,
+      available: Boolean(result?.ok && result.fileCount > 0 && result.fingerprint),
+      fingerprint: result?.ok && result.fileCount > 0 ? result.fingerprint : null,
+      fileCount: result?.ok ? Number(result.fileCount || 0) : 0,
+      error: result?.ok ? null : String(result?.error || "unavailable"),
+    });
+  }
+  return observations;
+}
+
+export async function writeBaselineMap(ctx, sessionId, commit) {
+  const { db } = ctx;
+  if (!/^[0-9a-f]{40}$/i.test(String(commit || ""))) throw new Error("baseline commit must be a full Git SHA");
+  const [rev, status, catalog, fingerprints] = await Promise.all([
+    ctx.tools.runTool("git.rev"),
+    ctx.tools.runTool("git.status"),
+    discoverBaselineCatalog(ctx.tools),
+    collectBaselineFingerprints(ctx.tools),
+  ]);
+  if (!rev?.ok || rev.commit !== commit) throw new Error(`baseline HEAD mismatch: expected ${commit}, got ${rev?.commit || "unavailable"}`);
+  if (!status?.ok || String(status.stdout || "").trim()) throw new Error("baseline mapping requires a clean worktree");
+  assertBaselineDefinition(catalog);
+  const counts = { modules: MODULES.length, flows: FLOWS.length, deps: DEPENDENCIES.length, tests: catalog.length, fingerprints: fingerprints.length };
+
+  db.exec("BEGIN IMMEDIATE;");
+  try {
+    // Mapping updates structural fields only. Existing validation, reviewed
+    // fingerprints, review outcomes, cooldowns, and findings remain authoritative.
+    for (const moduleDefinition of MODULES) {
+      upsertModule(db, {
+        ...moduleDefinition,
+        mapping_state: "MAPPED",
+        validation_state: moduleDefinition.category === "post-v1" ? "DEFERRED" : "NEEDS_REVIEW",
+      });
+    }
+    for (const flow of FLOWS) upsertFlow(db, flow);
+    db.prepare("DELETE FROM module_dependencies WHERE kind = 'depends'").run();
+    for (const [from, to] of DEPENDENCIES) upsertDependency(db, from, to);
+    const existingTargets = new Map(
+      db.prepare("SELECT file, target FROM test_catalog WHERE target IS NOT NULL").all()
+        .map((row) => [normalizeCatalogPath(row.file), row.target]),
+    );
+    const declaredTargets = new Map();
+    for (const moduleDefinition of MODULES) {
+      for (const test of moduleDefinition.tests || []) {
+        const normalized = normalizeCatalogPath(test);
+        if (!declaredTargets.has(normalized)) declaredTargets.set(normalized, moduleDefinition.name);
+      }
+    }
+    db.prepare("DELETE FROM test_catalog").run();
+    for (const entry of catalog) {
+      upsertTest(db, entry.normalized, entry.kind, existingTargets.get(entry.normalized) || declaredTargets.get(entry.normalized) || null);
+    }
+
+    recordValidation(db, sessionId, "repository", "baseline mapping observed exact commit, tree, and clean status (structural; not a semantic review)", commit, "VALIDATED");
+    recordValidation(db, sessionId, "repository", "baseline structural enumeration of routes, libraries, migrations, scripts, and checks (not a semantic review)", commit, "VALIDATED");
+    recordValidation(db, sessionId, "modules", `baseline structural map (${counts.modules} modules; not semantically reviewed)`, commit, "NEEDS_REVIEW");
+    recordValidation(db, sessionId, "critical_flows", `baseline structural flow map (${counts.flows} flows; not semantically reviewed)`, commit, "NEEDS_REVIEW");
+    recordValidation(db, sessionId, "module_dependencies", `baseline structural dependency graph (${counts.deps} edges; not semantically reviewed)`, commit, "NEEDS_REVIEW");
+    recordValidation(db, sessionId, "test_catalog", `${counts.tests} executable check files discovered (not executed by mapping)`, commit, "NEEDS_REVIEW");
+    for (const observation of fingerprints) {
+      const evidence = JSON.stringify({
+        kind: "baseline_scope_fingerprint",
+        reviewed: false,
+        available: observation.available,
+        fingerprint: observation.fingerprint,
+        file_count: observation.fileCount,
+        error: observation.error,
+      });
+      recordValidation(
+        db,
+        sessionId,
+        observation.module,
+        "baseline scope fingerprint observation (structural mapping only; not a semantic review)",
+        commit,
+        observation.deferred ? "DEFERRED" : "NEEDS_REVIEW",
+        evidence,
+      );
+    }
+    recordValidation(db, sessionId, "build", "npm build/lint/typecheck NOT RUN by baseline mapping", commit, "NEEDS_REVIEW");
+    recordValidation(db, sessionId, "inspection-lab", "post-V1", commit, "DEFERRED");
+    recordValidation(db, sessionId, "finance-agent", "post-V1", commit, "DEFERRED");
+
+    // This is deliberately the final write: partial mapping never advances HEAD.
+    setState(db, "last_mapped_commit", commit);
+    db.exec("COMMIT;");
+    return counts;
+  } catch (error) {
+    db.exec("ROLLBACK;");
+    throw error;
+  }
 }

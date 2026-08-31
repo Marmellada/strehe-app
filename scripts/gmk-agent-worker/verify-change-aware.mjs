@@ -1,5 +1,5 @@
 // verify-change-aware.mjs — deterministic verification of change-aware review:
-//   Case A — isolated runtime file change → only GMK Agent Worker affected
+//   Case A — runtime file change → GMK Agent Worker + operator control dependent
 //   Case B — shared/high-impact change → downstream modules become STALE
 //   Case C — no change → no invalidation, validations carried forward
 // Pure (no git/ollama/supabase); imports the real map + impact module.
@@ -19,7 +19,9 @@ function check(name, ok, detail) {
   const impact = mapModuleImpact(changed, MODULES, DEPENDENCIES);
   check("A: GMK Agent Worker directly affected", impact.directly_affected.includes("GMK Agent Worker"), impact.directly_affected.join(","));
   check("A: only one directly affected module", impact.directly_affected.length === 1, `direct=${impact.directly_affected.length}`);
-  check("A: no dependency affected", impact.dependency_affected.length === 0, impact.dependency_affected.join(","));
+  check("A: Agent operator controls dependency affected",
+    impact.dependency_affected.length === 1 && impact.dependency_affected[0] === "Agent operator controls",
+    impact.dependency_affected.join(","));
   check("A: application modules carried forward",
     ["Auth / RBAC", "Messaging ingestion", "Billing / Invoicing", "CRM / Leads"].every((n) => impact.carried_forward.includes(n)));
   check("A: 22 carried forward", impact.carried_forward.length === 22, `cf=${impact.carried_forward.length}`);
@@ -54,8 +56,29 @@ function check(name, ok, detail) {
   const impact = mapModuleImpact([], MODULES, DEPENDENCIES);
   check("C: no directly affected", impact.directly_affected.length === 0);
   check("C: no dependency affected", impact.dependency_affected.length === 0);
-  check("C: all 23 active modules carried forward", impact.carried_forward.length === 23, `cf=${impact.carried_forward.length}`);
+  check("C: all 24 active modules carried forward", impact.carried_forward.length === 24, `cf=${impact.carried_forward.length}`);
   check("C: no checks selected", selectChecksForFiles([]).length === 0);
+}
+
+// ---- Case D: Agent operator UI is a distinct mapped control-plane module ----
+{
+  const changed = [
+    { status: "M", path: "app/operator/agents/AgentControlButton.tsx" },
+    { status: "M", path: "app/operator/agents/actions.ts" },
+    { status: "M", path: "app/operator/agents/page.tsx" },
+    { status: "M", path: "lib/agents/operator-view.ts" },
+    { status: "M", path: "tests/unit/agent-operator.spec.ts" },
+  ];
+  const impact = mapModuleImpact(changed, MODULES, DEPENDENCIES);
+  check("D: Agent operator controls directly affected", impact.directly_affected.includes("Agent operator controls"), impact.directly_affected.join(","));
+  check("D: Operator Inbox is not misclassified", !impact.directly_affected.includes("Operator Inbox"), impact.directly_affected.join(","));
+  check("D: all operator control paths mapped", impact.unmapped_paths.length === 0, impact.unmapped_paths.join(","));
+}
+
+// ---- Case E: global/unmapped paths remain explicit and fail-closed upstream ----
+{
+  const impact = mapModuleImpact([{ status: "M", path: "unmapped-global.config" }], MODULES, DEPENDENCIES);
+  check("E: unmapped path is explicit", impact.unmapped_paths.length === 1 && impact.unmapped_paths[0] === "unmapped-global.config");
 }
 
 const failed = results.filter((r) => !r).length;

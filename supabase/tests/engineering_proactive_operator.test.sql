@@ -10,6 +10,7 @@ insert into auth.users (id, email) values
   ('10000000-0000-0000-0000-000000000003', 'engineering-test-field@example.invalid'),
   ('10000000-0000-0000-0000-000000000004', 'engineering-test-contractor@example.invalid'),
   ('10000000-0000-0000-0000-000000000005', 'engineering-test-household@example.invalid'),
+  ('10000000-0000-0000-0000-000000000006', 'engineering-test-second-admin@example.invalid'),
   ('10000000-0000-0000-0000-000000000010', 'engineering-test-agent@example.invalid')
 on conflict (id) do nothing;
 
@@ -18,7 +19,8 @@ insert into public.app_users (id, email, full_name, role) values
   ('10000000-0000-0000-0000-000000000002', 'engineering-test-office@example.invalid', 'Test Office', 'office'),
   ('10000000-0000-0000-0000-000000000003', 'engineering-test-field@example.invalid', 'Test Field', 'field'),
   ('10000000-0000-0000-0000-000000000004', 'engineering-test-contractor@example.invalid', 'Test Contractor', 'contractor'),
-  ('10000000-0000-0000-0000-000000000005', 'engineering-test-household@example.invalid', 'Test Household', 'household')
+  ('10000000-0000-0000-0000-000000000005', 'engineering-test-household@example.invalid', 'Test Household', 'household'),
+  ('10000000-0000-0000-0000-000000000006', 'engineering-test-second-admin@example.invalid', 'Second Test Admin', 'admin')
 on conflict (id) do update set role = excluded.role, is_active = true;
 
 insert into public.agent_principals (id, agent_key, display_name, is_active)
@@ -57,6 +59,9 @@ begin
   if has_function_privilege('anon', 'public.operator_control_engineering_agent(text)', 'EXECUTE') then
     raise exception 'anon can execute operator control';
   end if;
+  if has_function_privilege('anon', 'public.operator_enqueue_engineering_review(text,text,text)', 'EXECUTE') then
+    raise exception 'anon can enqueue engineering reviews';
+  end if;
 end;
 $$;
 
@@ -77,6 +82,55 @@ end;
 $$;
 reset role;
 
+-- Bounded review submission derives requester provenance from auth.uid(), never
+-- from a caller-supplied user id, and rejects duplicate session ids.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
+do $$
+declare response jsonb; queued public.agent_jobs;
+begin
+  response := public.operator_enqueue_engineering_review(
+    'STREHE-ENGINEERING-REVIEW-ADMIN-1', repeat('a', 40), repeat('b', 40)
+  );
+  select * into queued from public.agent_jobs where id = (response->>'job_id')::uuid;
+  if queued.requested_by_user_id <> auth.uid() then raise exception 'review requester provenance mismatch'; end if;
+  if queued.assigned_agent_id <> '10000000-0000-0000-0000-000000000010'::uuid then raise exception 'review assigned to wrong agent'; end if;
+  if queued.job_type <> 'engineering.review' or queued.required_capability <> 'engineering.local'
+    or queued.max_attempts <> 1 or not queued.requires_review
+  then raise exception 'review job is not bounded'; end if;
+  if queued.payload->>'base_commit' <> repeat('a', 40)
+    or queued.payload->>'commit_sha' <> repeat('b', 40)
+  then raise exception 'review range payload mismatch'; end if;
+  begin
+    perform public.operator_enqueue_engineering_review(
+      'STREHE-ENGINEERING-REVIEW-ADMIN-1', repeat('a', 40), repeat('b', 40)
+    );
+    raise exception 'duplicate review session accepted';
+  exception when others then
+    if sqlerrm = 'duplicate review session accepted' then raise; end if;
+  end;
+end;
+$$;
+reset role;
+update public.agent_jobs set status = 'cancelled'
+where job_type = 'engineering.review' and payload->>'session_id' = 'STREHE-ENGINEERING-REVIEW-ADMIN-1';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000006', true);
+do $$
+declare response jsonb; requester_id uuid;
+begin
+  response := public.operator_enqueue_engineering_review(
+    'STREHE-ENGINEERING-REVIEW-ADMIN-2', repeat('b', 40), repeat('c', 40)
+  );
+  select requested_by_user_id into requester_id from public.agent_jobs where id = (response->>'job_id')::uuid;
+  if requester_id <> auth.uid() then raise exception 'second admin provenance was not preserved'; end if;
+end;
+$$;
+reset role;
+update public.agent_jobs set status = 'cancelled'
+where job_type = 'engineering.review' and payload->>'session_id' = 'STREHE-ENGINEERING-REVIEW-ADMIN-2';
+
 -- Office can read the redacted dashboard but cannot control or see the controls table directly.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002', true);
@@ -91,6 +145,14 @@ begin
     raise exception 'office operator control unexpectedly succeeded';
   exception when others then
     if sqlerrm = 'office operator control unexpectedly succeeded' then raise; end if;
+  end;
+  begin
+    perform public.operator_enqueue_engineering_review(
+      'STREHE-ENGINEERING-REVIEW-OFFICE', repeat('a', 40), repeat('b', 40)
+    );
+    raise exception 'office review enqueue unexpectedly succeeded';
+  exception when others then
+    if sqlerrm = 'office review enqueue unexpectedly succeeded' then raise; end if;
   end;
   begin
     perform public.operator_update_engineering_finding_lifecycle(1, 'RESOLVED');

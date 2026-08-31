@@ -9,7 +9,8 @@ function norm(p) {
 export function fileMatchesModule(file, module) {
   const f = norm(file);
   if (!f) return false;
-  for (const raw of module.source_paths || []) {
+  const scopes = [...(module.source_paths || []), ...(module.tests || [])];
+  for (const raw of scopes) {
     const prefix = norm(raw);
     if (!prefix || prefix === ".." || prefix.startsWith("../")) continue; // outside-worktree refs never match repo files
     if (f === prefix || f.startsWith(`${prefix}/`)) return true;
@@ -51,6 +52,9 @@ export function downstreamModules(direct, dependencies) {
 export function mapModuleImpact(changedFiles, modules, dependencies) {
   const active = modules.filter((m) => m.category !== "post-v1");
   const deferred = modules.filter((m) => m.category === "post-v1").map((m) => m.name);
+  const unmappedPaths = changedFiles
+    .map((change) => norm(change.path))
+    .filter((file) => file && !modules.some((module) => fileMatchesModule(file, module)));
   const direct = directModules(changedFiles, active);
   const downstream = downstreamModules(direct, dependencies);
   const dependencyAffected = downstream.filter((n) => !direct.includes(n));
@@ -61,6 +65,7 @@ export function mapModuleImpact(changedFiles, modules, dependencies) {
     dependency_affected: dependencyAffected,
     carried_forward: carriedForward,
     deferred,
+    unmapped_paths: [...new Set(unmappedPaths)].sort(),
   };
 }
 

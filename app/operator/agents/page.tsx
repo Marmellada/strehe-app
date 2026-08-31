@@ -51,10 +51,19 @@ export default async function AgentsPage() {
         </div>
 
         {canControl ? (
-          <div className="mt-6 flex flex-wrap gap-2 border-t pt-4">
-            <form action={controlEngineeringAgentAction}><input type="hidden" name="control_action" value="run_review" /><AgentControlButton variant="default">Run proactive check now</AgentControlButton></form>
-            <form action={controlEngineeringAgentAction}><input type="hidden" name="control_action" value={agent.control?.proactive_enabled ? "disable_proactive" : "enable_proactive"} /><AgentControlButton>{agent.control?.proactive_enabled ? "Disable proactive checking" : "Enable proactive checking"}</AgentControlButton></form>
-            <form action={controlEngineeringAgentAction}><input type="hidden" name="control_action" value={agent.control?.paused ? "resume" : "pause"} /><AgentControlButton>{agent.control?.paused ? "Resume agent" : "Pause agent"}</AgentControlButton></form>
+          <div className="mt-6 space-y-4 border-t pt-4">
+            <div className="flex flex-wrap gap-2">
+              <form action={controlEngineeringAgentAction}><input type="hidden" name="control_action" value="run_review" /><AgentControlButton variant="default">Run proactive check now</AgentControlButton></form>
+              <form action={controlEngineeringAgentAction}><input type="hidden" name="control_action" value={agent.control?.proactive_enabled ? "disable_proactive" : "enable_proactive"} /><AgentControlButton>{agent.control?.proactive_enabled ? "Disable proactive checking" : "Enable proactive checking"}</AgentControlButton></form>
+              <form action={controlEngineeringAgentAction}><input type="hidden" name="control_action" value={agent.control?.paused ? "resume" : "pause"} /><AgentControlButton>{agent.control?.paused ? "Resume agent" : "Pause agent"}</AgentControlButton></form>
+            </div>
+            <form action={controlEngineeringAgentAction} className="grid gap-3 rounded-lg border p-4 md:grid-cols-3">
+              <input type="hidden" name="control_action" value="enqueue_review" />
+              <label className="text-sm font-medium">Review session<input required name="review_session_id" pattern="[A-Z0-9][A-Z0-9._-]{7,127}" placeholder="STREHE-ENGINEERING-REVIEW-001" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <label className="text-sm font-medium">Base commit<input required name="base_commit" pattern="[0-9a-fA-F]{40}" placeholder="40-character reviewed SHA" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <label className="text-sm font-medium">Target commit<input required name="target_commit" pattern="[0-9a-fA-F]{40}" placeholder="40-character target SHA" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <div className="md:col-span-3"><AgentControlButton>Queue bounded change-aware review</AgentControlButton></div>
+            </form>
           </div>
         ) : <p className="mt-6 border-t pt-4 text-sm text-muted-foreground">Monitoring is available to office operators. Admin access is required for controls.</p>}
       </SectionCard>
