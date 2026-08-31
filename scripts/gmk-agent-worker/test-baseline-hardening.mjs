@@ -5,16 +5,21 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { MODULES } from "./agents/strehe-map.mjs";
+import { KNOWN_GLOBAL_PATHS, MODULES } from "./agents/strehe-map.mjs";
 import {
   discoverBaselineCatalog,
   MAX_CHANGE_AWARE_CHECKS,
   runChangeAwareReview,
   writeBaselineMap,
 } from "./agents/engineering.spec.mjs";
-import { directModules } from "./lib/impact.mjs";
+import { directModules, mapModuleImpact } from "./lib/impact.mjs";
 import { advanceLastReviewedCommit } from "./lib/review-state.mjs";
 import { openDatabase, setState } from "./lib/sqlite.mjs";
+import {
+  EXECUTION_CLASS,
+  getScriptExecutionMetadata,
+  requireScriptExecutionMetadata,
+} from "./lib/execution-class.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -38,7 +43,13 @@ function catalogOutputs() {
   return {
     "tests/**": [...tests, "tests/fixtures/inbox/not-a-test.json", "tests/e2e/utils.ts"],
     "supabase/tests/**": dbTests,
-    "scripts/*.mjs": [...top, "scripts/generate-unrelated-report.mjs"],
+    "scripts/*.mjs": [
+      ...top,
+      "scripts/capture-manual-screenshots.mjs",
+      "scripts/run-bathroom-base-shot-engine.mjs",
+      "scripts/verify-founding-funnel-local.mjs",
+      "scripts/generate-unrelated-report.mjs",
+    ],
     "scripts/gmk-agent-worker/test-*.mjs": [
       "scripts/gmk-agent-worker/test-baseline-hardening.mjs",
       "scripts/gmk-agent-worker/test-go-ready.mjs",
@@ -123,6 +134,9 @@ test("baseline mapping preserves validation and review provenance while recordin
   assert.equal(controls.last_reviewed_fingerprint, null);
   assert.equal(runtime.db.prepare("SELECT target FROM test_catalog WHERE file = ?").get("tests/unit/seo-discoverability.spec.ts").target, "Marketing site");
   assert.equal(runtime.db.prepare("SELECT target FROM test_catalog WHERE file = ?").get("tests/unit/agent-operator.spec.ts").target, "Agent operator controls");
+  assert.equal(runtime.db.prepare("SELECT execution_class FROM test_catalog WHERE file = ?").get("scripts/gmk-agent-worker/verify-change-aware.mjs").execution_class, EXECUTION_CLASS.SAFE_READ_ONLY);
+  assert.equal(runtime.db.prepare("SELECT execution_class FROM test_catalog WHERE file = ?").get("scripts/verify-founding-funnel-local.mjs").execution_class, EXECUTION_CLASS.LOCAL_INTEGRATION);
+  assert.equal(runtime.db.prepare("SELECT COUNT(*) n FROM test_catalog WHERE execution_class = ?").get(EXECUTION_CLASS.LIVE_INTEGRATION).n, 0);
   assert.equal(runtime.db.prepare("SELECT count(*) n FROM test_catalog WHERE file LIKE '%\\\\%'").get().n, 0);
   assert.equal(runtime.db.prepare("SELECT count(*) n FROM test_catalog WHERE file LIKE 'tests/fixtures/%'").get().n, 0);
   assert.equal(runtime.db.prepare("SELECT count(*) n FROM engineering_findings").get().n, 1);
@@ -140,10 +154,54 @@ test("baseline discovery includes nested worker checks and excludes fixture data
   const files = new Set(catalog.map((entry) => entry.normalized));
   assert(files.has("scripts/gmk-agent-worker/test-router.mjs"));
   assert(files.has("scripts/gmk-agent-worker/verify-change-aware.mjs"));
+  assert(!files.has("scripts/gmk-agent-worker/verify-agent-flow.mjs"));
+  assert(!files.has("scripts/gmk-agent-worker/verify-resumability.mjs"));
+  assert(!files.has("scripts/capture-manual-screenshots.mjs"));
+  assert(!files.has("scripts/run-bathroom-base-shot-engine.mjs"));
+  assert(files.has("scripts/verify-founding-funnel-local.mjs"));
   assert(!files.has("tests/fixtures/inbox/not-a-test.json"));
   assert(!files.has("tests/e2e/utils.ts"));
   assert(!files.has("scripts/generate-unrelated-report.mjs"));
   assert(files.has("tests/unit/agent-operator.spec.ts"));
+  assert.equal(catalog.find((entry) => entry.normalized === "scripts/gmk-agent-worker/verify-change-aware.mjs").executionClass, EXECUTION_CLASS.SAFE_READ_ONLY);
+  assert.equal(catalog.find((entry) => entry.normalized === "scripts/verify-founding-funnel-local.mjs").executionClass, EXECUTION_CLASS.LOCAL_INTEGRATION);
+});
+
+test("script execution registry classifies live and operational integrations explicitly", () => {
+  for (const file of [
+    "scripts/gmk-agent-worker/verify-agent-flow.mjs",
+    "scripts/gmk-agent-worker/verify-resumability.mjs",
+    "scripts/capture-manual-screenshots.mjs",
+    "scripts/run-bathroom-base-shot-engine.mjs",
+  ]) {
+    assert.equal(getScriptExecutionMetadata(file)?.executionClass, EXECUTION_CLASS.LIVE_INTEGRATION, file);
+  }
+  assert.equal(getScriptExecutionMetadata("scripts/verify-founding-funnel-local.mjs")?.executionClass, EXECUTION_CLASS.LOCAL_INTEGRATION);
+  assert.throws(() => requireScriptExecutionMetadata("scripts/gmk-agent-worker/verify-unclassified-live.mjs"), /classification missing/);
+});
+
+test("safe discovery fails closed for an unclassified worker verification script", async () => {
+  const tools = fakeTools();
+  const originalRunTool = tools.runTool.bind(tools);
+  tools.runTool = async (name, params = {}) => {
+    const result = await originalRunTool(name, params);
+    if (name === "files" && params.glob === "scripts/gmk-agent-worker/verify-*.mjs") {
+      return { ...result, stdout: `${result.stdout}\nscripts/gmk-agent-worker/verify-unclassified-live.mjs` };
+    }
+    return result;
+  };
+  await assert.rejects(discoverBaselineCatalog(tools), /classification missing/);
+});
+
+test("known global support paths are explicit while unknown paths remain fail-closed", () => {
+  assert.equal(KNOWN_GLOBAL_PATHS.length, 19);
+  const impact = mapModuleImpact([
+    { status: "M", path: "package.json" },
+    { status: "M", path: "tests/fixtures/inbox/k-english-inquiry.json" },
+    { status: "M", path: "unexpected/control-plane.ts" },
+  ], MODULES, [], KNOWN_GLOBAL_PATHS);
+  assert.deepEqual(impact.known_global_paths, ["package.json", "tests/fixtures/inbox/k-english-inquiry.json"]);
+  assert.deepEqual(impact.unmapped_paths, ["unexpected/control-plane.ts"]);
 });
 
 test("baseline mapping fails closed without advancing or partially changing the map", async (t) => {
@@ -169,58 +227,141 @@ test("baseline mapping fails closed without advancing or partially changing the 
   );
 });
 
-function seedReviewRange(db, { sessionId, base, target, jobId = JOB, coverageState = "VALIDATED", moduleState = "VALIDATED" }) {
+function seedReviewRange(db, {
+  sessionId,
+  base,
+  target,
+  jobId = JOB,
+  coverageState = "VALIDATED",
+  outcome = "NO_FINDINGS",
+  semanticReview = true,
+  moduleReviewFields = true,
+  baselineFingerprint = "e".repeat(64),
+  reviewedFingerprint = baselineFingerprint,
+  semanticFingerprint = reviewedFingerprint,
+}) {
+  const reviewedAt = "2026-08-31T00:00:00Z";
+  const validationState = outcome === "NO_FINDINGS" ? "VALIDATED" : outcome === "FINDINGS" ? "NEEDS_REVIEW" : "FAILED";
   db.prepare("INSERT INTO review_sessions(id,supabase_job_id,scope,base_commit,current_commit,status) VALUES (?,?,?,?,?,?)")
     .run(sessionId, jobId, "review", base, target, "done");
   db.prepare("INSERT INTO review_tasks(session_id,description,kind,status) VALUES (?,?,?,?)").run(sessionId, "rev", "git.rev", "done");
   db.prepare("INSERT INTO review_tasks(session_id,description,kind,status) VALUES (?,?,?,?)").run(sessionId, "status", "git.status", "done");
   db.prepare("INSERT INTO validation_records(module,check_performed,commit_sha,state,run_id) VALUES (?,?,?,?,?)")
     .run("repository", "change-aware diff (1 changed files): 1 direct + 0 dependency affected", target, "VALIDATED", sessionId);
-  db.prepare("INSERT INTO validation_records(module,check_performed,commit_sha,state,run_id) VALUES (?,?,?,?,?)")
-    .run("repository", "module attribution coverage: 1/1 changed paths mapped; 0 unmapped", target, coverageState, sessionId);
+  db.prepare("INSERT INTO validation_records(module,check_performed,evidence_ref,commit_sha,state,run_id) VALUES (?,?,?,?,?,?)")
+    .run("repository", "module attribution coverage: 1/1 changed paths accepted; 0 known-global; 0 unexpected unmapped", JSON.stringify({ known_global_paths: [], unmapped_paths: [] }), target, coverageState, sessionId);
   db.prepare("INSERT INTO validation_records(module,check_performed,commit_sha,state,run_id) VALUES (?,?,?,?,?)")
     .run("Agent operator controls", "STALE — affected by change; required checks not (fully) passed", target, "STALE", sessionId);
+  db.prepare("INSERT INTO validation_records(module,check_performed,evidence_ref,commit_sha,state,run_id) VALUES (?,?,?,?,?,?)")
+    .run(
+      "Agent operator controls",
+      "baseline scope fingerprint observation (structural mapping only; not a semantic review)",
+      JSON.stringify({
+        kind: "baseline_scope_fingerprint",
+        reviewed: false,
+        available: true,
+        fingerprint: baselineFingerprint,
+        file_count: 4,
+      }),
+      target,
+      "NEEDS_REVIEW",
+      `${sessionId}-baseline`,
+    );
   db.prepare(`
-    INSERT INTO modules(name,source_paths,mapping_state,validation_state,last_validated_commit,last_meaningful_review_at,last_reviewed_fingerprint)
-    VALUES (?, '[]', 'MAPPED', ?, ?, ?, ?)
+    INSERT INTO modules(name,source_paths,mapping_state,validation_state,last_validated_commit,last_meaningful_review_at,last_reviewed_fingerprint,last_review_outcome)
+    VALUES (?, '[]', 'MAPPED', ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET validation_state=excluded.validation_state,
       last_validated_commit=excluded.last_validated_commit,
       last_meaningful_review_at=excluded.last_meaningful_review_at,
-      last_reviewed_fingerprint=excluded.last_reviewed_fingerprint
+      last_reviewed_fingerprint=excluded.last_reviewed_fingerprint,
+      last_review_outcome=excluded.last_review_outcome
   `).run(
-    "Agent operator controls", moduleState, moduleState === "VALIDATED" ? target : base,
-    moduleState === "VALIDATED" ? "2026-08-31T00:00:00Z" : null,
-    moduleState === "VALIDATED" ? "e".repeat(64) : null,
+    "Agent operator controls",
+    validationState,
+    target,
+    moduleReviewFields ? reviewedAt : null,
+    moduleReviewFields ? reviewedFingerprint : null,
+    moduleReviewFields ? outcome : null,
   );
+  if (semanticReview) {
+    const semanticSession = `${sessionId}-semantic`;
+    db.prepare("INSERT INTO review_sessions(id,scope,base_commit,current_commit,status) VALUES (?,?,?,?,?)")
+      .run(semanticSession, "proactive", target, target, "done");
+    db.prepare("INSERT INTO validation_records(module,check_performed,evidence_ref,commit_sha,state,run_id,created_at) VALUES (?,?,?,?,?,?,?)")
+      .run(
+        "Agent operator controls",
+        outcome === "FINDINGS" ? "bounded proactive review recorded 1 finding(s)" : "bounded proactive review completed with explicit no-finding outcome",
+        JSON.stringify({
+          kind: "semantic_module_review",
+          reviewed: true,
+          commit: target,
+          module_fingerprint: semanticFingerprint,
+          outcome,
+          finding_count: outcome === "FINDINGS" ? 1 : 0,
+        }),
+        target,
+        validationState,
+        semanticSession,
+        reviewedAt,
+      );
+  }
+  if (outcome === "FINDINGS") {
+    db.prepare("INSERT INTO engineering_findings(session_id,module,finding,lifecycle) VALUES (?,?,?,'OPEN')")
+      .run(`${sessionId}-semantic`, "Agent operator controls", "Reviewed finding remains open");
+  }
 }
 
-test("last_reviewed_commit advances only for contiguous, approved, fully covered semantic review", (t) => {
-  const runtime = createRuntime();
-  t.after(() => { runtime.db.close(); fs.rmSync(runtime.root, { recursive: true, force: true }); });
-  setState(runtime.db, "last_reviewed_commit", BASE);
-  seedReviewRange(runtime.db, { sessionId: "review-1", base: BASE, target: TARGET });
-  assert.throws(() => advanceLastReviewedCommit(runtime.db, {
-    sessionId: "review-1", baseCommit: BASE, targetCommit: TARGET,
-  }), /approval is required/);
-  assert.throws(() => advanceLastReviewedCommit(runtime.db, {
-    sessionId: "review-1", baseCommit: "0".repeat(40), targetCommit: TARGET,
-    approval: { decision: "approved", jobId: JOB, approvedByUserId: APPROVER },
-  }), /does not cover/);
-  const advanced = advanceLastReviewedCommit(runtime.db, {
-    sessionId: "review-1", baseCommit: BASE, targetCommit: TARGET,
-    approval: { decision: "approved", jobId: JOB, approvedByUserId: APPROVER, approvedAt: "2026-08-31T01:00:00Z" },
-    advancedAt: "2026-08-31T01:01:00Z",
+test("last_reviewed_commit governance accepts completed reviews with or without findings and rejects incomplete evidence", (t) => {
+  const runtimes = [];
+  t.after(() => {
+    for (const runtime of runtimes) {
+      runtime.db.close();
+      fs.rmSync(runtime.root, { recursive: true, force: true });
+    }
   });
-  assert.deepEqual(advanced.affectedModules, ["Agent operator controls"]);
-  assert.equal(runtime.db.prepare("SELECT value FROM runtime_state WHERE key = ?").get("last_reviewed_commit").value, TARGET);
-  assert.equal(runtime.db.prepare("SELECT count(*) n FROM review_commit_advancements").get().n, 1);
+  const approved = { decision: "approved", jobId: JOB, approvedByUserId: APPROVER, approvedAt: "2026-08-31T01:00:00Z" };
+  const scenario = (name, options = {}) => {
+    const runtime = createRuntime();
+    runtimes.push(runtime);
+    setState(runtime.db, "last_reviewed_commit", BASE);
+    seedReviewRange(runtime.db, { sessionId: name, base: BASE, target: TARGET, ...options });
+    return runtime;
+  };
 
-  seedReviewRange(runtime.db, { sessionId: "review-2", base: TARGET, target: NEXT, jobId: "20000000-0000-4000-8000-000000000002", moduleState: "STALE" });
-  assert.throws(() => advanceLastReviewedCommit(runtime.db, {
-    sessionId: "review-2", baseCommit: TARGET, targetCommit: NEXT,
-    approval: { decision: "approved", jobId: "20000000-0000-4000-8000-000000000002", approvedByUserId: APPROVER },
-  }), /semantic review coverage is incomplete/);
-  assert.equal(runtime.db.prepare("SELECT value FROM runtime_state WHERE key = ?").get("last_reviewed_commit").value, TARGET);
+  for (const outcome of ["NO_FINDINGS", "FINDINGS"]) {
+    const runtime = scenario(`eligible-${outcome.toLowerCase()}`, { outcome });
+    const advanced = advanceLastReviewedCommit(runtime.db, {
+      sessionId: `eligible-${outcome.toLowerCase()}`,
+      baseCommit: BASE,
+      targetCommit: TARGET,
+      approval: approved,
+      advancedAt: "2026-08-31T01:01:00Z",
+    });
+    assert.deepEqual(advanced.affectedModules, ["Agent operator controls"]);
+    assert.equal(runtime.db.prepare("SELECT value FROM runtime_state WHERE key = ?").get("last_reviewed_commit").value, TARGET);
+    if (outcome === "FINDINGS") {
+      assert.equal(runtime.db.prepare("SELECT validation_state FROM modules WHERE name = ?").get("Agent operator controls").validation_state, "NEEDS_REVIEW");
+      assert.equal(runtime.db.prepare("SELECT COUNT(*) n FROM engineering_findings WHERE lifecycle = 'OPEN'").get().n, 1);
+    }
+  }
+
+  const unreviewed = scenario("unreviewed", { semanticReview: false, moduleReviewFields: false });
+  assert.throws(() => advanceLastReviewedCommit(unreviewed.db, { sessionId: "unreviewed", baseCommit: BASE, targetCommit: TARGET, approval: approved }), /semantic review coverage is incomplete/);
+
+  const failed = scenario("failed", { outcome: "FAILED" });
+  assert.throws(() => advanceLastReviewedCommit(failed.db, { sessionId: "failed", baseCommit: BASE, targetCommit: TARGET, approval: approved }), /semantic review coverage is incomplete/);
+
+  const baselineOnly = scenario("baseline-only", { semanticReview: false });
+  assert.throws(() => advanceLastReviewedCommit(baselineOnly.db, { sessionId: "baseline-only", baseCommit: BASE, targetCommit: TARGET, approval: approved }), /semantic review.*missing or invalid/);
+
+  const staleFingerprint = scenario("stale-fingerprint", { reviewedFingerprint: "f".repeat(64), semanticFingerprint: "f".repeat(64) });
+  assert.throws(() => advanceLastReviewedCommit(staleFingerprint.db, { sessionId: "stale-fingerprint", baseCommit: BASE, targetCommit: TARGET, approval: approved }), /does not match target content/);
+
+  const missingApproval = scenario("missing-approval");
+  assert.throws(() => advanceLastReviewedCommit(missingApproval.db, { sessionId: "missing-approval", baseCommit: BASE, targetCommit: TARGET }), /approval is required/);
+
+  const wrongRange = scenario("wrong-range");
+  assert.throws(() => advanceLastReviewedCommit(wrongRange.db, { sessionId: "wrong-range", baseCommit: "0".repeat(40), targetCommit: TARGET, approval: approved }), /does not cover/);
 });
 
 test("review submission SQL derives requester from auth.uid and exposes no arbitrary requester parameter", () => {
@@ -272,4 +413,20 @@ test("change-aware review requires exact clean HEAD and a bounded check set", as
     ),
     /exceeds bounded check limit/,
   );
+
+  const knownGlobal = await runChangeAwareReview(
+    { db: runtime.db, tools: fakeTools({ diffChanges: [{ status: "M", path: "package.json" }] }), logger },
+    { sessionId: "known-global", jobId: JOB, baseCommit: BASE, commit: TARGET },
+  );
+  assert.deepEqual(knownGlobal.impact.known_global_paths, ["package.json"]);
+  assert.deepEqual(knownGlobal.impact.unmapped_paths, []);
+  assert.equal(runtime.db.prepare("SELECT state FROM validation_records WHERE run_id = ? AND check_performed LIKE 'module attribution coverage:%'").get("known-global").state, "VALIDATED");
+
+  const unknown = await runChangeAwareReview(
+    { db: runtime.db, tools: fakeTools({ diffChanges: [{ status: "M", path: "unexpected/runtime-control.json" }] }), logger },
+    { sessionId: "unknown-global", jobId: JOB, baseCommit: BASE, commit: TARGET },
+  );
+  assert.deepEqual(unknown.impact.known_global_paths, []);
+  assert.deepEqual(unknown.impact.unmapped_paths, ["unexpected/runtime-control.json"]);
+  assert.equal(runtime.db.prepare("SELECT state FROM validation_records WHERE run_id = ? AND check_performed LIKE 'module attribution coverage:%'").get("unknown-global").state, "STALE");
 });

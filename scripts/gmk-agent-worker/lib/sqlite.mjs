@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS test_catalog (
   file TEXT NOT NULL,
   target TEXT,
   kind TEXT,
+  execution_class TEXT NOT NULL DEFAULT 'SAFE_READ_ONLY',
   last_run_at TEXT,
   last_commit TEXT,
   status TEXT
@@ -258,6 +259,7 @@ function ensureColumn(db, table, column, declaration) {
 }
 
 function migrateExistingDatabase(db) {
+  ensureColumn(db, "test_catalog", "execution_class", "TEXT NOT NULL DEFAULT 'SAFE_READ_ONLY'");
   ensureColumn(db, "modules", "last_meaningful_review_at", "TEXT");
   ensureColumn(db, "modules", "last_reviewed_fingerprint", "TEXT");
   ensureColumn(db, "modules", "last_review_outcome", "TEXT");

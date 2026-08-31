@@ -18,6 +18,12 @@ export function fileMatchesModule(file, module) {
   return false;
 }
 
+export function fileMatchesKnownGlobal(file, knownGlobalPaths = []) {
+  const normalized = norm(file);
+  if (!normalized) return false;
+  return knownGlobalPaths.some((entry) => norm(typeof entry === "string" ? entry : entry?.path) === normalized);
+}
+
 // Directly-affected modules = active modules whose source_paths match a changed file.
 export function directModules(changedFiles, modules) {
   const names = new Set();
@@ -49,12 +55,14 @@ export function downstreamModules(direct, dependencies) {
   return [...result].sort();
 }
 
-export function mapModuleImpact(changedFiles, modules, dependencies) {
+export function mapModuleImpact(changedFiles, modules, dependencies, knownGlobalPaths = []) {
   const active = modules.filter((m) => m.category !== "post-v1");
   const deferred = modules.filter((m) => m.category === "post-v1").map((m) => m.name);
-  const unmappedPaths = changedFiles
+  const unattributedPaths = changedFiles
     .map((change) => norm(change.path))
     .filter((file) => file && !modules.some((module) => fileMatchesModule(file, module)));
+  const knownGlobal = unattributedPaths.filter((file) => fileMatchesKnownGlobal(file, knownGlobalPaths));
+  const unmappedPaths = unattributedPaths.filter((file) => !fileMatchesKnownGlobal(file, knownGlobalPaths));
   const direct = directModules(changedFiles, active);
   const downstream = downstreamModules(direct, dependencies);
   const dependencyAffected = downstream.filter((n) => !direct.includes(n));
@@ -65,6 +73,7 @@ export function mapModuleImpact(changedFiles, modules, dependencies) {
     dependency_affected: dependencyAffected,
     carried_forward: carriedForward,
     deferred,
+    known_global_paths: [...new Set(knownGlobal)].sort(),
     unmapped_paths: [...new Set(unmappedPaths)].sort(),
   };
 }

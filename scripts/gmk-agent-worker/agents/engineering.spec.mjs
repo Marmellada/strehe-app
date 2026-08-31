@@ -2,8 +2,13 @@ import { createToolGateway } from "../lib/tools.mjs";
 import { openDatabase, setState } from "../lib/sqlite.mjs";
 import { isContextLengthError } from "../lib/ollama.mjs";
 import { parseJsonLoose } from "../lib/json.mjs";
-import { MODULES, FLOWS, DEPENDENCIES } from "./strehe-map.mjs";
+import { MODULES, FLOWS, DEPENDENCIES, KNOWN_GLOBAL_PATHS } from "./strehe-map.mjs";
 import { mapModuleImpact, selectChecksForFiles } from "../lib/impact.mjs";
+import {
+  EXECUTION_CLASS,
+  getScriptExecutionMetadata,
+  requireScriptExecutionMetadata,
+} from "../lib/execution-class.mjs";
 import {
   recordProactiveAttempt,
   recordProactiveFailure,
@@ -438,10 +443,11 @@ function upsertDependency(db, from, to) {
   ).run(from, to);
 }
 
-function upsertTest(db, file, kind, target) {
+function upsertTest(db, file, kind, target, executionClass) {
   db.prepare(
-    "INSERT INTO test_catalog (file, kind, target) VALUES (?, ?, ?) ON CONFLICT(file) DO UPDATE SET kind = excluded.kind",
-  ).run(file, kind, target);
+    `INSERT INTO test_catalog (file, kind, target, execution_class) VALUES (?, ?, ?, ?)
+     ON CONFLICT(file) DO UPDATE SET kind = excluded.kind, execution_class = excluded.execution_class`,
+  ).run(file, kind, target, executionClass);
 }
 
 // ---- Coordinator: run a session (resumable) ----
@@ -515,6 +521,7 @@ function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, ch
           directly_affected: impact.directly_affected,
           dependency_affected: impact.dependency_affected,
           deferred: impact.deferred,
+          known_global_paths: impact.known_global_paths || [],
           unmapped_paths: impact.unmapped_paths || [],
         }
       : null,
@@ -745,7 +752,7 @@ function computeValidationOutcome(impact, checksRun, unavailable) {
 }
 
 function updateValidationMemory(db, impact, commit, sessionId, changedCount) {
-  const { directly_affected, dependency_affected, validated, unmapped_paths = [] } = impact;
+  const { directly_affected, dependency_affected, validated, known_global_paths = [], unmapped_paths = [] } = impact;
   const affected = [...directly_affected, ...dependency_affected];
   for (const name of affected) {
     db.prepare("UPDATE modules SET validation_state = 'STALE', updated_at = datetime('now') WHERE name = ?").run(name);
@@ -758,10 +765,10 @@ function updateValidationMemory(db, impact, commit, sessionId, changedCount) {
     db,
     sessionId,
     "repository",
-    `module attribution coverage: ${changedCount - unmapped_paths.length}/${changedCount} changed paths mapped; ${unmapped_paths.length} unmapped`,
+    `module attribution coverage: ${changedCount - unmapped_paths.length}/${changedCount} changed paths accepted; ${known_global_paths.length} known-global; ${unmapped_paths.length} unexpected unmapped`,
     commit,
     unmapped_paths.length === 0 ? "VALIDATED" : "STALE",
-    JSON.stringify({ unmapped_paths }),
+    JSON.stringify({ known_global_paths, unmapped_paths }),
   );
   for (const name of validated) {
     recordValidation(db, sessionId, name, "re-validated after checks passed", commit, "VALIDATED");
@@ -813,7 +820,7 @@ export async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, 
   }
 
   // Map changed files → modules (direct + transitive dependency affected).
-  const impact = mapModuleImpact(changedFiles, MODULES, DEPENDENCIES);
+  const impact = mapModuleImpact(changedFiles, MODULES, DEPENDENCIES, KNOWN_GLOBAL_PATHS);
 
   // Select + run checks for the directly affected modules.
   const checksSelected = selectChecksForFiles(changedFiles);
@@ -844,7 +851,7 @@ export async function runChangeAwareReview(ctx, { sessionId, jobId, baseCommit, 
 
   for (const c of checksRun) completed.push({ kind: c.kind, description: c.description, summary: c.summary });
 
-  const summary = `change-aware review: ${changedFiles.length} changed files → ${impact.directly_affected.length} direct + ${impact.dependency_affected.length} dependency affected; ${impact.carried_forward.length} carried forward; ${impact.validated.length} re-validated; ${(impact.unmapped_paths || []).length} unmapped paths`;
+  const summary = `change-aware review: ${changedFiles.length} changed files → ${impact.directly_affected.length} direct + ${impact.dependency_affected.length} dependency affected; ${impact.carried_forward.length} carried forward; ${impact.validated.length} re-validated; ${(impact.known_global_paths || []).length} known-global; ${(impact.unmapped_paths || []).length} unexpected unmapped paths`;
 
   return {
     completed,
@@ -889,6 +896,16 @@ function catalogLines(result, label) {
   return String(result.stdout || "").split("\n").filter(Boolean);
 }
 
+function classifiedScriptEntry(file, kind) {
+  const metadata = requireScriptExecutionMetadata(file);
+  if (metadata.executionClass === EXECUTION_CLASS.LIVE_INTEGRATION) return null;
+  return {
+    file,
+    kind: metadata.executionClass === EXECUTION_CLASS.LOCAL_INTEGRATION ? "local-integration" : kind,
+    executionClass: metadata.executionClass,
+  };
+}
+
 export async function discoverBaselineCatalog(tools) {
   const [tests, dbTests, topLevelChecks, workerTests, workerVerifications] = await Promise.all([
     tools.runTool("files", { glob: "tests/**" }),
@@ -905,11 +922,16 @@ export async function discoverBaselineCatalog(tools) {
   const entries = [
     ...catalogLines(tests, "test")
       .filter((file) => executableTest.test(file) && (declaredTests.has(normalizeCatalogPath(file)) || isNamedTest(file)))
-      .map((file) => ({ file, kind: "test" })),
-    ...catalogLines(dbTests, "database test").filter((file) => /\.sql$/i.test(file)).map((file) => ({ file, kind: "db-test" })),
-    ...catalogLines(topLevelChecks, "top-level verification").filter(isTopLevelCheck).map((file) => ({ file, kind: "verification" })),
-    ...catalogLines(workerTests, "worker test").map((file) => ({ file, kind: "test" })),
-    ...catalogLines(workerVerifications, "worker verification").map((file) => ({ file, kind: "verification" })),
+      .map((file) => ({ file, kind: "test", executionClass: EXECUTION_CLASS.SAFE_READ_ONLY })),
+    ...catalogLines(dbTests, "database test").filter((file) => /\.sql$/i.test(file))
+      .map((file) => ({ file, kind: "db-test", executionClass: EXECUTION_CLASS.LOCAL_INTEGRATION })),
+    ...catalogLines(topLevelChecks, "top-level verification")
+      .filter((file) => isTopLevelCheck(file) || getScriptExecutionMetadata(file))
+      .map((file) => classifiedScriptEntry(file, "verification")).filter(Boolean),
+    ...catalogLines(workerTests, "worker test")
+      .map((file) => classifiedScriptEntry(file, "test")).filter(Boolean),
+    ...catalogLines(workerVerifications, "worker verification")
+      .map((file) => classifiedScriptEntry(file, "verification")).filter(Boolean),
   ];
   const unique = new Map();
   for (const entry of entries) {
@@ -999,7 +1021,13 @@ export async function writeBaselineMap(ctx, sessionId, commit) {
     }
     db.prepare("DELETE FROM test_catalog").run();
     for (const entry of catalog) {
-      upsertTest(db, entry.normalized, entry.kind, existingTargets.get(entry.normalized) || declaredTargets.get(entry.normalized) || null);
+      upsertTest(
+        db,
+        entry.normalized,
+        entry.kind,
+        existingTargets.get(entry.normalized) || declaredTargets.get(entry.normalized) || null,
+        entry.executionClass,
+      );
     }
 
     recordValidation(db, sessionId, "repository", "baseline mapping observed exact commit, tree, and clean status (structural; not a semantic review)", commit, "VALIDATED");
@@ -1007,7 +1035,7 @@ export async function writeBaselineMap(ctx, sessionId, commit) {
     recordValidation(db, sessionId, "modules", `baseline structural map (${counts.modules} modules; not semantically reviewed)`, commit, "NEEDS_REVIEW");
     recordValidation(db, sessionId, "critical_flows", `baseline structural flow map (${counts.flows} flows; not semantically reviewed)`, commit, "NEEDS_REVIEW");
     recordValidation(db, sessionId, "module_dependencies", `baseline structural dependency graph (${counts.deps} edges; not semantically reviewed)`, commit, "NEEDS_REVIEW");
-    recordValidation(db, sessionId, "test_catalog", `${counts.tests} executable check files discovered (not executed by mapping)`, commit, "NEEDS_REVIEW");
+    recordValidation(db, sessionId, "test_catalog", `${counts.tests} classified non-live check files discovered (not executed by mapping)`, commit, "NEEDS_REVIEW");
     for (const observation of fingerprints) {
       const evidence = JSON.stringify({
         kind: "baseline_scope_fingerprint",

@@ -62,8 +62,29 @@ begin
   if has_function_privilege('anon', 'public.operator_enqueue_engineering_review(text,text,text)', 'EXECUTE') then
     raise exception 'anon can enqueue engineering reviews';
   end if;
+  if exists (
+    select 1 from pg_proc procedure
+    join pg_namespace namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.proname = 'operator_enqueue_engineering_review'
+      and procedure.pronargs <> 3
+  ) then raise exception 'review enqueue exposes an unexpected argument such as requester id'; end if;
 end;
 $$;
+
+set local role anon;
+do $$
+begin
+  begin
+    perform public.operator_enqueue_engineering_review(
+      'STREHE-ENGINEERING-REVIEW-ANON', repeat('a', 40), repeat('b', 40)
+    );
+    raise exception 'anonymous review enqueue unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$$;
+reset role;
 
 -- Admin controls; pause/resume persists.
 set local role authenticated;
@@ -96,11 +117,20 @@ begin
   if queued.requested_by_user_id <> auth.uid() then raise exception 'review requester provenance mismatch'; end if;
   if queued.assigned_agent_id <> '10000000-0000-0000-0000-000000000010'::uuid then raise exception 'review assigned to wrong agent'; end if;
   if queued.job_type <> 'engineering.review' or queued.required_capability <> 'engineering.local'
+    or queued.workspace_type <> 'system' or queued.status <> 'queued'
     or queued.max_attempts <> 1 or not queued.requires_review
   then raise exception 'review job is not bounded'; end if;
+  if queued.expires_at not between now() + interval '47 hours' and now() + interval '49 hours'
+  then raise exception 'review expiry is not bounded to two days'; end if;
   if queued.payload->>'base_commit' <> repeat('a', 40)
     or queued.payload->>'commit_sha' <> repeat('b', 40)
   then raise exception 'review range payload mismatch'; end if;
+  if queued.payload ?| array['deploy','push','migrate','send','production_write','requested_by_user_id']
+    or queued.payload->>'type' <> 'review'
+    or queued.payload->>'scope' <> 'repository'
+    or (queued.payload->>'implementation')::boolean
+    or (queued.payload->>'writes_code')::boolean
+  then raise exception 'review payload contains expanded authority'; end if;
   begin
     perform public.operator_enqueue_engineering_review(
       'STREHE-ENGINEERING-REVIEW-ADMIN-1', repeat('a', 40), repeat('b', 40)
@@ -109,9 +139,31 @@ begin
   exception when others then
     if sqlerrm = 'duplicate review session accepted' then raise; end if;
   end;
+  begin
+    perform public.operator_enqueue_engineering_review(
+      'STREHE-ENGINEERING-REVIEW-CONCURRENT', repeat('a', 40), repeat('c', 40)
+    );
+    raise exception 'second active engineering review accepted';
+  exception when others then
+    if sqlerrm = 'second active engineering review accepted' then raise; end if;
+  end;
 end;
 $$;
 reset role;
+do $$
+begin
+  begin
+    insert into public.agent_jobs (
+      job_type, required_capability, workspace_type, status, payload, max_attempts
+    ) values (
+      'engineering.review', 'engineering.local', 'system', 'queued',
+      '{"session_id":"STREHE-ENGINEERING-REVIEW-INDEX-RACE"}'::jsonb, 1
+    );
+    raise exception 'active review uniqueness index allowed a second job';
+  exception when unique_violation then null;
+  end;
+end;
+$$;
 update public.agent_jobs set status = 'cancelled'
 where job_type = 'engineering.review' and payload->>'session_id' = 'STREHE-ENGINEERING-REVIEW-ADMIN-1';
 
@@ -282,7 +334,7 @@ update public.agent_jobs set status = 'cancelled' where job_type = 'engineering.
 insert into public.agent_jobs (id, job_type, required_capability, workspace_type, requires_review)
 values
   ('20000000-0000-0000-0000-000000000020', 'engineering.review', 'engineering.local', 'system', true),
-  ('20000000-0000-0000-0000-000000000021', 'engineering.review', 'engineering.local', 'system', false);
+  ('20000000-0000-0000-0000-000000000021', 'engineering.proactive', 'engineering.local', 'system', false);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000010', true);
 do $$ begin

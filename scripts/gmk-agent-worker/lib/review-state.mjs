@@ -2,6 +2,17 @@ import { getState, setState } from "./sqlite.mjs";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const COMPLETED_REVIEW_OUTCOMES = new Set(["NO_FINDINGS", "FINDINGS"]);
+
+function parseEvidence(row, label) {
+  try {
+    const value = JSON.parse(row?.evidence_ref || "null");
+    if (!value || typeof value !== "object") throw new Error("not an object");
+    return value;
+  } catch {
+    throw new Error(`${label} evidence is missing or invalid`);
+  }
+}
 
 function requireFullSha(value, label) {
   const normalized = String(value || "").toLowerCase();
@@ -82,15 +93,47 @@ export function advanceLastReviewedCommit(db, {
     for (const moduleName of affected) {
       const moduleRow = db.prepare(
         `SELECT validation_state, last_validated_commit, last_reviewed_fingerprint,
-                last_meaningful_review_at
+                last_meaningful_review_at, last_review_outcome
          FROM modules WHERE name = ?`,
       ).get(moduleName);
       if (!moduleRow
-        || moduleRow.validation_state !== "VALIDATED"
-        || moduleRow.last_validated_commit !== target
         || !moduleRow.last_reviewed_fingerprint
-        || !moduleRow.last_meaningful_review_at) {
+        || !moduleRow.last_meaningful_review_at
+        || !COMPLETED_REVIEW_OUTCOMES.has(moduleRow.last_review_outcome)) {
         throw new Error(`required semantic review coverage is incomplete for ${moduleName}`);
+      }
+      const baselineObservation = db.prepare(
+        `SELECT * FROM validation_records
+         WHERE module = ? AND commit_sha = ?
+           AND check_performed = 'baseline scope fingerprint observation (structural mapping only; not a semantic review)'
+         ORDER BY id DESC LIMIT 1`,
+      ).get(moduleName, target);
+      const baselineEvidence = parseEvidence(baselineObservation, `baseline fingerprint for ${moduleName}`);
+      if (baselineEvidence.kind !== "baseline_scope_fingerprint"
+        || baselineEvidence.reviewed !== false
+        || baselineEvidence.available !== true
+        || !baselineEvidence.fingerprint) {
+        throw new Error(`target fingerprint is unavailable for ${moduleName}`);
+      }
+      const semanticReview = db.prepare(
+        `SELECT record.* FROM validation_records record
+         JOIN review_sessions session ON session.id = record.run_id
+         WHERE record.module = ? AND record.commit_sha = ?
+           AND record.check_performed LIKE 'bounded proactive review %'
+           AND session.scope = 'proactive' AND session.status = 'done'
+           AND session.base_commit = ? AND session.current_commit = ?
+         ORDER BY record.id DESC LIMIT 1`,
+      ).get(moduleName, target, target, target);
+      const semanticEvidence = parseEvidence(semanticReview, `semantic review for ${moduleName}`);
+      if (semanticEvidence.kind !== "semantic_module_review"
+        || semanticEvidence.reviewed !== true
+        || semanticEvidence.commit !== target
+        || !COMPLETED_REVIEW_OUTCOMES.has(semanticEvidence.outcome)
+        || semanticEvidence.outcome !== moduleRow.last_review_outcome
+        || semanticEvidence.module_fingerprint !== moduleRow.last_reviewed_fingerprint
+        || semanticEvidence.module_fingerprint !== baselineEvidence.fingerprint
+        || semanticReview.created_at !== moduleRow.last_meaningful_review_at) {
+        throw new Error(`semantic review evidence does not match target content for ${moduleName}`);
       }
     }
     const evidence = JSON.stringify({

@@ -2,13 +2,37 @@
 // the repository by the baseline Worker). This is the Coordinator's INITIAL
 // understanding; future change-aware reviews refine it. Not a framework.
 
+// Exact repository-wide/support paths that are intentionally not attributed to
+// an application module. This list is audit policy, not a glob exemption.
+export const KNOWN_GLOBAL_PATHS = Object.freeze([
+  { path: ".gitignore", kind: "repository-support", reason: "Repository-wide ignore policy." },
+  { path: "package.json", kind: "repository-support", reason: "Repository-wide scripts and dependencies." },
+  { path: "playwright.entry-security.config.ts", kind: "test-support", reason: "Shared entry-security test configuration." },
+  { path: "components/layout/AppShell.tsx", kind: "shared-ui", reason: "Cross-module application shell." },
+  { path: "components/ui/StatusBadge.tsx", kind: "shared-ui", reason: "Cross-module status presentation primitive." },
+  { path: "docs/architecture/ENGINEERING-AGENT-V1-SPEC.md", kind: "documentation", reason: "Engineering runtime architecture reference." },
+  { path: "docs/operations/engineering-agent-proactive-operator-runbook.md", kind: "documentation", reason: "Engineering runtime operator runbook." },
+  { path: "docs/operations/multi-agent-router-p0-p2-configuration.md", kind: "documentation", reason: "Engineering router configuration reference." },
+  { path: "tests/fixtures/inbox/a-albanian-services.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/b-diaspora-property-check.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/c-moisture-mold.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/d-electrical-safety.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/e-unclear-request.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/f-price-contract.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/g-frustrated-customer.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/h-prompt-injection.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/i-send-immediately.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/j-social-instagram.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+  { path: "tests/fixtures/inbox/k-english-inquiry.json", kind: "test-fixture", reason: "Inbox Agent deterministic fixture." },
+]);
+
 export const MODULES = [
   {
     name: "Marketing site", category: "web", criticality: "high",
     purpose: "Public marketing pages, SEO, legal content, company profile, locale routing.",
-    source_paths: ["app/[locale]", "app/page.tsx", "app/privacy", "app/terms", "app/data-deletion", "lib/marketing", "proxy.ts", "app/robots.ts", "app/sitemap.ts"],
+    source_paths: ["app/[locale]", "app/page.tsx", "app/privacy", "app/terms", "app/data-deletion", "lib/marketing", "proxy.ts", "app/robots.ts", "app/sitemap.ts", "scripts/capture-manual-screenshots.mjs"],
     external: ["Vercel"],
-    tests: ["scripts/capture-manual-screenshots.mjs", "tests/e2e/public-website-smoke.spec.ts", "tests/unit/seo-discoverability.spec.ts"],
+    tests: ["tests/e2e/public-website-smoke.spec.ts", "tests/unit/seo-discoverability.spec.ts"],
     notes: "Apex→www routing + x-strehe-surface/x-strehe-locale headers live in proxy.ts.",
   },
   {
@@ -129,10 +153,10 @@ export const MODULES = [
   {
     name: "Funnel / Offers", category: "sales", criticality: "high",
     purpose: "Qualification→consultation→offer→contract→payment funnel; founding-customer capacity.",
-    source_paths: ["lib/funnel", "lib/actions/funnel.ts", "app/leads/[id]/FunnelPanel.tsx"],
+    source_paths: ["lib/funnel", "lib/actions/funnel.ts", "app/leads/[id]/FunnelPanel.tsx", "scripts/verify-founding-funnel-local.mjs"],
     db_deps: ["lead_consultations", "lead_offers", "founding_customer_capacity"],
     rpc_deps: ["enforce_founding_customer_capacity", "enforce_offer_lifecycle"],
-    tests: ["scripts/verify-founding-funnel-local.mjs", "tests/unit/founding-funnel.spec.ts"],
+    tests: ["tests/unit/founding-funnel.spec.ts"],
   },
   {
     name: "Promotions", category: "sales", criticality: "medium",
@@ -190,9 +214,9 @@ export const MODULES = [
   {
     name: "Inspection Lab (photo comparison)", category: "post-v1", criticality: "deferred",
     purpose: "Room-photo baseline/current comparison with local+cloud vision. OUT OF SCOPE V1.",
-    source_paths: ["app/inspection-lab", "lib/inspection-lab"],
+    source_paths: ["app/inspection-lab", "lib/inspection-lab", "scripts/run-bathroom-base-shot-engine.mjs"],
     db_deps: ["inspection_lab_cases", "inspection_lab_case_photos", "inspection_lab_tracked_objects", "inspection_lab_object_markers"],
-    tests: ["scripts/run-bathroom-base-shot-engine.mjs", "tests/unit/inspection-lab-access.spec.ts"],
+    tests: ["tests/unit/inspection-lab-access.spec.ts"],
     notes: "DEFERRED (mapped for boundary only).",
   },
   {

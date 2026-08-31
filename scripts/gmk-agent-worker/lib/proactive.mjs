@@ -168,15 +168,24 @@ export function recordProactiveOutcome(db, {
       reviewedAt,
       moduleName,
     );
+    const semanticEvidence = JSON.stringify({
+      kind: "semantic_module_review",
+      reviewed: true,
+      commit,
+      module_fingerprint: fingerprint,
+      outcome,
+      finding_count: safeFindings.length,
+    });
     db.prepare(
       `INSERT INTO validation_records
-        (module, check_performed, commit_sha, state, run_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+        (module, check_performed, evidence_ref, commit_sha, state, run_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       moduleName,
       safeFindings.length > 0
         ? `bounded proactive review recorded ${safeFindings.length} finding(s)`
         : "bounded proactive review completed with explicit no-finding outcome",
+      semanticEvidence,
       commit,
       safeFindings.length > 0 ? "NEEDS_REVIEW" : "VALIDATED",
       sessionId,
