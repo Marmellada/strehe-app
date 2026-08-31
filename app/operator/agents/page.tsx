@@ -64,6 +64,19 @@ export default async function AgentsPage() {
               <label className="text-sm font-medium">Target commit<input required name="target_commit" pattern="[0-9a-fA-F]{40}" placeholder="40-character target SHA" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
               <div className="md:col-span-3"><AgentControlButton>Queue bounded change-aware review</AgentControlButton></div>
             </form>
+            <form action={controlEngineeringAgentAction} className="grid gap-3 rounded-lg border border-amber-300/60 p-4 md:grid-cols-2">
+              <input type="hidden" name="control_action" value="recover_proactive" />
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium">Submit verified proactive recovery manifest</p>
+                <p className="mt-1 text-xs text-muted-foreground">This one-purpose action only moves the pinned failed job to awaiting human review. Generate and verify the local dry-run manifest first.</p>
+              </div>
+              <label className="text-sm font-medium">Job ID<input required name="target_job_id" pattern="[0-9a-fA-F-]{36}" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <label className="text-sm font-medium">Session ID<input required name="expected_session_id" pattern="[A-Za-z0-9][A-Za-z0-9._-]{7,127}" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <label className="text-sm font-medium">Target commit<input required name="expected_target_commit" pattern="[0-9a-fA-F]{40}" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <label className="text-sm font-medium">Module fingerprint<input required name="expected_module_fingerprint" pattern="[0-9a-fA-F]{64}" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <label className="text-sm font-medium md:col-span-2">Raw evidence SHA-256<input required name="evidence_sha256" pattern="[0-9a-fA-F]{64}" className="mt-1 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs" /></label>
+              <div className="md:col-span-2"><AgentControlButton variant="secondary">Recover to awaiting review</AgentControlButton></div>
+            </form>
           </div>
         ) : <p className="mt-6 border-t pt-4 text-sm text-muted-foreground">Monitoring is available to office operators. Admin access is required for controls.</p>}
       </SectionCard>

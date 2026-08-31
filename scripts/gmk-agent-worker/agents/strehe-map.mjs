@@ -193,6 +193,7 @@ export const MODULES = [
       "lib/agents/operator-view.ts",
       "supabase/migrations/20260821120000_engineering_proactive_operator_controls.sql",
       "supabase/migrations/20260831120000_engineering_review_submission_hardening.sql",
+      "supabase/migrations/20260831130000_engineering_proactive_recovery.sql",
     ],
     db_deps: ["agent_operator_controls", "agent_principals", "agent_capabilities", "agent_jobs"],
     rpc_deps: [
@@ -200,9 +201,10 @@ export const MODULES = [
       "operator_control_engineering_agent",
       "operator_update_engineering_finding_lifecycle",
       "operator_enqueue_engineering_review",
+      "operator_recover_engineering_proactive",
     ],
-    tests: ["tests/unit/agent-operator.spec.ts", "supabase/tests/engineering_proactive_operator.test.sql"],
-    notes: "Admin mutations re-authorize server-side; review requester provenance is always auth.uid().",
+    tests: ["tests/unit/agent-operator.spec.ts", "supabase/tests/engineering_proactive_operator.test.sql", "supabase/tests/engineering_proactive_recovery.test.sql"],
+    notes: "Admin mutations re-authorize server-side; requester and recovery provenance are always derived from auth.uid().",
   },
   {
     name: "GMK Agent Worker", category: "runtime", criticality: "medium",
