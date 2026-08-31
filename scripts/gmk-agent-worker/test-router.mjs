@@ -16,7 +16,7 @@ import {
   validateModelConfig,
 } from "./lib/router/config.mjs";
 import { routeJob, selectFirstEnabled } from "./lib/router/route.mjs";
-import { assertPrivacyBlock } from "./lib/validate.mjs";
+import { assertNoSecrets, assertPrivacyBlock, assertSafeResult } from "./lib/validate.mjs";
 
 function tempRuntime(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "strehe-router-test-"));
@@ -240,6 +240,45 @@ test("privacy gate accepts explicit local or cloud processing and rejects ambigu
   }));
   assert.throws(() => assertPrivacyBlock({ privacy: { external_ai_used: true, local_processing: false } }), /audited provider/);
   assert.throws(() => assertPrivacyBlock({ privacy: { external_ai_used: true, local_processing: true } }), /privacy boundary/);
+});
+
+test("secret gate permits Supabase role vocabulary and representative semantic-review evidence", () => {
+  for (const text of [
+    "service_role",
+    "service-role",
+    "Privileges revoked from anon, authenticated, and service_role",
+  ]) {
+    assert.doesNotThrow(() => assertNoSecrets({ text }));
+  }
+
+  const representativeProactiveResult = {
+    schema_version: 1,
+    agent: "engineering",
+    review_kind: "proactive",
+    findings: [{
+      summary: "Review the database grants",
+      evidence: ["Privileges revoked from anon, authenticated, and service_role."],
+      recommendation: "Keep role grants explicit and covered by deterministic SQL assertions.",
+    }],
+    summary: "Semantic review completed with findings about the service_role database role.",
+    production_changes_made: false,
+    privacy: { external_ai_used: true, local_processing: false },
+    runtime: { provider: "opencode", model: "kimi-k2.7-code", protocol: "openai_chat_completions" },
+  };
+  assert.doesNotThrow(() => assertSafeResult(representativeProactiveResult));
+});
+
+test("secret gate still blocks credential-shaped values", () => {
+  const syntheticCredentialShapes = [
+    "eyJhbGciOiJIUzI1NiJ9.synthetic.payload",
+    "sk-abcdefghijklmnop",
+    "ghp_abcdefghijklmnop",
+    "-----BEGIN PRIVATE KEY-----",
+    "sb_secret_abcdefghijklmnop",
+  ];
+  for (const value of syntheticCredentialShapes) {
+    assert.throws(() => assertNoSecrets({ value }), /disallowed secret-like value/);
+  }
 });
 
 test("blocked artifact is local, explicit, and resumable", (t) => {

@@ -9,12 +9,15 @@ const FORBIDDEN_KEYS = [
   "source_photo_id",
 ];
 
-// Secret markers scanned in the serialized result (defense in depth).
+// Credential-value shapes scanned in the serialized result (defense in depth).
+// Vocabulary such as the PostgreSQL role names `service_role` and
+// `service-role` is intentionally allowed; legacy Supabase service-role keys
+// are JWTs and modern secret keys use the explicit sb_secret_ value prefix.
 const SECRET_PATTERNS = [
-  /service[_\-]?role/i,
   /eyJhbGciOi[A-Za-z0-9._-]{12,}/, // JWT
   /\bsk-[A-Za-z0-9]{16,}/, // OpenAI-style keys
   /\bgh[pousr]_[A-Za-z0-9]{16,}/, // GitHub tokens
+  /\bsb_secret_[A-Za-z0-9_-]{16,}\b/i, // Supabase secret keys
   /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/,
 ];
 
