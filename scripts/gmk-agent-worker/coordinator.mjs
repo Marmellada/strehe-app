@@ -9,7 +9,8 @@ import { createAgentClient, signInAgent } from "./lib/supabase.mjs";
 import { openDatabase } from "./lib/sqlite.mjs";
 import { loadRouterConfig, loadRouterEnvironment, ROUTER_CONFIG_FILENAMES } from "./lib/router/config.mjs";
 import { classifyJob } from "./lib/router/classify.mjs";
-import { routeJob } from "./lib/router/route.mjs";
+import { createDispatchPlan, DISPATCH_KIND, recordDispatchSelection } from "./lib/dispatch.mjs";
+import { selectCoordinatorJob } from "./lib/job-selection.mjs";
 import { assertJobAuthority } from "./lib/router/authority.mjs";
 import { recordCoordinatorEvent, recordJobLifecycle, recordLlmUsage, recordRoutingOutcome } from "./lib/ledger.mjs";
 import { recordBlockedCoordinator } from "./lib/blocked-artifact.mjs";
@@ -84,7 +85,14 @@ function childEnvironment() {
   return env;
 }
 
-function runWorker({ agent, jobId, modelHandle, timeoutMs, llmCallCeiling, runtimeRoot }) {
+function runWorker({ agent, jobId, dispatchKind, modelHandle, timeoutMs, llmCallCeiling, runtimeRoot }) {
+  const dispatchArgs = dispatchKind === DISPATCH_KIND.DETERMINISTIC
+    ? ["--dispatch-kind", DISPATCH_KIND.DETERMINISTIC]
+    : [
+        "--dispatch-kind", DISPATCH_KIND.MODEL,
+        "--model-handle", modelHandle,
+        "--llm-call-ceiling", String(llmCallCeiling),
+      ];
   return runBoundedProcess({
     command: process.execPath,
     args: [
@@ -92,8 +100,7 @@ function runWorker({ agent, jobId, modelHandle, timeoutMs, llmCallCeiling, runti
       "--agent", agent,
       "--once",
       "--job-id", jobId,
-      "--model-handle", modelHandle,
-      "--llm-call-ceiling", String(llmCallCeiling),
+      ...dispatchArgs,
     ],
     options: {
       cwd: process.cwd(),
@@ -214,24 +221,6 @@ async function dispatchCodex({
   error.code = failureCode;
   error.codexResult = result;
   throw error;
-}
-
-async function queuedJob(supabase, capability, targetJobId = null) {
-  const now = new Date().toISOString();
-  let query = supabase
-    .from("agent_jobs")
-    .select("id, payload, job_type, priority, created_at, attempt_count, max_attempts, requires_review, workspace_type")
-    .eq("required_capability", capability)
-    .eq("status", "queued")
-    .lte("available_at", now)
-    .gt("expires_at", now);
-  if (targetJobId) query = query.eq("id", targetJobId);
-  const { data, error } = await query
-    .order("priority", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(1);
-  if (error) throw error;
-  return data?.[0] || null;
 }
 
 function gitHead(worktreePath) {
@@ -382,7 +371,7 @@ async function runOvernightMain(args) {
     const selectJob = async () => {
       const candidates = [];
       for (const client of clients) {
-        const job = await queuedJob(client.supabase, client.capability);
+        const job = await selectCoordinatorJob(client.supabase, client.capability);
         if (job) candidates.push({ ...job, agentName: client.agentName, client });
       }
       candidates.sort((left, right) => Number(left.priority) - Number(right.priority)
@@ -392,7 +381,7 @@ async function runOvernightMain(args) {
     const dispatchJob = async (job) => {
       assertOvernightJobAuthority(job);
       const classification = classifyJob(job, { db });
-      const route = routeJob(job, classification, routerConfig.models, { db });
+      const route = createDispatchPlan(job, classification, routerConfig.models, { db });
       const timeoutMs = job.agentName === "engineering" ? 46 * 60 * 1000 : 16 * 60 * 1000;
       const result = await dispatchOvernightChild({
         readOperatorControl: () => readEngineeringControl({
@@ -426,8 +415,12 @@ async function runOvernightMain(args) {
       if (["completed", "awaiting_review"].includes(durable.status)) {
         return {
           status: "succeeded",
-          provider: route.handle === "codex" ? "codex" : providerFromHandle(route.handle),
-          model: route.handle === "codex" ? "codex-cli" : route.handle.split("/").slice(1).join("/"),
+          provider: route.kind === DISPATCH_KIND.DETERMINISTIC
+            ? "deterministic"
+            : route.handle === "codex" ? "codex" : providerFromHandle(route.handle),
+          model: route.kind === DISPATCH_KIND.DETERMINISTIC
+            ? "none"
+            : route.handle === "codex" ? "codex-cli" : route.handle.split("/").slice(1).join("/"),
         };
       }
       const fatal = parseFatalFailureClass(result.stderr, "coordinator");
@@ -496,7 +489,7 @@ async function main() {
         reservation_retained: entry.action !== "released",
       });
     }
-    const job = await queuedJob(supabase, agent.capability, args.jobId);
+    const job = await selectCoordinatorJob(supabase, agent.capability, args.jobId);
     if (!job) {
       recordCoordinatorEvent(db, "coordinator_idle", { agent: args.agent });
       return;
@@ -512,40 +505,39 @@ async function main() {
     let dispatchedViaCodex = false;
     try {
       classification = classifyJob(job, { db });
-      route = routeJob(job, classification, routerConfig.models, { db });
-      recordJobLifecycle(db, { jobId: job.id, state: "routed", modelHandle: route.handle });
-      recordCoordinatorEvent(db, "job_routed", {
-        job_id: job.id,
-        job_type: job.job_type,
-        model_handle: route.handle,
-        complexity: route.complexity,
-        risk_class: route.riskClass,
-      });
+      route = createDispatchPlan(job, classification, routerConfig.models, { db });
+      recordDispatchSelection(db, job, route);
 
       health = await evaluateHealth({
         runtimeRoot,
-        resourceClass: agent.resourceClass,
+        resourceClass: route.resourceClass || agent.resourceClass,
         rejectLocalInference: shouldRejectLocalInference({ overnight: args.overnight }),
       });
       recordCoordinatorEvent(db, health.allowed ? "health_green" : health.reason, {
         job_id: job.id,
-        resource_class: agent.resourceClass,
+        resource_class: route.resourceClass || agent.resourceClass,
         evidence: health.evidence,
       });
       if (!health.allowed) throw gateError(health);
 
-      const provider = providerFromHandle(route.handle);
-      budget = evaluateBudget({ db, provider, budgetConfig: routerConfig.budget, job, route });
-      if (!budget.allowed) throw gateError(budget);
+      const provider = route.kind === DISPATCH_KIND.DETERMINISTIC
+        ? route.provider
+        : providerFromHandle(route.handle);
+      if (route.kind === DISPATCH_KIND.MODEL) {
+        budget = evaluateBudget({ db, provider, budgetConfig: routerConfig.budget, job, route });
+        if (!budget.allowed) throw gateError(budget);
+      }
 
       assertJobAuthority(job);
 
-      const isCodex = route.handle === "codex";
-      const executionLimits = DEFAULT_EXECUTION_LIMITS[isCodex ? "codex" : agent.resourceClass];
+      const isCodex = route.kind === DISPATCH_KIND.MODEL && route.handle === "codex";
+      const executionLimits = route.kind === DISPATCH_KIND.DETERMINISTIC
+        ? { wallClockMs: route.wallClockMs, llmCallCeiling: route.llmCallCeiling }
+        : DEFAULT_EXECUTION_LIMITS[isCodex ? "codex" : agent.resourceClass];
       const deadlineAt = new Date(Date.now() + executionLimits.wallClockMs).toISOString();
       concurrency = reserveExecution(db, {
         jobId: job.id,
-        resourceClass: isCodex ? "heavy" : agent.resourceClass,
+        resourceClass: isCodex ? "heavy" : route.resourceClass || agent.resourceClass,
         provider,
         processKind: isCodex ? "codex" : "worker",
         deadlineAt,
@@ -621,6 +613,7 @@ async function main() {
         : await runWorker({
           agent: args.agent,
           jobId: job.id,
+          dispatchKind: route.kind,
           modelHandle: route.handle,
           timeoutMs: executionLimits.wallClockMs,
           llmCallCeiling: executionLimits.llmCallCeiling,
@@ -687,11 +680,13 @@ async function main() {
         recordBlockedCoordinator(db, runtimeRoot, {
           job,
           reason,
-          attempted: ["classify", "route", "health gate", "budget gate", "authority gate", "bounded dispatch"],
+          attempted: route?.kind === DISPATCH_KIND.DETERMINISTIC
+            ? ["classify", "deterministic dispatch selection", "health gate", "authority gate", "bounded dispatch"]
+            : ["classify", "route", "health gate", "budget gate", "authority gate", "bounded dispatch"],
           health,
           budget,
           concurrency,
-          resumeCommand: `node scripts/gmk-agent-worker/coordinator.mjs --once --agent ${args.agent}`,
+          resumeCommand: `node scripts/gmk-agent-worker/coordinator.mjs --once --agent ${args.agent} --job-id ${job.id}`,
         });
       } else {
         recordCoordinatorEvent(db, "overnight_dispatch_failed", {

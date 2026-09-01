@@ -1,6 +1,7 @@
 import { assertSafeResult } from "./validate.mjs";
 import { deterministicFailureClass } from "./failure-class.mjs";
 import { scopeFingerprint } from "./router/classify.mjs";
+import { assertDispatchMatchesJob, DISPATCH_KIND } from "./dispatch.mjs";
 
 // Job discovery + by-ID claim + lease renewal + dispatch + complete/fail.
 // Mirrors the proven reference-worker flow, with lease renewal added.
@@ -63,6 +64,7 @@ export async function processNextJob(runtime, spec) {
     const renewal = startLeaseRenewal(supabase, claimed.id, spec.leaseSeconds, logger);
     const started = Date.now();
     try {
+      assertDispatchMatchesJob(runtime.dispatchKind || DISPATCH_KIND.MODEL, claimed);
       await runtime.onJobState?.("working", claimed.id);
       runtime.llm?.setContext?.({
         jobId: claimed.id,
@@ -89,13 +91,15 @@ export async function processNextJob(runtime, spec) {
       const message = err instanceof Error ? err.message : String(err);
       const code = deterministicFailureClass(err);
       runtime.lastFailureClass = code;
-      await runtime.recordRoutingOutcome?.({
-        jobType: String(claimed.job_type),
-        scopeFingerprint: scopeFingerprint(claimed),
-        model: String(runtime.modelHandle || runtime.llm?.model || "unknown"),
-        outcome: "failed",
-        failureClass: code,
-      });
+      if (runtime.dispatchKind !== DISPATCH_KIND.DETERMINISTIC) {
+        await runtime.recordRoutingOutcome?.({
+          jobType: String(claimed.job_type),
+          scopeFingerprint: scopeFingerprint(claimed),
+          model: String(runtime.modelHandle || runtime.llm?.model || "unknown"),
+          outcome: "failed",
+          failureClass: code,
+        });
+      }
       try {
         await supabase.rpc("fail_agent_job", {
           target_job_id: claimed.id,

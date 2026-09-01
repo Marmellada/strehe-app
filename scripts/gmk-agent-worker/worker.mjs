@@ -7,10 +7,12 @@ import { createToolGateway } from "./lib/tools.mjs";
 import { publishEngineeringSnapshot } from "./lib/proactive.mjs";
 import { processWorkerOnce, processWorkerPass } from "./lib/worker-pass.mjs";
 import { createLlmRegistry } from "./lib/llm/registry.mjs";
-import { bindReservationWorker, createCountingLlm } from "./lib/scheduler.mjs";
+import { createCountingLlm } from "./lib/scheduler.mjs";
 import { openDatabase } from "./lib/sqlite.mjs";
 import { recordRoutingOutcome } from "./lib/ledger.mjs";
 import { deterministicFailureClass } from "./lib/failure-class.mjs";
+import { createWorkerLlm, DISPATCH_KIND } from "./lib/dispatch.mjs";
+import { bindTargetedWorker } from "./lib/worker-binding.mjs";
 
 const AGENT_LOADERS = {
   engineering: () => import("./agents/engineering.spec.mjs").then((m) => m.default),
@@ -24,6 +26,7 @@ function parseArgs(argv) {
   let modelHandle = null;
   let jobId = null;
   let llmCallCeiling = null;
+  let dispatchKind = DISPATCH_KIND.MODEL;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--once") once = true;
@@ -35,8 +38,10 @@ function parseArgs(argv) {
     else if (a.startsWith("--job-id=")) jobId = a.slice("--job-id=".length);
     else if (a === "--llm-call-ceiling" && argv[i + 1]) { llmCallCeiling = Number(argv[++i]); }
     else if (a.startsWith("--llm-call-ceiling=")) llmCallCeiling = Number(a.slice("--llm-call-ceiling=".length));
+    else if (a === "--dispatch-kind" && argv[i + 1]) { dispatchKind = argv[++i]; }
+    else if (a.startsWith("--dispatch-kind=")) dispatchKind = a.slice("--dispatch-kind=".length);
   }
-  return { agent, once, modelHandle, jobId, llmCallCeiling };
+  return { agent, once, modelHandle, jobId, llmCallCeiling, dispatchKind };
 }
 
 function numOr(value, fallback, min) {
@@ -45,8 +50,9 @@ function numOr(value, fallback, min) {
 }
 
 async function main() {
-  const { agent, once, modelHandle, jobId, llmCallCeiling } = parseArgs(process.argv.slice(2));
+  const { agent, once, modelHandle, jobId, llmCallCeiling, dispatchKind } = parseArgs(process.argv.slice(2));
   if (!AGENT_LOADERS[agent]) throw new Error(`unknown agent: ${agent}`);
+  if (!Object.values(DISPATCH_KIND).includes(dispatchKind)) throw new Error(`unknown dispatch kind: ${dispatchKind}`);
   const spec = await AGENT_LOADERS[agent]();
 
   const envPath = process.env.GMK_ENV_FILE || path.resolve(process.cwd(), `.env.gmk-${agent}.local`);
@@ -56,22 +62,7 @@ async function main() {
   const envGet = (key) => env.get(key) ?? process.env[key];
   const runtimeRoot = envGet("GMK_RUNTIME_ROOT") || null;
   if (jobId) {
-    if (!runtimeRoot) {
-      const error = new Error("GMK_RUNTIME_ROOT is required for worker PID binding");
-      error.code = "worker_pid_binding_failed";
-      throw error;
-    }
-    const { db } = openDatabase(path.resolve(runtimeRoot));
-    try {
-      const binding = bindReservationWorker(db, { jobId, workerPid: process.pid });
-      if (!binding.allowed) {
-        const error = new Error("worker PID binding was rejected");
-        error.code = "worker_pid_binding_failed";
-        throw error;
-      }
-    } finally {
-      db.close();
-    }
+    bindTargetedWorker({ runtimeRoot, jobId, workerPid: process.pid });
   }
 
   const supabaseUrl = requireValue(env, "SUPABASE_URL");
@@ -109,6 +100,7 @@ async function main() {
     agentId: auth.user.id,
     targetJobId: jobId,
     modelHandle,
+    dispatchKind,
     recordRoutingOutcome(entry) {
       if (!runtimeRoot) return;
       const { db } = openDatabase(path.resolve(runtimeRoot));
@@ -119,16 +111,16 @@ async function main() {
       }
     },
   };
-  runtime.llm = createCountingLlm(createLlmRegistry({
-    runtimeRoot: config.runtimeRoot,
-    modelHandle,
-    ollamaConfig: {
-      baseUrl: config.ollamaBaseUrl,
-      model: config.ollamaModel,
-      numGpu: config.ollamaNumGpu,
-      timeoutMs: config.ollamaTimeoutMs,
-    },
-  }), llmCallCeiling);
+  runtime.llm = createWorkerLlm(dispatchKind, () => createCountingLlm(createLlmRegistry({
+      runtimeRoot: config.runtimeRoot,
+      modelHandle,
+      ollamaConfig: {
+        baseUrl: config.ollamaBaseUrl,
+        model: config.ollamaModel,
+        numGpu: config.ollamaNumGpu,
+        timeoutMs: config.ollamaTimeoutMs,
+      },
+    }), llmCallCeiling));
   if (agent === "engineering") {
     runtime.tools = createToolGateway({ worktreePath: config.worktreePath });
     runtime.onJobState = (state, jobId, errorClass) =>

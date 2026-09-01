@@ -572,8 +572,10 @@ export default {
     const tools = createToolGateway({ worktreePath: config.worktreePath });
     const ctx = { runtime, config, logger, db, tools };
 
+    try {
+
     const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
-    const kind = payload.type || (job.job_type === "engineering.baseline" ? "baseline" : job.job_type === "engineering.proactive" ? "proactive" : job.job_type === "engineering.finding.lifecycle" ? "finding_lifecycle" : job.job_type === "engineering.synthetic" ? "synthetic" : "review");
+    const kind = job.job_type === "engineering.finding.lifecycle" ? "finding_lifecycle" : payload.type || (job.job_type === "engineering.baseline" ? "baseline" : job.job_type === "engineering.proactive" ? "proactive" : job.job_type === "engineering.synthetic" ? "synthetic" : "review");
 
     // Resolve the exact commit under review (payload override, else the worktree HEAD).
     let commit = typeof payload.commit_sha === "string" ? payload.commit_sha : null;
@@ -735,6 +737,9 @@ export default {
     result.runtime.duration_ms = Date.now() - started;
     logger.log("session_done", { session_id: sessionId, commit, tasks: completed.length });
     return result;
+    } finally {
+      db.close();
+    }
   },
 };
 
