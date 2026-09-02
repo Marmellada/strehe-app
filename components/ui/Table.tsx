@@ -7,7 +7,7 @@ export function TableShell({
   children,
 }: React.ComponentProps<"div">) {
   return (
-    <div className={cn("overflow-hidden rounded-xl border bg-card", className)}>
+    <div className={cn("overflow-x-auto rounded-xl border bg-card", className)}>
       {children}
     </div>
   );

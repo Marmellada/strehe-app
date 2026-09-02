@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { AgentControlButton } from "./AgentControlButton";
 import { controlEngineeringAgentAction } from "./actions";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -10,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShe
 import { buildEngineeringAgentView, canControlAgentOperations } from "@/lib/agents/operator-view";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
+import { loadEngineeringReviewQueue } from "@/lib/operator/attention-data";
+import { getEngineeringJobHref } from "@/lib/operator/workflows";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +29,21 @@ function shortId(value: string | null | undefined) {
 export default async function AgentsPage() {
   const current = await requireRole(["admin", "office"]);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_engineering_agent_dashboard");
+  const [{ data, error }, reviewQueue] = await Promise.all([
+    supabase.rpc("get_engineering_agent_dashboard"),
+    loadEngineeringReviewQueue(supabase, 1, 0),
+  ]);
   if (error) throw new Error(`Unable to load Engineering Agent: ${error.message}`);
   const agent = buildEngineeringAgentView(data);
   const canControl = canControlAgentOperations(current.appUser.role);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Agents" description="Monitor STREHË agents and request review-gated work. Engineering is the only active agent in V1." />
+      <PageHeader
+        title="Agents"
+        description="Monitor STREHË agents and request review-gated work. Engineering is the only active agent in V1."
+        actions={<Button asChild variant="outline"><Link href="/operator/review">Open review queue</Link></Button>}
+      />
 
       <SectionCard
         title="Engineering Agent"
@@ -46,7 +57,7 @@ export default async function AgentsPage() {
           <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Last completed work</p><p className="mt-1 text-sm">{agent.lastCompleted ? `${agent.lastCompleted.job_type} · ${formatDate(agent.lastCompleted.completed_at)}` : "—"}</p></div>
           <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Proactive checking</p><p className="mt-1 text-sm">{agent.control?.proactive_enabled ? "Enabled" : "Disabled"}{agent.control?.paused ? " · paused" : ""}</p></div>
           <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next eligible</p><p className="mt-1 text-sm">{formatDate(agent.control?.next_proactive_at)}</p></div>
-          <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Review queue</p><p className="mt-1 text-sm">{agent.counts.pendingReview} awaiting human review</p></div>
+          <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Review queue</p><p className="mt-1 text-sm">{reviewQueue.pending_count} awaiting human review</p></div>
           <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Safety boundary</p><p className="mt-1 text-sm">Local Ollama · no mutation tools</p></div>
         </div>
 
@@ -103,7 +114,7 @@ export default async function AgentsPage() {
 
       <SectionCard title="Recent activity and job lifecycle">
         {agent.jobs.length === 0 ? <EmptyState title="No Engineering jobs" description="Queued and completed work will appear here." /> : (
-          <TableShell><Table><TableHeader><TableRow><TableHead>Job</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Target</TableHead><TableHead>Summary</TableHead><TableHead>Attempts</TableHead><TableHead>Created</TableHead><TableHead>Completed</TableHead></TableRow></TableHeader><TableBody>{agent.jobs.map((job) => <TableRow key={job.id}><TableCell className="font-mono text-xs">{shortId(job.id)}</TableCell><TableCell>{job.job_type}</TableCell><TableCell><StatusBadge status={job.status} /></TableCell><TableCell>{job.target_module || "—"}</TableCell><TableCell className="max-w-xs truncate">{job.summary || job.error_status || "—"}</TableCell><TableCell>{job.attempt_count}</TableCell><TableCell>{formatDate(job.created_at)}</TableCell><TableCell>{formatDate(job.completed_at)}</TableCell></TableRow>)}</TableBody></Table></TableShell>
+          <TableShell><Table><TableHeader><TableRow><TableHead>Job</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Target</TableHead><TableHead>Summary</TableHead><TableHead>Attempts</TableHead><TableHead>Created</TableHead><TableHead>Completed</TableHead></TableRow></TableHeader><TableBody>{agent.jobs.map((job) => <TableRow key={job.id}><TableCell className="font-mono text-xs"><Link className="hover:underline" href={getEngineeringJobHref(job.id)}>{shortId(job.id)}</Link></TableCell><TableCell>{job.job_type}</TableCell><TableCell><StatusBadge status={job.status} /></TableCell><TableCell>{job.target_module || "—"}</TableCell><TableCell className="max-w-xs truncate">{job.summary || job.error_status || "—"}</TableCell><TableCell>{job.attempt_count}</TableCell><TableCell>{formatDate(job.created_at)}</TableCell><TableCell>{formatDate(job.completed_at)}</TableCell></TableRow>)}</TableBody></Table></TableShell>
         )}
       </SectionCard>
     </div>

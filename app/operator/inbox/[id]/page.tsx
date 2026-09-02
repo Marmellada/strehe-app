@@ -16,6 +16,7 @@ import type {
 } from "@/lib/messaging/types";
 import { createClient } from "@/lib/supabase/server";
 import { formatStatusLabel } from "@/lib/ui/status";
+import { getReplyWindowState } from "@/lib/operator/workflows";
 
 type RelatedRow<T> = T | T[] | null;
 
@@ -57,6 +58,7 @@ type ConversationRow = {
   status: "open" | "resolved" | "archived";
   attention_state: "needs_reply" | "waiting_customer" | "none";
   unread_count: number;
+  last_inbound_at: string | null;
   identity: RelatedRow<IdentityRow>;
   assigned: RelatedRow<AssignedUserRow>;
 };
@@ -68,6 +70,7 @@ type MessageRow = {
   message_type: MessageType;
   text_content: string | null;
   occurred_at: string | null;
+  source_webhook_event_id: string | null;
 };
 
 type ConversationPageProps = {
@@ -115,6 +118,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
       status,
       attention_state,
       unread_count,
+      last_inbound_at,
       identity:contact_channel_identities!conversations_contact_identity_id_fkey(
         id,
         channel,
@@ -153,7 +157,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
   ] = await Promise.all([
     supabase
       .from("conversation_messages")
-      .select("id,channel,direction,message_type,text_content,occurred_at")
+      .select("id,channel,direction,message_type,text_content,occurred_at,source_webhook_event_id")
       .eq("conversation_id", id)
       .order("occurred_at", { ascending: true, nullsFirst: false }),
     supabase
@@ -194,6 +198,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
   const candidates = candidateRows.filter(
     (candidate) => !agentPrincipalIds.has(candidate.id)
   );
+  const replyWindow = getReplyWindowState(conversation.last_inbound_at);
 
   return (
     <div className="space-y-6">
@@ -268,7 +273,7 @@ export default async function ConversationPage({ params }: ConversationPageProps
       />
 
       {conversation.status !== "archived" ? (
-        <ReplyComposer conversationId={conversation.id} />
+        <ReplyComposer conversationId={conversation.id} replyWindow={replyWindow} />
       ) : null}
 
       <SectionCard title="Messages" description="Oldest to newest">
@@ -289,6 +294,9 @@ export default async function ConversationPage({ params }: ConversationPageProps
                   <Badge variant={message.direction === "inbound" ? "info" : "neutral"}>
                     {message.direction}
                   </Badge>
+                  {message.direction === "outbound" && message.source_webhook_event_id === null ? (
+                    <Badge variant="success">Provider accepted · recorded</Badge>
+                  ) : null}
                   <Badge>{formatStatusLabel(message.message_type)}</Badge>
                   {message.channel !== identity?.channel ? (
                     <Badge>{formatStatusLabel(message.channel)}</Badge>

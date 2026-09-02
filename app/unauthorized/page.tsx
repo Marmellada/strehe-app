@@ -7,13 +7,26 @@ import {
   PageHeader,
   SectionCard,
 } from "@/components/ui";
+import { getCurrentUserWithRole } from "@/lib/auth/get-current-user-with-role";
+import {
+  getRoleAccessMessage,
+  getRoleReturnDestination,
+} from "@/lib/operator/workflows";
 
-export default function UnauthorizedPage() {
+export default async function UnauthorizedPage() {
+  const current = await getCurrentUserWithRole();
+  const role = current?.appUser.role ?? null;
+  const destination = role ? getRoleReturnDestination(role) : null;
+
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-6 py-8">
       <PageHeader
         title="Access Denied"
-        subtitle="You do not have permission to access this page."
+        subtitle={
+          role
+            ? `Your ${role} role does not have permission to access this page.`
+            : "This account does not have permission to access the requested page."
+        }
       />
 
       <SectionCard
@@ -24,15 +37,18 @@ export default function UnauthorizedPage() {
           <Alert variant="warning">
             <AlertTitle>Restricted page</AlertTitle>
             <AlertDescription>
-              If you expected to see this page, check your role or sign in with
-              the correct account.
+              {role
+                ? getRoleAccessMessage(role)
+                : "Sign in with an active application account or ask an administrator to verify your access."}
             </AlertDescription>
           </Alert>
 
           <div className="flex gap-2">
-            <Button asChild>
-              <Link href="/dashboard">Go to dashboard</Link>
-            </Button>
+            {destination ? (
+              <Button asChild>
+                <Link href={destination.href}>{destination.label}</Link>
+              </Button>
+            ) : null}
             <Button asChild variant="secondary">
               <Link href="/auth/logout">Logout</Link>
             </Button>

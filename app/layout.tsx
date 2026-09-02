@@ -58,14 +58,14 @@ export default async function RootLayout({
   const current = surface === "app" ? await getCurrentUser() : null;
   const role = current?.appUser.role ?? null;
 
-  let inboxNeedsReplyCount = 0;
+  let inboxNeedsReplyCount: number | null = 0;
   if (role === "admin" || role === "office") {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from("conversations")
       .select("id", { count: "exact", head: true })
       .eq("attention_state", "needs_reply")
       .neq("status", "archived");
-    inboxNeedsReplyCount = count ?? 0;
+    inboxNeedsReplyCount = error ? null : (count ?? 0);
   }
 
   return (

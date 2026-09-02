@@ -137,6 +137,15 @@ export default defineConfig({
       },
     },
     {
+      name: "operator-workflows-chromium",
+      dependencies: ["setup"],
+      testMatch: /(^|[\\/])operator-workflows\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/user.json",
+      },
+    },
+    {
       name: "public-smoke-chromium",
       testMatch: /(^|[\\/])public-website-smoke\.spec\.ts$/,
       use: {

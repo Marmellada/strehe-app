@@ -87,3 +87,30 @@ export async function controlEngineeringAgentAction(formData: FormData) {
   if (error) throw new Error(`Unable to update Engineering Agent: ${error.message}`);
   revalidatePath("/operator/agents");
 }
+
+export async function reviewEngineeringJobAction(formData: FormData) {
+  await requireRole(["admin"]);
+  const jobId = String(formData.get("job_id") || "").toLowerCase();
+  const decision = String(formData.get("decision") || "");
+  const notes = String(formData.get("notes") || "").trim().slice(0, 4000);
+
+  if (!UUID.test(jobId) || !["approved", "rejected"].includes(decision)) {
+    throw new Error("Invalid Engineering review decision.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("review_agent_job", {
+    target_job_id: jobId,
+    decision,
+    notes: notes || null,
+  });
+
+  if (error) {
+    throw new Error(`Unable to record Engineering review decision: ${error.message}`);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/operator/agents");
+  revalidatePath("/operator/review");
+  revalidatePath(`/operator/agents/jobs/${jobId}`);
+}

@@ -1,196 +1,113 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth/require-role";
-import { createPerfTimer } from "@/lib/perf";
 import {
-  Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   EmptyState,
   PageHeader,
+  SectionCard,
   StatCard,
   StatusBadge,
 } from "@/components/ui";
+import { requireRole } from "@/lib/auth/require-role";
+import { createClient } from "@/lib/supabase/server";
+import { createPerfTimer } from "@/lib/perf";
+import { loadOperatorAttention } from "@/lib/operator/attention-data";
+import {
+  getDashboardSectionOrder,
+  getEngineeringJobHref,
+} from "@/lib/operator/workflows";
 
 type TaskRow = {
   id: string;
   title: string | null;
   status: string | null;
-  priority: string | null;
   due_date: string | null;
-  assigned_user_id: string | null;
   property_code_snapshot: string | null;
 };
 
-type ContractRow = {
+type InboxRow = {
   id: string;
-  status: string | null;
-  monthly_price: number | string | null;
-  property_code_snapshot: string | null;
-  client_name_snapshot: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  identity:
+    | { display_name: string | null; phone_e164: string | null; external_id: string }
+    | Array<{ display_name: string | null; phone_e164: string | null; external_id: string }>
+    | null;
 };
 
-type InvoiceRow = {
+type OfferRow = {
   id: string;
-  status: string | null;
-  invoice_number: string | null;
-  total_cents: number | null;
-  client_name_snapshot: string | null;
+  offer_number: string;
+  status: string;
+  follow_up_date: string | null;
+  valid_until: string | null;
+  lead:
+    | { id: string; full_name: string | null }
+    | Array<{ id: string; full_name: string | null }>
+    | null;
 };
 
-type ExpenseRow = {
-  id: string;
-  expense_date: string;
-  amount_cents: number;
-  description: string;
-  category_name_snapshot: string | null;
-  vendor_name_snapshot: string | null;
-};
-
-type ClientRow = {
-  id: string;
-  client_type: string | null;
-  full_name: string | null;
-  company_name: string | null;
-  status: string | null;
-};
-
-type PropertyRow = {
-  id: string;
-  title: string | null;
-  property_code: string | null;
-  status: string | null;
-};
-
-type LeadRow = {
-  id: string;
-  full_name: string | null;
-  status: string | null;
-  priority: string | null;
-  source: string | null;
-  service_interest: string | null;
-  next_follow_up_date: string | null;
-  estimated_monthly_value_cents: number | null;
-};
-
-function formatCurrencyFromCents(amountCents: number | null | undefined) {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "EUR",
-  }).format((amountCents || 0) / 100);
-}
-
-function formatPrice(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return "€0.00";
-  const numeric = typeof value === "number" ? value : Number(value);
-  if (Number.isNaN(numeric)) return "€0.00";
-  return `€${numeric.toFixed(2)}`;
+function getSingle<T>(value: T | T[] | null) {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] || null : value;
 }
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "No date";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function isTaskOpen(status: string | null) {
-  return (
-    status === "open" ||
-    status === "in_progress" ||
-    status === "escalated" ||
-    status === "blocked"
-  );
-}
-
-function formatLeadMeta(lead: LeadRow) {
-  return [
-    lead.source || "unknown source",
-    lead.service_interest || "interest not set",
-    lead.next_follow_up_date
-      ? `Follow-up ${formatDate(lead.next_follow_up_date)}`
-      : "No follow-up set",
-  ].join(" • ");
-}
-
-function isTaskOverdue(task: TaskRow, todayIso: string) {
-  if (!task.due_date) return false;
-  if (!isTaskOpen(task.status)) return false;
-  return task.due_date < todayIso;
-}
-
-function getTaskTone(task: TaskRow, todayIso: string) {
-  if (isTaskOverdue(task, todayIso)) return "destructive";
-  if (task.status === "escalated" || task.status === "blocked") return "warning";
-  return "default";
-}
-
-function getTaskBadgeVariant(task: TaskRow, todayIso: string) {
-  const tone = getTaskTone(task, todayIso);
-  if (tone === "destructive") return "danger" as const;
-  if (tone === "warning") return "warning" as const;
-  return "neutral" as const;
-}
-
-function QuickList({
+function DecisionCard({
   title,
+  count,
   description,
-  actionHref,
-  actionLabel,
-  children,
+  href,
+  tone = "default",
 }: {
   title: string;
+  count: number;
   description: string;
-  actionHref: string;
-  actionLabel: string;
-  children: React.ReactNode;
+  href: string;
+  tone?: "default" | "warning";
 }) {
   return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link href={actionHref}>{actionLabel}</Link>
-        </Button>
-      </CardHeader>
-      <CardContent className="grid gap-0">{children}</CardContent>
-    </Card>
+    <Link
+      href={href}
+      className={`rounded-xl border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        tone === "warning"
+          ? "border-amber-300/60 bg-amber-50/5 hover:border-amber-300"
+          : "bg-card hover:border-muted-foreground/40 hover:bg-muted/30"
+      }`}
+      aria-label={`${title}: ${count}. ${description}`}
+    >
+      <div className="text-2xl font-semibold" aria-hidden="true">{count}</div>
+      <h3 className="mt-2 font-medium">{title}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    </Link>
   );
 }
 
-function QuickRow({
+function WorkRow({
   title,
   meta,
   href,
-  badge,
+  status,
 }: {
   title: string;
   meta: string;
   href: string;
-  badge?: React.ReactNode;
+  status?: string | null;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-[var(--table-row-border)] py-3 first:border-t-0">
+    <div className="flex flex-col gap-3 border-t py-3 first:border-t-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <div className="truncate font-medium text-foreground">{title}</div>
-        <div className="text-sm text-muted-foreground">{meta}</div>
+        <div className="break-words font-medium">{title}</div>
+        <div className="mt-1 text-sm text-muted-foreground">{meta}</div>
       </div>
-      <div className="flex items-center gap-2">
-        {badge}
-        <Button asChild variant="ghost" size="sm">
-          <Link href={href}>View</Link>
-        </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        {status ? <StatusBadge status={status} /> : null}
+        <Button asChild size="sm" variant="ghost"><Link href={href}>Open</Link></Button>
       </div>
     </div>
   );
@@ -203,597 +120,183 @@ export default async function DashboardPage() {
     "office",
     "field",
     "contractor",
+    "household",
   ]);
   perf.mark("requireRole");
+  const sectionOrder = getDashboardSectionOrder(appUser.role);
+
+  if (appUser.role === "household") {
+    perf.finish({ role: appUser.role, state: sectionOrder[0] });
+    return (
+      <main className="space-y-6">
+        <PageHeader
+          title="Dashboard"
+          description="This account is active, but no household self-service workspace is configured in this release."
+        />
+        <EmptyState
+          title="Household workspace not configured"
+          description="Your account does not have access to the business operator dashboard, inbox, agent reviews, or staff tasks. Contact STREHË if you expected a different account role."
+          action={<Button asChild variant="outline"><Link href="/auth/logout">Switch account</Link></Button>}
+        />
+      </main>
+    );
+  }
+
   const supabase = await createClient();
   perf.mark("createClient");
   const todayIso = new Date().toISOString().slice(0, 10);
-  const isOpsRole = appUser.role === "admin" || appUser.role === "office";
+  const isOperator = appUser.role === "admin" || appUser.role === "office";
 
-  let taskCountQuery = supabase
-    .from("tasks")
-    .select("id, status, due_date, assigned_user_id", { count: "exact" });
-  let recentTasksQuery = supabase
-    .from("tasks")
-    .select("id, title, status, priority, due_date, assigned_user_id, property_code_snapshot")
-    .order("created_at", { ascending: false })
-    .limit(6);
+  if (!isOperator) {
+    const [openResult, escalatedResult, overdueResult, tasksResult] = await Promise.all([
+      supabase.from("tasks").select("id", { count: "exact", head: true }).eq("assigned_user_id", authUser.id).in("status", ["open", "in_progress", "escalated", "blocked"]),
+      supabase.from("tasks").select("id", { count: "exact", head: true }).eq("assigned_user_id", authUser.id).in("status", ["escalated", "blocked"]),
+      supabase.from("tasks").select("id", { count: "exact", head: true }).eq("assigned_user_id", authUser.id).lt("due_date", todayIso).in("status", ["open", "in_progress", "escalated", "blocked"]),
+      supabase.from("tasks").select("id,title,status,due_date,property_code_snapshot").eq("assigned_user_id", authUser.id).in("status", ["open", "in_progress", "escalated", "blocked"]).order("due_date", { ascending: true, nullsFirst: false }).limit(10),
+    ]);
+    const failed = [openResult.error, escalatedResult.error, overdueResult.error, tasksResult.error].find(Boolean);
+    if (failed) throw new Error(`Unable to load assigned work dashboard: ${failed.message}`);
+    const tasks = (tasksResult.data || []) as TaskRow[];
+    perf.finish({ role: appUser.role, state: sectionOrder.join(","), tasks: tasks.length });
 
-  if (!isOpsRole) {
-    taskCountQuery = taskCountQuery.eq("assigned_user_id", authUser.id);
-    recentTasksQuery = recentTasksQuery.eq("assigned_user_id", authUser.id);
+    return (
+      <main className="space-y-6">
+        <PageHeader
+          title="My daily work"
+          description="Your exceptions and assigned work only. Office inbox and review queues are not available to this role."
+          actions={<Button asChild><Link href="/tasks?assigned=me">Open my tasks</Link></Button>}
+        />
+        <section aria-labelledby="my-exceptions-heading" className="space-y-3">
+          <h2 id="my-exceptions-heading" className="text-lg font-semibold">My exceptions</h2>
+          <div className="grid gap-3 sm:grid-cols-3" role="status" aria-live="polite">
+            <DecisionCard title="Open work" count={openResult.count ?? 0} description="All active tasks assigned to you." href="/tasks?assigned=me" />
+            <DecisionCard title="Escalated" count={escalatedResult.count ?? 0} description="Assigned work that is blocked or escalated." href="/tasks?assigned=me&status=escalated" tone="warning" />
+            <DecisionCard title="Overdue" count={overdueResult.count ?? 0} description="Assigned open work past its due date." href="/tasks?assigned=me&due=overdue" tone="warning" />
+          </div>
+        </section>
+        <SectionCard title="My work queue" description="Due work first; completed history stays on the Tasks page.">
+          {tasks.length === 0 ? (
+            <EmptyState title="No assigned work" description="Your task workspace is configured, but there are no open tasks assigned to you." />
+          ) : tasks.map((task) => (
+            <WorkRow key={task.id} title={task.title || "Untitled task"} meta={`${task.property_code_snapshot || "No property"} · due ${formatDate(task.due_date)}`} href={`/tasks/${task.id}`} status={task.status} />
+          ))}
+        </SectionCard>
+      </main>
+    );
   }
 
   const [
-    taskCountResult,
+    attention,
+    urgentTasksResult,
+    inboxPreviewResult,
+    offersPreviewResult,
     openTasksResult,
-    escalatedTasksResult,
-    overdueTasksResult,
-    recentTasksResult,
     activeContractsResult,
-    preparedContractsResult,
-    recentContractsResult,
     issuedInvoicesResult,
-    draftInvoicesResult,
-    recentInvoicesResult,
-    currentMonthExpensesResult,
-    recentExpensesResult,
-    totalClientsResult,
-    totalPropertiesResult,
-    vacantPropertiesResult,
-    recentClientsResult,
-    recentPropertiesResult,
   ] = await Promise.all([
-    taskCountQuery,
-    isOpsRole
-      ? supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["open", "in_progress", "escalated", "blocked"])
-      : supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .eq("assigned_user_id", authUser.id)
-          .in("status", ["open", "in_progress", "escalated", "blocked"]),
-    isOpsRole
-      ? supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["escalated", "blocked"])
-      : supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .eq("assigned_user_id", authUser.id)
-          .in("status", ["escalated", "blocked"]),
-    isOpsRole
-      ? supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .lt("due_date", todayIso)
-          .in("status", ["open", "in_progress", "escalated", "blocked"])
-      : supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .eq("assigned_user_id", authUser.id)
-          .lt("due_date", todayIso)
-          .in("status", ["open", "in_progress", "escalated", "blocked"]),
-    recentTasksQuery,
-    supabase
-      .from("subscriptions")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active"),
-    supabase
-      .from("subscriptions")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "prepared"),
-    supabase
-      .from("subscriptions")
-      .select("id, status, monthly_price, property_code_snapshot, client_name_snapshot")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "issued"),
-    supabase
-      .from("invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "draft"),
-    supabase
-      .from("invoices")
-      .select("id, status, invoice_number, total_cents, client_name_snapshot")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("expenses")
-      .select("amount_cents")
-      .gte(
-        "expense_date",
-        new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1))
-          .toISOString()
-          .slice(0, 10),
-      ),
-    supabase
-      .from("expenses")
-      .select("id, expense_date, amount_cents, description, category_name_snapshot, vendor_name_snapshot")
-      .order("expense_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase.from("clients").select("id", { count: "exact", head: true }),
-    supabase.from("properties").select("id", { count: "exact", head: true }),
-    supabase
-      .from("properties")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "vacant"),
-    supabase
-      .from("clients")
-      .select("id, client_type, full_name, company_name, status")
-      .order("id", { ascending: false })
-      .limit(5),
-    supabase
-      .from("properties")
-      .select("id, title, property_code, status")
-      .order("id", { ascending: false })
-      .limit(5),
+    loadOperatorAttention(supabase, todayIso, 5, 0),
+    supabase.from("tasks").select("id,title,status,due_date,property_code_snapshot").in("status", ["open", "in_progress", "escalated", "blocked"]).or(`status.in.(escalated,blocked),due_date.lt.${todayIso}`).order("due_date", { ascending: true, nullsFirst: false }).limit(6),
+    supabase.from("conversations").select(`id,last_message_at,unread_count,identity:contact_channel_identities!conversations_contact_identity_id_fkey(display_name,phone_e164,external_id)`).eq("attention_state", "needs_reply").neq("status", "archived").order("last_message_at", { ascending: true, nullsFirst: false }).limit(6),
+    supabase.from("lead_offers").select(`id,offer_number,status,follow_up_date,valid_until,lead:leads!lead_offers_lead_id_fkey(id,full_name)`).in("status", ["draft", "sent"]).or(`status.eq.draft,follow_up_date.lte.${todayIso},valid_until.lt.${todayIso}`).order("follow_up_date", { ascending: true, nullsFirst: false }).limit(6),
+    supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress", "escalated", "blocked"]),
+    supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
+    supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "issued"),
   ]);
 
-  const recentTasks = (recentTasksResult.data || []) as TaskRow[];
-  const recentContracts = (recentContractsResult.data || []) as ContractRow[];
-  const recentInvoices = (recentInvoicesResult.data || []) as InvoiceRow[];
-  const recentExpenses = (recentExpensesResult.data || []) as ExpenseRow[];
-  const recentClients = (recentClientsResult.data || []) as ClientRow[];
-  const recentProperties = (recentPropertiesResult.data || []) as PropertyRow[];
-  const currentMonthSpend = (currentMonthExpensesResult.data || []).reduce(
-    (sum, expense) => sum + (expense.amount_cents || 0),
-    0,
-  );
+  const failed = [urgentTasksResult.error, inboxPreviewResult.error, offersPreviewResult.error, openTasksResult.error, activeContractsResult.error, issuedInvoicesResult.error].find(Boolean);
+  if (failed) throw new Error(`Unable to load operator dashboard: ${failed.message}`);
 
-  let crm:
-    | {
-        newLeads: number;
-        interestedLeads: number;
-        dueFollowUps: number;
-        noFollowUp: number;
-        openValue: number;
-        followUps: LeadRow[];
-      }
-    | null = null;
-
-  if (isOpsRole) {
-    const [
-      newLeadsResult,
-      interestedLeadsResult,
-      dueFollowUpsResult,
-      noFollowUpResult,
-      openLeadsValueResult,
-      followUpsResult,
-    ] = await Promise.all([
-      supabase.from("leads").select("id", { count: "exact", head: true }).eq("status", "new"),
-      supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "interested"),
-      supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .lte("next_follow_up_date", todayIso)
-        .not("status", "in", "(won,lost)"),
-      supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .is("next_follow_up_date", null)
-        .not("status", "in", "(won,lost)"),
-      supabase
-        .from("leads")
-        .select("estimated_monthly_value_cents")
-        .not("status", "in", "(won,lost)"),
-      supabase
-        .from("leads")
-        .select(
-          "id, full_name, status, priority, source, service_interest, next_follow_up_date, estimated_monthly_value_cents"
-        )
-        .not("status", "in", "(won,lost)")
-        .order("next_follow_up_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(6),
-    ]);
-
-    crm = {
-      newLeads: newLeadsResult.count ?? 0,
-      interestedLeads: interestedLeadsResult.count ?? 0,
-      dueFollowUps: dueFollowUpsResult.count ?? 0,
-      noFollowUp: noFollowUpResult.count ?? 0,
-      openValue: (openLeadsValueResult.data || []).reduce(
-        (sum, lead) => sum + (lead.estimated_monthly_value_cents || 0),
-        0
-      ),
-      followUps: (followUpsResult.data || []) as LeadRow[],
-    };
-  }
-
-  perf.mark("loadDashboardData");
-  perf.finish({
-    role: appUser.role,
-    isOpsRole,
-    recentTasks: recentTasks.length,
-    recentExpenses: recentExpenses.length,
-  });
+  const { counts, reviewQueue } = attention;
+  const urgentTasks = (urgentTasksResult.data || []) as TaskRow[];
+  const inboxPreview = (inboxPreviewResult.data || []) as InboxRow[];
+  const offersPreview = (offersPreviewResult.data || []) as OfferRow[];
+  perf.finish({ role: appUser.role, state: sectionOrder.join(","), urgentTasks: urgentTasks.length, reviews: reviewQueue.jobs.length });
 
   return (
-    <main className="grid gap-6">
+    <main className="space-y-6">
       <PageHeader
-        title="Dashboard"
-        description={
-          isOpsRole
-            ? "Day-to-day control across work, properties, contracts, billing, and expense activity."
-            : "Your assigned work and the latest operational context around it."
-        }
+        title="Daily operations"
+        description={appUser.role === "admin" ? "Decisions and exceptions first. Use detail pages for bounded resolution controls." : "Decisions and exceptions first. Engineering decisions remain read-only for office operators."}
         actions={
           <>
-            <Button asChild>
-              <Link href={isOpsRole ? "/tasks" : "/tasks?assigned=me"}>{isOpsRole ? "Open Tasks" : "Open My Tasks"}</Link>
-            </Button>
-            {isOpsRole ? (
-              <>
-                <Button asChild variant="ghost">
-                  <Link href="/tasks/create">New Task</Link>
-                </Button>
-                {appUser.role === "admin" ? (
-                  <Button asChild variant="ghost">
-                    <Link href="/subscriptions/create">New Contract</Link>
-                  </Button>
-                ) : null}
-                <Button asChild variant="ghost">
-                  <Link href="/billing/new">New Invoice</Link>
-                </Button>
-              </>
-            ) : null}
+            <Button asChild><Link href="/operator/review">Open review queue</Link></Button>
+            <Button asChild variant="outline"><Link href="/tasks">Open tasks</Link></Button>
           </>
         }
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title={isOpsRole ? "Open Work" : "My Open Work"} value={openTasksResult.count ?? 0} />
-        <StatCard title="Escalated Tasks" value={escalatedTasksResult.count ?? 0} />
-        <StatCard title="Overdue Tasks" value={overdueTasksResult.count ?? 0} />
-        <StatCard title={isOpsRole ? "Tracked Tasks" : "My Total Tasks"} value={taskCountResult.count ?? 0} />
+      <section aria-labelledby="exceptions-heading" className="space-y-3">
+        <div>
+          <h2 id="exceptions-heading" className="text-lg font-semibold">Needs a decision or follow-up</h2>
+          <p className="text-sm text-muted-foreground">Exact full-queue counts; the work previews below are intentionally bounded.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="status" aria-live="polite">
+          <DecisionCard title="Inbox needs reply" count={counts.inboxNeedsReply} description="Customers waiting on STREHË." href="/operator/inbox?filter=needs-reply" tone="warning" />
+          <DecisionCard title="Agent reviews" count={counts.agentAwaitingReview} description="Engineering results awaiting human review." href="/operator/review#engineering-reviews" tone="warning" />
+          <DecisionCard title="Escalated tasks" count={counts.escalatedTasks} description="Blocked or escalated work." href="/tasks?status=escalated" tone="warning" />
+          <DecisionCard title="Overdue tasks" count={counts.overdueTasks} description="Open work past its due date." href="/tasks?due=overdue" tone="warning" />
+          <DecisionCard title="Identity review" count={counts.identitiesNeedingReview} description="Ambiguous messaging identities." href="/operator/inbox?filter=identity-review" />
+          <DecisionCard title="Offers" count={counts.offersNeedingAttention} description="Draft or due sent offers." href="/leads/follow-ups" />
+          <DecisionCard title="Lead follow-ups" count={counts.followUpsDue} description="Open leads due for contact." href="/leads/follow-ups" />
+        </div>
       </section>
 
-      {isOpsRole ? (
-        <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="Active Contracts" value={activeContractsResult.count ?? 0} />
-            <StatCard title="Prepared Contracts" value={preparedContractsResult.count ?? 0} />
-            <StatCard title="Issued Invoices" value={issuedInvoicesResult.count ?? 0} />
-            <StatCard title="Draft Invoices" value={draftInvoicesResult.count ?? 0} />
-          </section>
+      <section aria-labelledby="daily-work-heading" className="space-y-3">
+        <h2 id="daily-work-heading" className="text-lg font-semibold">Today’s workspaces</h2>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <SectionCard title="Engineering review queue" description={appUser.role === "admin" ? "Inspect and resolve from the job detail." : "Inspect job detail; resolution is admin-only."} action={<Button asChild size="sm" variant="ghost"><Link href="/operator/review">View queue</Link></Button>}>
+            {!reviewQueue.configured ? (
+              <EmptyState title="Review queue not configured" description="The Engineering Agent principal is not active on this environment." className="min-h-[220px]" />
+            ) : reviewQueue.jobs.length === 0 ? (
+              <EmptyState title="No Engineering reviews waiting" description="The configured queue is currently clear." className="min-h-[220px]" />
+            ) : reviewQueue.jobs.map((job) => (
+              <WorkRow key={job.id} title={job.summary || job.job_type} meta={`${job.session_id || job.id.slice(0, 8)} · ${job.finding_count} findings`} href={getEngineeringJobHref(job.id)} status={job.status} />
+            ))}
+          </SectionCard>
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="Current Month Spend" value={formatCurrencyFromCents(currentMonthSpend)} />
-            <StatCard title="Total Properties" value={totalPropertiesResult.count ?? 0} />
-            <StatCard title="Clients" value={totalClientsResult.count ?? 0} />
-            <StatCard title="Vacant Properties" value={vacantPropertiesResult.count ?? 0} />
-          </section>
+          <SectionCard title="Urgent task work" description="Escalated, blocked, or overdue tasks; due work first." action={<Button asChild size="sm" variant="ghost"><Link href="/tasks">View tasks</Link></Button>}>
+            {urgentTasks.length === 0 ? (
+              <EmptyState title="No task exceptions" description="The task workspace is configured and has no escalated, blocked, or overdue work." className="min-h-[220px]" />
+            ) : urgentTasks.map((task) => (
+              <WorkRow key={task.id} title={task.title || "Untitled task"} meta={`${task.property_code_snapshot || "No property"} · due ${formatDate(task.due_date)}`} href={`/tasks/${task.id}`} status={task.status} />
+            ))}
+          </SectionCard>
 
-          {crm ? (
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <StatCard title="New Leads" value={crm.newLeads} />
-              <StatCard title="Interested Leads" value={crm.interestedLeads} />
-              <StatCard title="Due Follow-ups" value={crm.dueFollowUps} />
-              <StatCard title="No Follow-up Set" value={crm.noFollowUp} />
-              <StatCard title="Open Lead Value" value={formatCurrencyFromCents(crm.openValue)} />
-            </section>
-          ) : null}
-        </>
-      ) : null}
+          <SectionCard title="Inbox attention" description="Oldest customer waits first." action={<Button asChild size="sm" variant="ghost"><Link href="/operator/inbox?filter=needs-reply">Open inbox</Link></Button>}>
+            {inboxPreview.length === 0 ? (
+              <EmptyState title="No conversations need a reply" description="The inbox is configured and no open conversation currently needs a response." className="min-h-[220px]" />
+            ) : inboxPreview.map((conversation) => {
+              const identity = getSingle(conversation.identity);
+              return <WorkRow key={conversation.id} title={identity?.display_name || identity?.phone_e164 || identity?.external_id || "Unknown contact"} meta={`${conversation.unread_count} unread · last message ${formatDate(conversation.last_message_at)}`} href={`/operator/inbox/${conversation.id}`} status="needs_reply" />;
+            })}
+          </SectionCard>
 
-      {crm ? (
-        <section className="grid gap-4 xl:grid-cols-2">
-          <QuickList
-            title="CRM Follow-ups"
-            description="Leads that need attention before the next client conversion."
-            actionHref="/leads"
-            actionLabel="View Leads"
-          >
-            {crm.followUps.length === 0 ? (
-              <EmptyState
-                title="No open follow-ups"
-                description="New website and manual inquiries will appear here when follow-up is needed."
-              />
-            ) : (
-              <div className="grid">
-                {crm.followUps.map((lead) => (
-                  <QuickRow
-                    key={lead.id}
-                    title={lead.full_name || "Unnamed lead"}
-                    meta={formatLeadMeta(lead)}
-                    href={`/leads/${lead.id}`}
-                    badge={
-                      <Badge
-                        variant={
-                          lead.next_follow_up_date && lead.next_follow_up_date <= todayIso
-                            ? "warning"
-                            : "neutral"
-                        }
-                      >
-                        {lead.status || "new"}
-                      </Badge>
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </QuickList>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>CRM Shortcuts</CardTitle>
-              <CardDescription>
-                Capture new inquiries and keep follow-ups moving.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button asChild>
-                <Link href="/leads/new">New Lead</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                <Link href="/leads/new?source=whatsapp">New WhatsApp Lead</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                <Link href="/leads?status=new">New Leads</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                <Link href="/leads?source=website">Website Leads</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-      ) : null}
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <QuickList
-          title={isOpsRole ? "Recent Tasks" : "My Recent Tasks"}
-          description="The work queue that should drive the rest of the daily operation."
-          actionHref="/tasks"
-          actionLabel="View All"
-        >
-          {recentTasks.length === 0 ? (
-            <EmptyState
-              title="No tasks yet"
-              description="New work items will appear here as soon as they are created or assigned."
-            />
-          ) : (
-            <div className="grid">
-              {recentTasks.map((task) => (
-                <QuickRow
-                  key={task.id}
-                  title={task.title || "Untitled task"}
-                  meta={`${task.property_code_snapshot || "No property"} • ${task.due_date ? `Due ${formatDate(task.due_date)}` : "No due date"}`}
-                  href={`/tasks/${task.id}`}
-                  badge={
-                    <Badge variant={getTaskBadgeVariant(task, todayIso)}>
-                      {task.status || "open"}
-                    </Badge>
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </QuickList>
-
-        {isOpsRole ? (
-          <QuickList
-            title="Recent Expenses"
-            description="Latest recorded spend so field activity, vendors, and finance stay aligned."
-            actionHref="/expenses"
-            actionLabel="View All"
-          >
-            {recentExpenses.length === 0 ? (
-              <EmptyState
-                title="No expenses yet"
-                description="Recorded expenses will appear here once operational spend starts being logged."
-              />
-            ) : (
-              <div className="grid">
-                {recentExpenses.map((expense) => (
-                  <QuickRow
-                    key={expense.id}
-                    title={expense.description}
-                    meta={`${expense.category_name_snapshot || "Uncategorized"} • ${expense.vendor_name_snapshot || "No vendor"} • ${formatDate(expense.expense_date)}`}
-                    href={`/expenses/${expense.id}`}
-                    badge={<span className="text-sm font-medium">{formatCurrencyFromCents(expense.amount_cents)}</span>}
-                  />
-                ))}
-              </div>
-            )}
-          </QuickList>
-        ) : null}
+          <SectionCard title="Offers and commercial follow-up" description="Draft offers and sent offers whose follow-up or validity needs attention." action={<Button asChild size="sm" variant="ghost"><Link href="/leads/follow-ups">Open follow-ups</Link></Button>}>
+            {offersPreview.length === 0 ? (
+              <EmptyState title="No offers need attention" description="The offer workflow is configured and has no draft or due sent offers." className="min-h-[220px]" />
+            ) : offersPreview.map((offer) => {
+              const lead = getSingle(offer.lead);
+              return <WorkRow key={offer.id} title={`${offer.offer_number} · ${lead?.full_name || "Unnamed lead"}`} meta={`Follow-up ${formatDate(offer.follow_up_date)} · valid until ${formatDate(offer.valid_until)}`} href={lead ? `/leads/${lead.id}` : "/leads/follow-ups"} status={offer.status} />;
+            })}
+          </SectionCard>
+        </div>
       </section>
 
-      {isOpsRole ? (
-        <section className="grid gap-4 xl:grid-cols-2">
-          <QuickList
-            title="Recent Contracts"
-            description="Prepared and active agreements that feed recurring operational work."
-            actionHref="/subscriptions"
-            actionLabel="View All"
-          >
-            {recentContracts.length === 0 ? (
-              <EmptyState
-                title="No contracts yet"
-                description="New agreements will appear here once subscriptions are being managed."
-              />
-            ) : (
-              <div className="grid">
-                {recentContracts.map((contract) => (
-                  <QuickRow
-                    key={contract.id}
-                    title={contract.client_name_snapshot || "Unnamed client"}
-                    meta={`${contract.property_code_snapshot || "No property"} • ${formatPrice(contract.monthly_price)} / month`}
-                    href={`/subscriptions/${contract.id}`}
-                    badge={<StatusBadge status={contract.status || "draft"} />}
-                  />
-                ))}
-              </div>
-            )}
-          </QuickList>
-
-          <QuickList
-            title="Recent Invoices"
-            description="Fresh billing documents so office follow-up stays visible from the first screen."
-            actionHref="/billing"
-            actionLabel="View All"
-          >
-            {recentInvoices.length === 0 ? (
-              <EmptyState
-                title="No invoices yet"
-                description="Issued and draft invoices will surface here once billing activity starts."
-              />
-            ) : (
-              <div className="grid">
-                {recentInvoices.map((invoice) => (
-                  <QuickRow
-                    key={invoice.id}
-                    title={invoice.invoice_number || "Draft invoice"}
-                    meta={`${invoice.client_name_snapshot || "No client"} • ${formatCurrencyFromCents(invoice.total_cents)}`}
-                    href={`/billing/${invoice.id}`}
-                    badge={<StatusBadge status={invoice.status || "draft"} />}
-                  />
-                ))}
-              </div>
-            )}
-          </QuickList>
-        </section>
-      ) : null}
-
-      {isOpsRole ? (
-        <section className="grid gap-4 xl:grid-cols-2">
-          <QuickList
-            title="Recent Clients"
-            description="Latest additions to the client register."
-            actionHref="/clients"
-            actionLabel="View All"
-          >
-            {recentClients.length === 0 ? (
-              <EmptyState
-                title="No clients yet"
-                description="Once clients are added, the newest ones will appear here."
-              />
-            ) : (
-              <div className="grid">
-                {recentClients.map((client) => {
-                  const name =
-                    client.client_type === "business"
-                      ? client.company_name || "Unnamed business"
-                      : client.full_name || "Unnamed individual";
-
-                  return (
-                    <QuickRow
-                      key={client.id}
-                      title={name}
-                      meta={`${client.client_type === "business" ? "Business" : "Individual"} • ${client.status || "Unknown"}`}
-                      href={`/clients/${client.id}`}
-                      badge={<StatusBadge status={client.status || "active"} />}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </QuickList>
-
-          <QuickList
-            title="Recent Properties"
-            description="Latest properties added to the register."
-            actionHref="/properties"
-            actionLabel="View All"
-          >
-            {recentProperties.length === 0 ? (
-              <EmptyState
-                title="No properties yet"
-                description="Once properties are added, the newest ones will appear here."
-              />
-            ) : (
-              <div className="grid">
-                {recentProperties.map((property) => (
-                  <QuickRow
-                    key={property.id}
-                    title={property.title || "Untitled property"}
-                    meta={`${property.property_code || "No code"} • ${property.status || "Unknown"}`}
-                    href={`/properties/${property.id}`}
-                    badge={<StatusBadge status={property.status || "active"} />}
-                  />
-                ))}
-              </div>
-            )}
-          </QuickList>
-        </section>
-      ) : null}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tasks</CardTitle>
-            <CardDescription>Work queue, assignments, and reporting.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="ghost">
-              <Link href="/tasks">Open Tasks</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {isOpsRole ? (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle>Properties</CardTitle>
-                <CardDescription>Track properties, locations, and ownership.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="ghost">
-                  <Link href="/properties">Open Properties</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Billing</CardTitle>
-                <CardDescription>Invoices and payment operations.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="ghost">
-                  <Link href="/billing">Open Billing</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Expenses</CardTitle>
-                <CardDescription>Operational spend and vendor-linked records.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="ghost">
-                  <Link href="/expenses">Open Expenses</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </>
-        ) : appUser.role === "field" ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Keys</CardTitle>
-              <CardDescription>Track assigned keys and custody status.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="ghost">
-                <Link href="/keys">Open Keys</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
-      </section>
+      <details className="rounded-xl border bg-card p-4">
+        <summary className="cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Operational overview</summary>
+        <p className="mt-2 text-sm text-muted-foreground">Secondary context kept behind the daily decision surface.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <StatCard title="Open tasks" value={openTasksResult.count ?? 0} />
+          <StatCard title="Active contracts" value={activeContractsResult.count ?? 0} />
+          <StatCard title="Issued invoices" value={issuedInvoicesResult.count ?? 0} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button asChild variant="ghost"><Link href="/properties">Properties</Link></Button>
+          <Button asChild variant="ghost"><Link href="/billing">Billing</Link></Button>
+          <Button asChild variant="ghost"><Link href="/expenses">Expenses</Link></Button>
+          <Button asChild variant="ghost"><Link href="/finance">Finance</Link></Button>
+        </div>
+      </details>
     </main>
   );
 }

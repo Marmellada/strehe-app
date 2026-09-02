@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { sendMetaMessage } from "@/lib/messaging/send";
 import type { MessagingChannel } from "@/lib/messaging/types";
+import { getReplyWindowState } from "@/lib/operator/workflows";
 
 export type InboxAction =
   | "mark_read"
@@ -45,6 +46,7 @@ export type SearchResult<T> =
 type ReplyConversationRow = {
   id: string;
   status: "open" | "resolved" | "archived";
+  last_inbound_at: string | null;
   identity:
     | {
         channel: MessagingChannel;
@@ -274,6 +276,7 @@ export async function sendReply(
       `
       id,
       status,
+      last_inbound_at,
       identity:contact_channel_identities!conversations_contact_identity_id_fkey(
         channel,
         channel_account_id,
@@ -295,6 +298,10 @@ export async function sendReply(
 
   if (conversation.status === "archived") {
     return { success: false, error: "Archived conversations cannot receive replies" };
+  }
+  const replyWindow = getReplyWindowState(conversation.last_inbound_at);
+  if (!replyWindow.isOpen) {
+    return { success: false, error: replyWindow.reason };
   }
   if (
     !identity ||

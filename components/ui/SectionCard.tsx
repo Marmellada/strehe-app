@@ -24,12 +24,12 @@ export function SectionCard({
 }: SectionCardProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div className="space-y-1.5">
+      <CardHeader className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+        <div className="min-w-0 space-y-1.5">
           <CardTitle>{title}</CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+        {action ? <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">{action}</div> : null}
       </CardHeader>
       <CardContent className={contentClassName}>{children}</CardContent>
     </Card>

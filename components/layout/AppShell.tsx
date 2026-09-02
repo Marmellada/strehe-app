@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SidebarAuthBox from "@/components/auth/SidebarAuthBox";
+import type { AppRole } from "@/lib/auth/roles";
 
 type AppShellProps = {
   children: React.ReactNode;
-  role: string | null;
-  inboxNeedsReplyCount?: number;
+  role: AppRole | null;
+  inboxNeedsReplyCount?: number | null;
   current:
     | {
         authUser: {
@@ -33,6 +34,8 @@ export function AppShell({
   const isField = role === "field";
   const isContractor = role === "contractor";
   const canUseOfficeSurface = isAdmin || isOffice;
+  const isCurrent = (href: string) =>
+    pathname === href || (href !== "/dashboard" && pathname?.startsWith(`${href}/`));
 
   const workLinks = canUseOfficeSurface
     ? [
@@ -87,7 +90,9 @@ export function AppShell({
 
         <nav className="shell-nav">
           <div className="shell-nav-group">
-            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/dashboard" aria-current={isCurrent("/dashboard") ? "page" : undefined}>
+              Dashboard
+            </Link>
           </div>
 
           {workLinks.length > 0 ? (
@@ -98,11 +103,12 @@ export function AppShell({
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isCurrent(link.href) ? "page" : undefined}
                   style={{ display: "flex", alignItems: "center" }}
                 >
                   <span>{link.label}</span>
                   {link.href === "/operator/inbox" &&
-                  inboxNeedsReplyCount > 0 ? (
+                  (inboxNeedsReplyCount === null || inboxNeedsReplyCount > 0) ? (
                     <span
                       style={{
                         marginLeft: "auto",
@@ -114,8 +120,15 @@ export function AppShell({
                         fontWeight: 600,
                         lineHeight: 1.4,
                       }}
+                      role="status"
+                      aria-live="polite"
+                      aria-label={
+                        inboxNeedsReplyCount === null
+                          ? "Inbox attention count unavailable"
+                          : `${inboxNeedsReplyCount} conversations need a reply`
+                      }
                     >
-                      {inboxNeedsReplyCount}
+                      {inboxNeedsReplyCount === null ? "!" : inboxNeedsReplyCount}
                     </span>
                   ) : null}
                 </Link>
@@ -128,7 +141,7 @@ export function AppShell({
               <p className="shell-nav-label">Business</p>
 
               {businessLinks.map((link) => (
-                <Link key={link.href} href={link.href}>
+                <Link key={link.href} href={link.href} aria-current={isCurrent(link.href) ? "page" : undefined}>
                   {link.label}
                 </Link>
               ))}
@@ -140,7 +153,7 @@ export function AppShell({
               <p className="shell-nav-label">Setup</p>
 
               {setupLinks.map((link) => (
-                <Link key={link.href} href={link.href}>
+                <Link key={link.href} href={link.href} aria-current={isCurrent(link.href) ? "page" : undefined}>
                   {link.label}
                 </Link>
               ))}
@@ -151,7 +164,12 @@ export function AppShell({
             <div className="shell-nav-group">
               <p className="shell-nav-label">System</p>
 
-              <Link href="/operator/agents">Agents</Link>
+              <Link href="/operator/review" aria-current={isCurrent("/operator/review") ? "page" : undefined}>
+                Review queue
+              </Link>
+              <Link href="/operator/agents" aria-current={isCurrent("/operator/agents") ? "page" : undefined}>
+                Agents
+              </Link>
               {isAdmin ? <Link href="/settings">Settings</Link> : null}
             </div>
           ) : null}
@@ -160,7 +178,7 @@ export function AppShell({
         <SidebarAuthBox current={current} />
       </aside>
 
-      <div className="main">
+      <div className="main min-w-0 grid-cols-[minmax(0,1fr)]">
         <div className="topbar">
           <div className="row">
             <h1 className="topbar-title">STREHË Admin</h1>
