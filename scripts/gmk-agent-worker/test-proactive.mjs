@@ -290,13 +290,15 @@ test("proactive prompt includes prior decisions and intentional safety constrain
   db.close();
 });
 
-test("control-plane failure fails closed and does not process queued work", async () => {
+test("control-plane failure fails closed and does not process queued work", async (t) => {
+  const runtimeRoot = tempRuntime(t);
   const logs = [];
   let enqueueCalls = 0;
   let completed = 0;
   const job = { id: "normal-1", job_type: "engineering.review", priority: 10, created_at: "2026-08-21T08:00:00Z", payload: {} };
   const runtime = {
     agentId: "agent-1", logger: { log: (event, detail) => logs.push({ event, detail }) }, onJobState: async () => {},
+    config: { runtimeRoot },
     supabase: {
       from(table) { return table === "agent_operator_controls" ? queryResult(null, { message: "relation unavailable" }) : queryResult([job]); },
       async rpc(name) {
@@ -318,10 +320,12 @@ test("control-plane failure fails closed and does not process queued work", asyn
   assert.equal(logs.filter((item) => item.event === "engineering_control_unavailable").length, 1);
 });
 
-test("--once control-plane failure with an idle queue cannot self-generate proactive work", async () => {
+test("--once control-plane failure with an idle queue cannot self-generate proactive work", async (t) => {
+  const runtimeRoot = tempRuntime(t);
   let rpcCalls = 0;
   const runtime = {
     agentId: "agent-1", logger: { log: () => {} },
+    config: { runtimeRoot },
     supabase: { from: (table) => table === "agent_operator_controls" ? queryResult(null, { message: "down" }) : queryResult([]), rpc: async () => { rpcCalls += 1; return { data: null, error: null }; } },
   };
   const pass = await processWorkerOnce(runtime, { capability: "engineering.local", leaseSeconds: 300, run: async () => ({}) }, { engineering: true });
@@ -330,10 +334,12 @@ test("--once control-plane failure with an idle queue cannot self-generate proac
   assert.equal(rpcCalls, 0);
 });
 
-test("available paused control remains authoritative for normal and proactive work", async () => {
+test("available paused control remains authoritative for normal and proactive work", async (t) => {
+  const runtimeRoot = tempRuntime(t);
   let rpcCalls = 0;
   const runtime = {
     agentId: "agent-1", logger: { log: () => {} },
+    config: { runtimeRoot },
     supabase: { from: () => queryResult({ proactive_enabled: true, paused: true, cadence_minutes: 240, next_proactive_at: "2026-08-21T07:00:00Z" }), rpc: async () => { rpcCalls += 1; return { data: null, error: null }; } },
   };
   const pass = await processWorkerPass(runtime, { capability: "engineering.local", leaseSeconds: 300, run: async () => ({}) }, { engineering: true });

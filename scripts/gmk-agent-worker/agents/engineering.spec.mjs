@@ -500,13 +500,14 @@ async function runSession(ctx, { sessionId, jobId, baseCommit, currentCommit, sc
 
 // ---- Result builder (SPEC §17 standard review output) ----
 
-function buildResult(ctx, { sessionId, currentCommit, tree, scope, completed, changedFiles = [], impact = null, checksSelected = [], findings = [], summary }) {
+function buildResult(ctx, { sessionId, baseCommit, currentCommit, tree, scope, completed, changedFiles = [], impact = null, checksSelected = [], findings = [], summary }) {
   const checks = completed.map((c) => ({ kind: c.kind, description: c.description, summary: c.summary }));
   return {
     schema_version: 1,
     agent: "engineering",
     session_id: sessionId,
     review_kind: scope,
+    base_commit: baseCommit,
     git_commit: currentCommit,
     git_tree: tree,
     scope,
@@ -597,6 +598,7 @@ export default {
     let changedFiles = [];
     let impact = null;
     let checksSelected = [];
+    let baseCommit = commit;
     const findings = [];
 
     if (kind === "finding_lifecycle") {
@@ -719,10 +721,11 @@ export default {
       // review: true change-aware incremental review — diff base..current, map
       // changed files to modules, follow dependency edges, select checks, and
       // persist STALE / VALIDATED / carried-forward outcomes.
+      baseCommit = payload.base_commit || commit;
       const review = await runChangeAwareReview(ctx, {
         sessionId,
         jobId: job.id,
-        baseCommit: payload.base_commit || commit,
+        baseCommit,
         commit,
       });
       completed = review.completed;
@@ -733,7 +736,7 @@ export default {
       summary = review.summary;
     }
 
-    const result = buildResult(ctx, { sessionId, currentCommit: commit, tree, scope, completed, changedFiles, impact, checksSelected, findings, summary });
+    const result = buildResult(ctx, { sessionId, baseCommit, currentCommit: commit, tree, scope, completed, changedFiles, impact, checksSelected, findings, summary });
     result.runtime.duration_ms = Date.now() - started;
     logger.log("session_done", { session_id: sessionId, commit, tasks: completed.length });
     return result;

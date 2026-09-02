@@ -54,6 +54,7 @@ function catalogOutputs() {
       "scripts/gmk-agent-worker/test-baseline-hardening.mjs",
       "scripts/gmk-agent-worker/test-go-ready.mjs",
       "scripts/gmk-agent-worker/test-proactive.mjs",
+      "scripts/gmk-agent-worker/test-review-reconciliation.mjs",
       "scripts/gmk-agent-worker/test-router-p3.mjs",
       "scripts/gmk-agent-worker/test-router-p4.mjs",
       "scripts/gmk-agent-worker/test-router-p5.mjs",
@@ -153,6 +154,7 @@ test("baseline discovery includes nested worker checks and excludes fixture data
   const catalog = await discoverBaselineCatalog(fakeTools());
   const files = new Set(catalog.map((entry) => entry.normalized));
   assert(files.has("scripts/gmk-agent-worker/test-router.mjs"));
+  assert(files.has("scripts/gmk-agent-worker/test-review-reconciliation.mjs"));
   assert(files.has("scripts/gmk-agent-worker/verify-change-aware.mjs"));
   assert(!files.has("scripts/gmk-agent-worker/verify-agent-flow.mjs"));
   assert(!files.has("scripts/gmk-agent-worker/verify-resumability.mjs"));

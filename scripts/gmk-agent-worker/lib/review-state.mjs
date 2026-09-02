@@ -24,11 +24,66 @@ function requireApproval(approval) {
   if (approval?.decision !== "approved") throw new Error("review approval is required");
   if (!UUID.test(String(approval.jobId || ""))) throw new Error("approved job id is required");
   if (!UUID.test(String(approval.approvedByUserId || ""))) throw new Error("authenticated approving user id is required");
+  const approvedAt = new Date(String(approval.approvedAt || ""));
+  if (!Number.isFinite(approvedAt.getTime())) throw new Error("authenticated approval time is required");
   return {
     decision: "approved",
     jobId: String(approval.jobId).toLowerCase(),
     approvedByUserId: String(approval.approvedByUserId).toLowerCase(),
-    approvedAt: String(approval.approvedAt || new Date().toISOString()),
+    approvedAt: approvedAt.toISOString(),
+  };
+}
+
+function requireExactReplay(db, rows, {
+  session,
+  base,
+  target,
+  approved,
+}) {
+  if (rows.length !== 1) throw new Error("review advancement replay is ambiguous");
+  const row = rows[0];
+  if (row.session_id !== session.id
+    || row.base_commit !== base
+    || row.target_commit !== target
+    || String(row.approved_job_id).toLowerCase() !== approved.jobId
+    || String(row.approved_by_user_id).toLowerCase() !== approved.approvedByUserId) {
+    throw new Error("review advancement replay conflicts with recorded provenance");
+  }
+  const evidence = parseEvidence({ evidence_ref: row.evidence_json }, "recorded review advancement");
+  if (evidence.session_id !== session.id
+    || !Array.isArray(evidence.affected_modules)
+    || evidence.approval?.decision !== approved.decision
+    || String(evidence.approval?.jobId || "").toLowerCase() !== approved.jobId
+    || String(evidence.approval?.approvedByUserId || "").toLowerCase() !== approved.approvedByUserId
+    || evidence.approval?.approvedAt !== approved.approvedAt) {
+    throw new Error("review advancement replay conflicts with recorded evidence");
+  }
+  const validation = db.prepare(
+    `SELECT * FROM validation_records
+     WHERE run_id = ? AND module = 'repository' AND commit_sha = ?
+       AND check_performed = ? AND state = 'VALIDATED'
+       AND evidence_ref = ?
+     ORDER BY id DESC LIMIT 1`,
+  ).get(
+    session.id,
+    target,
+    `last_reviewed_commit advanced from ${base} to ${target}`,
+    row.evidence_json,
+  );
+  if (!validation) throw new Error("recorded review advancement evidence is incomplete");
+  if (getState(db, "last_reviewed_commit") !== target
+    || getState(db, "last_reviewed_at") !== row.advanced_at
+    || getState(db, "last_review_decision") !== "APPROVED"
+    || getState(db, "last_review_scope") !== `${base}..${target}`) {
+    throw new Error("review advancement replay conflicts with current state");
+  }
+  return {
+    baseCommit: base,
+    targetCommit: target,
+    affectedModules: evidence.affected_modules,
+    approval: approved,
+    advanced: false,
+    replayed: true,
   };
 }
 
@@ -44,6 +99,7 @@ export function advanceLastReviewedCommit(db, {
   if (base === target) throw new Error("review advancement range must not be empty");
   const approved = requireApproval(approval);
   let affected = [];
+  let result = null;
   db.exec("BEGIN IMMEDIATE;");
   try {
     const session = db.prepare("SELECT * FROM review_sessions WHERE id = ?").get(String(sessionId || ""));
@@ -55,6 +111,16 @@ export function advanceLastReviewedCommit(db, {
     }
     if (String(session.supabase_job_id || "").toLowerCase() !== approved.jobId) {
       throw new Error("approval does not match the reviewed job");
+    }
+    const recorded = db.prepare(
+      `SELECT * FROM review_commit_advancements
+       WHERE session_id = ? OR target_commit = ? OR approved_job_id = ?
+       ORDER BY id`,
+    ).all(session.id, target, approved.jobId);
+    if (recorded.length > 0) {
+      result = requireExactReplay(db, recorded, { session, base, target, approved });
+      db.exec("COMMIT;");
+      return result;
     }
     const current = getState(db, "last_reviewed_commit");
     if (current !== base) throw new Error(`review range would skip history: expected base ${current || "unset"}`);
@@ -164,10 +230,18 @@ export function advanceLastReviewedCommit(db, {
     setState(db, "last_reviewed_at", advancedAt);
     setState(db, "last_review_decision", "APPROVED");
     setState(db, "last_review_scope", `${base}..${target}`);
+    result = {
+      baseCommit: base,
+      targetCommit: target,
+      affectedModules: affected,
+      approval: approved,
+      advanced: true,
+      replayed: false,
+    };
     db.exec("COMMIT;");
   } catch (error) {
     db.exec("ROLLBACK;");
     throw error;
   }
-  return { baseCommit: base, targetCommit: target, affectedModules: affected, approval: approved };
+  return result;
 }

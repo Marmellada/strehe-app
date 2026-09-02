@@ -21,6 +21,10 @@ export const SCRIPT_EXECUTION_REGISTRY = Object.freeze({
     executionClass: EXECUTION_CLASS.SAFE_READ_ONLY,
     reason: "Temporary SQLite and fake control-plane tests only.",
   },
+  "scripts/gmk-agent-worker/test-review-reconciliation.mjs": {
+    executionClass: EXECUTION_CLASS.SAFE_READ_ONLY,
+    reason: "Temporary SQLite and fake reviewed-job reconciliation tests only.",
+  },
   "scripts/gmk-agent-worker/test-router.mjs": {
     executionClass: EXECUTION_CLASS.SAFE_READ_ONLY,
     reason: "Pure routing and authority tests.",
